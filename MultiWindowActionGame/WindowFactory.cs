@@ -20,7 +20,7 @@ namespace MultiWindowActionGame
 
             if (type == WindowType.Movable)
             {
-                window.FormBorderStyle = FormBorderStyle.None;
+                window.FormBorderStyle = FormBorderStyle.FixedSingle;
             }
             else if (type == WindowType.Resizable)
             {

@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace MultiWindowActionGame
 {
@@ -18,6 +19,38 @@ namespace MultiWindowActionGame
         private List<IWindowObserver> observers = new List<IWindowObserver>();
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
+
+        [DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll")]
+        private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        private Rectangle GetClientRectangle()
+        {
+            RECT rect;
+            GetClientRect(this.Handle, out rect);
+            POINT point = new POINT { X = rect.Left, Y = rect.Top };
+            ClientToScreen(this.Handle, ref point);
+
+            return new Rectangle(point.X, point.Y, rect.Right - rect.Left, rect.Bottom - rect.Top);
+        }
 
         public virtual void OnWindowMoved()
         {
@@ -91,12 +124,13 @@ namespace MultiWindowActionGame
 
         private void UpdateBounds()
         {
-            ClientBounds = new Rectangle(this.Location, this.ClientSize);
+            Rectangle clientRect = GetClientRectangle();
+            ClientBounds = clientRect;
             AdjustedBounds = new Rectangle(
-                ClientBounds.X + Margin,
-                ClientBounds.Y + Margin,
-                ClientBounds.Width - (2 * Margin),
-                ClientBounds.Height - (2 * Margin)
+                clientRect.X + Margin,
+                clientRect.Y + Margin,
+                clientRect.Width - (2 * Margin),
+                clientRect.Height - (2 * Margin)
             );
             Console.WriteLine($"Updated bounds for window {Id}: Location = {Location}, Size = {Size}, AdjustedBounds = {AdjustedBounds}");
         }
