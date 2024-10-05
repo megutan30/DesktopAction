@@ -11,11 +11,26 @@ public class WindowManager : IWindowObserver
     private List<GameWindow> windows = new List<GameWindow>();
     private object windowLock = new object();
 
+    private Player? player;
+
     private WindowManager()
     {
         CreateInitialWindows();
     }
 
+    public void SetPlayer(Player player)
+    {
+        this.player = player;
+    }
+
+    public Player? GetPlayerInWindow(GameWindow window)
+    {
+        if (player != null && player.GetCurrentWindow() == window)
+        {
+            return player;
+        }
+        return null;
+    }
 
     public void CreateInitialWindows()
     {

@@ -91,7 +91,14 @@ namespace MultiWindowActionGame
                         int dx = currentMousePos.X - lastMousePos.X;
                         int dy = currentMousePos.Y - lastMousePos.Y;
                         window.Location = new Point(window.Location.X + dx, window.Location.Y + dy);
-                        window.OnWindowMoved(); // ウィンドウが移動したことを通知
+                        window.OnWindowMoved();
+
+                        // プレイヤーの位置を更新
+                        Player? player = WindowManager.Instance.GetPlayerInWindow(window);
+                        if (player != null)
+                        {
+                            player.ConstrainToWindow(window);
+                        }
                     }
                     break;
             }

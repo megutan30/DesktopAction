@@ -19,6 +19,11 @@ namespace MultiWindowActionGame
             currentState = new NormalState();
         }
 
+        public GameWindow? GetCurrentWindow()
+        {
+            return currentWindow;
+        }
+
         public void SetState(IPlayerState newState)
         {
             currentState = newState;
@@ -103,6 +108,9 @@ namespace MultiWindowActionGame
                     Bounds.Height
                 );
 
+                // プレイヤーをウィンドウ内に収める
+                ConstrainToWindow(currentWindow);
+
                 IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
             }
         }
@@ -180,6 +188,19 @@ namespace MultiWindowActionGame
             Console.WriteLine($"Player exited window {currentWindow?.Id}");
             currentWindow = null;
             IsGrounded = false;
+        }
+
+        public void ConstrainToWindow(GameWindow window)
+        {
+            Rectangle newBounds = Bounds;
+            newBounds.X = Math.Max(window.AdjustedBounds.Left, Math.Min(newBounds.X, window.AdjustedBounds.Right - newBounds.Width));
+            newBounds.Y = Math.Max(window.AdjustedBounds.Top, Math.Min(newBounds.Y, window.AdjustedBounds.Bottom - newBounds.Height));
+            Bounds = newBounds;
+
+            if (Bounds.Bottom >= window.AdjustedBounds.Bottom)
+            {
+                IsGrounded = true;
+            }
         }
 
         private void ConstrainToWindow(GameWindow window, ref Rectangle bounds)

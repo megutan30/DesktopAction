@@ -14,6 +14,7 @@ namespace MultiWindowActionGame
         {
             player = new Player();
             windowManager = WindowManager.Instance;
+            windowManager.SetPlayer(player);
 
             InitializeGraphicsBuffer();
             if (Program.mainForm != null)
@@ -67,6 +68,8 @@ namespace MultiWindowActionGame
         {
             await player.UpdateAsync(GameTime.DeltaTime);
             await windowManager.UpdateAsync(GameTime.DeltaTime);
+            GameWindow? currentWindow = windowManager.GetWindowAt(player.Bounds);
+            player.SetCurrentWindow(currentWindow);
         }
 
         private void Render()
