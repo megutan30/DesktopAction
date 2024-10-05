@@ -1,4 +1,5 @@
 ﻿using MultiWindowActionGame;
+using System.Numerics;
 
 public class WindowManager : IWindowObserver
 {

@@ -24,6 +24,21 @@ namespace MultiWindowActionGame
             currentState = newState;
         }
 
+        public void SetCurrentWindow(GameWindow? window)
+        {
+            if (currentWindow != null)
+            {
+                currentWindow.WindowMoved -= OnWindowMoved;
+            }
+
+            currentWindow = window;
+
+            if (currentWindow != null)
+            {
+                currentWindow.WindowMoved += OnWindowMoved;
+            }
+        }
+
         public async Task UpdateAsync(float deltaTime)
         {
             currentState.HandleInput(this);
@@ -71,6 +86,25 @@ namespace MultiWindowActionGame
 
             Bounds = newBounds;
             Console.WriteLine($"Player position updated: {Bounds}");
+        }
+
+        private void OnWindowMoved(object? sender, EventArgs e)
+        {
+            if (currentWindow != null)
+            {
+                // ウィンドウ内での相対位置を維持
+                float relativeX = (Bounds.X - currentWindow.AdjustedBounds.X) / (float)currentWindow.AdjustedBounds.Width;
+                float relativeY = (Bounds.Y - currentWindow.AdjustedBounds.Y) / (float)currentWindow.AdjustedBounds.Height;
+
+                Bounds = new Rectangle(
+                    (int)(currentWindow.AdjustedBounds.X + relativeX * currentWindow.AdjustedBounds.Width),
+                    (int)(currentWindow.AdjustedBounds.Y + relativeY * currentWindow.AdjustedBounds.Height),
+                    Bounds.Width,
+                    Bounds.Height
+                );
+
+                IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
+            }
         }
 
         private Rectangle CalculateNewPosition(float deltaTime)

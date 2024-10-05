@@ -17,6 +17,13 @@ namespace MultiWindowActionGame
         private IWindowStrategy strategy;
         private List<IWindowObserver> observers = new List<IWindowObserver>();
         public Guid Id { get; } = Guid.NewGuid();
+        public event EventHandler<EventArgs> WindowMoved;
+
+        public virtual void OnWindowMoved()
+        {
+            WindowMoved?.Invoke(this, EventArgs.Empty);
+        }
+
 
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
