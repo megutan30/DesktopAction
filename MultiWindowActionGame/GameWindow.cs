@@ -28,6 +28,11 @@ namespace MultiWindowActionGame
         private const uint MF_BYCOMMAND = 0x00000000;
         private const uint MF_GRAYED = 0x00000001;
 
+        private const int WM_NCHITTEST = 0x0084;
+        private const int WM_NCLBUTTONDOWN = 0x00A1;
+        private const int SC_MOVE = 0xF010;
+        private const int HTCAPTION = 2;
+
         [DllImport("user32.dll")]
         private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
 
@@ -195,14 +200,32 @@ namespace MultiWindowActionGame
 
         protected override void WndProc(ref Message m)
         {
-            // WM_SYSCOMMAND メッセージをフィルタリング
-            if (m.Msg == WM_SYSCOMMAND)
+            switch (m.Msg)
             {
-                int command = m.WParam.ToInt32() & 0xFFF0;
-                if (command == SC_MINIMIZE || command == SC_MAXIMIZE || command == SC_CLOSE)
-                {
-                    return;  // これらのコマンドを無視
-                }
+                case WM_NCHITTEST:
+                    // タイトルバーのヒットテストを処理
+                    base.WndProc(ref m);
+                    if (m.Result.ToInt32() == HTCAPTION)
+                    {
+                        m.Result = IntPtr.Zero;
+                    }
+                    return;
+
+                case WM_NCLBUTTONDOWN:
+                    // タイトルバーでのマウス左ボタンクリックを処理
+                    if (m.WParam.ToInt32() == HTCAPTION)
+                    {
+                        return;  // タイトルバーでのクリックを無視
+                    }
+                    break;
+
+                case WM_SYSCOMMAND:
+                    int command = m.WParam.ToInt32() & 0xFFF0;
+                    if (command == SC_MOVE || command == SC_MINIMIZE || command == SC_MAXIMIZE || command == SC_CLOSE)
+                    {
+                        return;  // これらのコマンドを無視
+                    }
+                    break;
             }
 
             base.WndProc(ref m);
@@ -217,6 +240,16 @@ namespace MultiWindowActionGame
         {
             base.OnPaint(e);
             Draw(e.Graphics);
+        }
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                const int CS_DBLCLKS = 0x8;
+                var cp = base.CreateParams;
+                cp.ClassStyle |= CS_DBLCLKS;
+                return cp;
+            }
         }
     }
 }
