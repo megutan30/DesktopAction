@@ -53,27 +53,47 @@ namespace MultiWindowActionGame
 
     public class MovableWindowStrategy : IWindowStrategy
     {
-        private const float MoveSpeed = 100f;
-
+        private bool isDragging = false;
+        private Point lastMousePos;
+        private const int WM_NCHITTEST = 0x84;
+        private const int HTCAPTION = 2;
         public void Update(GameWindow window, float deltaTime)
         {
-            // 移動可能ウィンドウの更新ロジック（必要に応じて）
+            // 更新ロジック（必要に応じて）
         }
 
         public void HandleInput(GameWindow window)
         {
-            Point newLocation = window.Location;
+            // キーボード入力の処理（必要に応じて）
+        }
 
-            if (Input.IsKeyDown(Keys.Left))
-                newLocation.X -= (int)(MoveSpeed * GameTime.DeltaTime);
-            if (Input.IsKeyDown(Keys.Right))
-                newLocation.X += (int)(MoveSpeed * GameTime.DeltaTime);
-            if (Input.IsKeyDown(Keys.Up))
-                newLocation.Y -= (int)(MoveSpeed * GameTime.DeltaTime);
-            if (Input.IsKeyDown(Keys.Down))
-                newLocation.Y += (int)(MoveSpeed * GameTime.DeltaTime);
+        public void HandleWindowMessage(GameWindow window, Message m)
+        {
+            switch (m.Msg)
+            {
+                case WM_NCHITTEST:
+                    m.Result = (IntPtr)HTCAPTION;
+                    break;
 
-            window.Location = newLocation;
+                case 0x0201: // WM_LBUTTONDOWN
+                    isDragging = true;
+                    lastMousePos = window.PointToClient(Cursor.Position);
+                    break;
+
+                case 0x0202: // WM_LBUTTONUP
+                    isDragging = false;
+                    break;
+
+                case 0x0200: // WM_MOUSEMOVE
+                    if (isDragging)
+                    {
+                        Point currentMousePos = window.PointToClient(Cursor.Position);
+                        int dx = currentMousePos.X - lastMousePos.X;
+                        int dy = currentMousePos.Y - lastMousePos.Y;
+                        window.Location = new Point(window.Location.X + dx, window.Location.Y + dy);
+                    }
+                    break;
+            }
         }
     }
 

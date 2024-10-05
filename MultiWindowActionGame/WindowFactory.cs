@@ -16,7 +16,15 @@ namespace MultiWindowActionGame
                 _ => throw new ArgumentException("Invalid window type", nameof(type))
             };
 
-            return new GameWindow(location, size, strategy);
+            var window = new GameWindow(location, size, strategy);
+
+            if (type == WindowType.Movable)
+            {
+                window.FormBorderStyle = FormBorderStyle.None;
+                window.BackColor = Color.LightBlue; // または他の色を使用して移動可能なウィンドウを識別しやすくする
+            }
+
+            return window;
         }
     }
 

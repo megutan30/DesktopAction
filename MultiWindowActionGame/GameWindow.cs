@@ -123,6 +123,15 @@ namespace MultiWindowActionGame
             }
         }
 
+        protected override void WndProc(ref Message m)
+        {
+            if (strategy is MovableWindowStrategy movableStrategy)
+            {
+                movableStrategy.HandleWindowMessage(this, m);
+            }
+            base.WndProc(ref m);
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
