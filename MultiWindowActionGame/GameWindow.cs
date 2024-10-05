@@ -20,6 +20,20 @@ namespace MultiWindowActionGame
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
 
+        private const int WM_SYSCOMMAND = 0x0112;
+        private const int SC_CLOSE = 0xF060;
+        private const int SC_MINIMIZE = 0xF020;
+        private const int SC_MAXIMIZE = 0xF030;
+
+        private const uint MF_BYCOMMAND = 0x00000000;
+        private const uint MF_GRAYED = 0x00000001;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnableMenuItem(IntPtr hMenu, uint uIDEnableItem, uint uEnable);
+
         [DllImport("user32.dll")]
         private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
@@ -63,11 +77,18 @@ namespace MultiWindowActionGame
             this.strategy = strategy;
             this.OriginalSize = size;
 
-            this.FormBorderStyle = FormBorderStyle.Sizable; // これを変更
+            this.FormBorderStyle = FormBorderStyle.Sizable;
             this.StartPosition = FormStartPosition.Manual;
             this.Location = location;
             this.Size = size;
             this.TopMost = true;
+
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.ControlBox = true;  // タイトルバーのボタンを表示
+            this.MaximizeBox = false;  // 最大化ボタンを無効化
+            this.MinimizeBox = false;  // 最小化ボタンを無効化
+
+            this.Load += GameWindow_Load;
 
             UpdateBounds();
 
@@ -107,6 +128,13 @@ namespace MultiWindowActionGame
             g.DrawRectangle(Pens.Black, Margin, Margin, this.ClientSize.Width - (2 * Margin) - 1, this.ClientSize.Height - (2 * Margin) - 1);
             g.DrawString($"Window ID: {Id}", this.Font, Brushes.Black, 10, 10);
             g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Black, 10, 30);
+        }
+
+        private void GameWindow_Load(object sender, EventArgs e)
+        {
+            // システムメニューを取得し、閉じるボタンを無効化
+            IntPtr hMenu = (IntPtr)GetSystemMenu(this.Handle, false);
+            EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
         }
 
         private void GameWindow_Move(object? sender, EventArgs e)
@@ -167,11 +195,22 @@ namespace MultiWindowActionGame
 
         protected override void WndProc(ref Message m)
         {
+            // WM_SYSCOMMAND メッセージをフィルタリング
+            if (m.Msg == WM_SYSCOMMAND)
+            {
+                int command = m.WParam.ToInt32() & 0xFFF0;
+                if (command == SC_MINIMIZE || command == SC_MAXIMIZE || command == SC_CLOSE)
+                {
+                    return;  // これらのコマンドを無視
+                }
+            }
+
+            base.WndProc(ref m);
+
             if (strategy is MovableWindowStrategy movableStrategy)
             {
                 movableStrategy.HandleWindowMessage(this, m);
             }
-            base.WndProc(ref m);
         }
 
         protected override void OnPaint(PaintEventArgs e)
