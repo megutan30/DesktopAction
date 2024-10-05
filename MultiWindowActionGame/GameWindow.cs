@@ -30,7 +30,7 @@ namespace MultiWindowActionGame
             this.strategy = strategy;
             this.OriginalSize = size;
 
-            this.FormBorderStyle = FormBorderStyle.None;
+            this.FormBorderStyle = FormBorderStyle.Sizable; // これを変更
             this.StartPosition = FormStartPosition.Manual;
             this.Location = location;
             this.Size = size;
@@ -86,6 +86,7 @@ namespace MultiWindowActionGame
         {
             UpdateBounds();
             NotifyObservers(WindowChangeType.Resized);
+            strategy.HandleResize(this);
         }
 
         private void UpdateBounds()

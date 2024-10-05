@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultiWindowActionGame;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -8,6 +9,7 @@ namespace MultiWindowActionGame
     {
         void Update(GameWindow window, float deltaTime);
         void HandleInput(GameWindow window);
+        void HandleResize(GameWindow window);
     }
 
     public class NormalWindowStrategy : IWindowStrategy
@@ -21,6 +23,7 @@ namespace MultiWindowActionGame
         {
             // 通常ウィンドウの入力処理（必要に応じて）
         }
+        public void HandleResize(GameWindow window) { }
     }
 
     public class ResizableWindowStrategy : IWindowStrategy
@@ -35,19 +38,22 @@ namespace MultiWindowActionGame
                 (int)(window.OriginalSize.Height * scaleFactor)
             );
         }
-
         public void HandleInput(GameWindow window)
         {
-            if (Input.IsKeyDown(Keys.Add))
-            {
-                scaleFactor += ScaleSpeed * GameTime.DeltaTime;
-            }
-            else if (Input.IsKeyDown(Keys.Subtract))
-            {
-                scaleFactor -= ScaleSpeed * GameTime.DeltaTime;
-            }
+            // 通常ウィンドウの入力処理（必要に応じて）
+        }
 
-            scaleFactor = Math.Max(0.5f, Math.Min(scaleFactor, 2.0f));
+        public void HandleResize(GameWindow window)
+        {
+            // リサイズ後の処理
+            Console.WriteLine($"Window {window.Id} resized to {window.Size}");
+
+            // プレイヤーの位置を調整する（必要に応じて）
+            Player? player = WindowManager.Instance.GetPlayerInWindow(window);
+            if (player != null)
+            {
+                player.ConstrainToWindow(window);
+            }
         }
     }
 
@@ -103,6 +109,7 @@ namespace MultiWindowActionGame
                     break;
             }
         }
+        public void HandleResize(GameWindow window) { }
     }
 
     public class DeletableWindowStrategy : IWindowStrategy
@@ -120,5 +127,6 @@ namespace MultiWindowActionGame
                 window.NotifyObservers(WindowChangeType.Deleted);
             }
         }
+        public void HandleResize(GameWindow window) { }
     }
 }

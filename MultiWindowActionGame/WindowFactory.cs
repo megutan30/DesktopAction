@@ -21,8 +21,24 @@ namespace MultiWindowActionGame
             if (type == WindowType.Movable)
             {
                 window.FormBorderStyle = FormBorderStyle.None;
-                window.BackColor = Color.LightBlue; // または他の色を使用して移動可能なウィンドウを識別しやすくする
             }
+            else if (type == WindowType.Resizable)
+            {
+                window.FormBorderStyle = FormBorderStyle.Sizable;
+            }
+            else
+            {
+                window.FormBorderStyle = FormBorderStyle.FixedSingle;
+            }
+
+            window.BackColor = type switch
+            {
+                WindowType.Normal => Color.White,
+                WindowType.Resizable => Color.LightGreen,
+                WindowType.Movable => Color.LightBlue,
+                WindowType.Deletable => Color.LightPink,
+                _ => Color.White
+            };
 
             return window;
         }
