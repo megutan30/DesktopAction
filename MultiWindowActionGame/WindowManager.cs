@@ -66,7 +66,7 @@ public class WindowManager : IWindowObserver
         {
             // ウィンドウ内のプレイヤーのサイズを更新
             Player? player = GetPlayerInWindow(window);
-            if (player != null)
+            if (player != null && window.IsResizable())
             {
                 player.SetCurrentWindow(window);
             }

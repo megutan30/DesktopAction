@@ -9,8 +9,11 @@ namespace MultiWindowActionGame
         private float speed = 200.0f;
         private float gravity = 500.0f;
         private float verticalVelocity = 0;
+        private Size currentSize;
+        private SizeF currentScale = new SizeF(1.0f, 1.0f);
         private Size originalSize;
         private GameWindow? currentWindow;
+
         public bool IsGrounded { get; private set; }
 
         private IPlayerState currentState;
@@ -19,6 +22,7 @@ namespace MultiWindowActionGame
         {
             Bounds = new Rectangle(100, 100, 40, 40);
             originalSize = new Size(40, 40);
+            currentSize = originalSize;
             currentState = new NormalState();
         }
 
@@ -36,21 +40,25 @@ namespace MultiWindowActionGame
         {
             if (currentWindow != null)
             {
+                currentWindow.WindowMoved -= OnWindowMoved;
                 currentWindow.WindowResized -= OnWindowResized;
             }
 
             currentWindow = window;
 
-            if (currentWindow != null && currentWindow.IsResizable())
+            if (currentWindow != null)
             {
+                currentWindow.WindowMoved += OnWindowMoved;
                 currentWindow.WindowResized += OnWindowResized;
-                // ウィンドウに入った時点でのサイズに合わせる
-                AdjustSizeToWindow(currentWindow.Size);
-            }
-            else
-            {
-                // リサイザブルでないウィンドウに入った場合や、ウィンドウから出た場合は元のサイズに戻す
-                ResetToOriginalSize();
+
+                if (currentWindow.IsResizable())
+                {
+                    // 新しいウィンドウがリサイズ可能な場合、プレイヤーのサイズを更新
+                    float scaleX = (float)currentWindow.Size.Width / currentWindow.OriginalSize.Width;
+                    float scaleY = (float)currentWindow.Size.Height / currentWindow.OriginalSize.Height;
+                    currentScale = new SizeF(scaleX, scaleY);
+                    UpdatePlayerSize();
+                }
             }
         }
 
@@ -103,6 +111,19 @@ namespace MultiWindowActionGame
             Console.WriteLine($"Player position updated: {Bounds}");
         }
 
+        private void UpdatePlayerSize()
+        {
+            int newWidth = (int)(originalSize.Width * currentScale.Width);
+            int newHeight = (int)(originalSize.Height * currentScale.Height);
+            currentSize = new Size(newWidth, newHeight);
+
+            // プレイヤーの位置を調整して中心を維持
+            int x = Bounds.X + (Bounds.Width - newWidth) / 2;
+            int y = Bounds.Y + (Bounds.Height - newHeight) / 2;
+
+            Bounds = new Rectangle(x, y, newWidth, newHeight);
+        }
+
         private void OnWindowMoved(object? sender, EventArgs e)
         {
             if (currentWindow != null)
@@ -127,15 +148,16 @@ namespace MultiWindowActionGame
 
         private void OnWindowResized(object? sender, SizeChangedEventArgs e)
         {
-            if (currentWindow != null)
+            if (currentWindow != null && currentWindow.IsResizable())
             {
                 float scaleX = (float)e.NewSize.Width / currentWindow.OriginalSize.Width;
                 float scaleY = (float)e.NewSize.Height / currentWindow.OriginalSize.Height;
 
-                int newWidth = (int)(originalSize.Width * scaleX);
-                int newHeight = (int)(originalSize.Height * scaleY);
-
-                Bounds = new Rectangle(Bounds.X, Bounds.Y, newWidth, newHeight);
+                if (scaleX != currentScale.Width || scaleY != currentScale.Height)
+                {
+                    currentScale = new SizeF(scaleX, scaleY);
+                    UpdatePlayerSize();
+                }
             }
         }
 
