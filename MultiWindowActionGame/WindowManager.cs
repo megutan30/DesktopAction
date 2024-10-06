@@ -1,5 +1,6 @@
 ﻿using MultiWindowActionGame;
 using System.Numerics;
+using static MultiWindowActionGame.GameWindow;
 
 public class WindowManager : IWindowObserver
 {
@@ -50,7 +51,24 @@ public class WindowManager : IWindowObserver
                 {
                     window.AddObserver(this);
                     windows.Add(window);
+                    if (window.IsResizable())
+                    {
+                        window.WindowResized += OnWindowResized;
+                    }
                 }
+            }
+        }
+    }
+
+    private void OnWindowResized(object? sender, SizeChangedEventArgs e)
+    {
+        if (sender is GameWindow window)
+        {
+            // ウィンドウ内のプレイヤーのサイズを更新
+            Player? player = GetPlayerInWindow(window);
+            if (player != null)
+            {
+                player.SetCurrentWindow(window);
             }
         }
     }

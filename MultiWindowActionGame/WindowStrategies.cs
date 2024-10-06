@@ -28,31 +28,55 @@ namespace MultiWindowActionGame
 
     public class ResizableWindowStrategy : IWindowStrategy
     {
-        private float scaleFactor = 1.0f;
-        private const float ScaleSpeed = 0.5f;
+        private bool isResizing = false;
+        private Point lastMousePos;
+        private Size originalSize;
 
         public void Update(GameWindow window, float deltaTime)
         {
-            window.Size = new Size(
-                (int)(window.OriginalSize.Width * scaleFactor),
-                (int)(window.OriginalSize.Height * scaleFactor)
-            );
+            // 通常の更新ロジック（必要に応じて）
         }
+
         public void HandleInput(GameWindow window)
         {
-            // 通常ウィンドウの入力処理（必要に応じて）
+            // キーボード入力の処理（必要に応じて）
         }
 
         public void HandleResize(GameWindow window)
         {
-            // リサイズ後の処理
-            Console.WriteLine($"Window {window.Id} resized to {window.Size}");
+            // リサイズ後の処理が必要な場合はここに実装します
+            window.OnWindowResized();
+        }
 
-            // プレイヤーの位置を調整する（必要に応じて）
-            Player? player = WindowManager.Instance.GetPlayerInWindow(window);
-            if (player != null)
+        public void HandleWindowMessage(GameWindow window, Message m)
+        {
+            switch (m.Msg)
             {
-                player.ConstrainToWindow(window);
+                case 0x0201: // WM_LBUTTONDOWN
+                    isResizing = true;
+                    lastMousePos = window.PointToClient(Cursor.Position);
+                    originalSize = window.Size;
+                    break;
+
+                case 0x0202: // WM_LBUTTONUP
+                    isResizing = false;
+                    break;
+
+                case 0x0200: // WM_MOUSEMOVE
+                    if (isResizing)
+                    {
+                        Point currentMousePos = window.PointToClient(Cursor.Position);
+                        int dx = currentMousePos.X - lastMousePos.X;
+                        int dy = currentMousePos.Y - lastMousePos.Y;
+
+                        Size newSize = new Size(originalSize.Width + dx, originalSize.Height + dy);
+                        newSize.Width = Math.Max(newSize.Width, window.MinimumSize.Width);
+                        newSize.Height = Math.Max(newSize.Height, window.MinimumSize.Height);
+
+                        window.Size = newSize;
+                        window.OnWindowResized();
+                    }
+                    break;
             }
         }
     }

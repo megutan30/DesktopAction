@@ -14,11 +14,13 @@ namespace MultiWindowActionGame
         public bool CanExit { get; set; } = true;
         public Size OriginalSize { get; private set; }
 
-        private new const int Margin = 3;
-        private IWindowStrategy strategy;
+        private new const int Margin = 0;
+        protected IWindowStrategy strategy;
         private List<IWindowObserver> observers = new List<IWindowObserver>();
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
+        public event EventHandler<SizeChangedEventArgs> WindowResized;
+
 
         private const int WM_SYSCOMMAND = 0x0112;
         private const int SC_CLOSE = 0xF060;
@@ -76,6 +78,10 @@ namespace MultiWindowActionGame
             WindowMoved?.Invoke(this, EventArgs.Empty);
         }
 
+        public void OnWindowResized()
+        {
+            WindowResized?.Invoke(this, new SizeChangedEventArgs(this.Size));
+        }
 
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
@@ -92,6 +98,8 @@ namespace MultiWindowActionGame
             this.ControlBox = true;  // タイトルバーのボタンを表示
             this.MaximizeBox = false;  // 最大化ボタンを無効化
             this.MinimizeBox = false;  // 最小化ボタンを無効化
+
+            this.MinimumSize = new Size(100, 100);
 
             this.Load += GameWindow_Load;
 
@@ -130,7 +138,7 @@ namespace MultiWindowActionGame
 
         public void Draw(Graphics g)
         {
-            g.DrawRectangle(Pens.Black, Margin, Margin, this.ClientSize.Width - (2 * Margin) - 1, this.ClientSize.Height - (2 * Margin) - 1);
+            //g.DrawRectangle(Pens.Black, Margin, Margin, this.ClientSize.Width - (2 * Margin) - 1, this.ClientSize.Height - (2 * Margin) - 1);
             g.DrawString($"Window ID: {Id}", this.Font, Brushes.Black, 10, 10);
             g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Black, 10, 30);
         }
@@ -198,6 +206,12 @@ namespace MultiWindowActionGame
             }
         }
 
+        public bool IsResizable()
+        {
+            return strategy is ResizableWindowStrategy;
+        }
+
+
         protected override void WndProc(ref Message m)
         {
             switch (m.Msg)
@@ -229,7 +243,10 @@ namespace MultiWindowActionGame
             }
 
             base.WndProc(ref m);
-
+            if (strategy is ResizableWindowStrategy resizableStrategy)
+            {
+                resizableStrategy.HandleWindowMessage(this, m);
+            }
             if (strategy is MovableWindowStrategy movableStrategy)
             {
                 movableStrategy.HandleWindowMessage(this, m);
@@ -241,6 +258,17 @@ namespace MultiWindowActionGame
             base.OnPaint(e);
             Draw(e.Graphics);
         }
+
+        public class SizeChangedEventArgs : EventArgs
+        {
+            public Size NewSize { get; }
+
+            public SizeChangedEventArgs(Size newSize)
+            {
+                NewSize = newSize;
+            }
+        }
+
         protected override CreateParams CreateParams
         {
             get

@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using static MultiWindowActionGame.GameWindow;
 
 namespace MultiWindowActionGame
 {
@@ -8,6 +9,7 @@ namespace MultiWindowActionGame
         private float speed = 200.0f;
         private float gravity = 500.0f;
         private float verticalVelocity = 0;
+        private Size originalSize;
         private GameWindow? currentWindow;
         public bool IsGrounded { get; private set; }
 
@@ -16,6 +18,7 @@ namespace MultiWindowActionGame
         public Player()
         {
             Bounds = new Rectangle(100, 100, 40, 40);
+            originalSize = new Size(40, 40);
             currentState = new NormalState();
         }
 
@@ -33,14 +36,21 @@ namespace MultiWindowActionGame
         {
             if (currentWindow != null)
             {
-                currentWindow.WindowMoved -= OnWindowMoved;
+                currentWindow.WindowResized -= OnWindowResized;
             }
 
             currentWindow = window;
 
-            if (currentWindow != null)
+            if (currentWindow != null && currentWindow.IsResizable())
             {
-                currentWindow.WindowMoved += OnWindowMoved;
+                currentWindow.WindowResized += OnWindowResized;
+                // ウィンドウに入った時点でのサイズに合わせる
+                AdjustSizeToWindow(currentWindow.Size);
+            }
+            else
+            {
+                // リサイザブルでないウィンドウに入った場合や、ウィンドウから出た場合は元のサイズに戻す
+                ResetToOriginalSize();
             }
         }
 
@@ -112,6 +122,20 @@ namespace MultiWindowActionGame
                 ConstrainToWindow(currentWindow);
 
                 IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
+            }
+        }
+
+        private void OnWindowResized(object? sender, SizeChangedEventArgs e)
+        {
+            if (currentWindow != null)
+            {
+                float scaleX = (float)e.NewSize.Width / currentWindow.OriginalSize.Width;
+                float scaleY = (float)e.NewSize.Height / currentWindow.OriginalSize.Height;
+
+                int newWidth = (int)(originalSize.Width * scaleX);
+                int newHeight = (int)(originalSize.Height * scaleY);
+
+                Bounds = new Rectangle(Bounds.X, Bounds.Y, newWidth, newHeight);
             }
         }
 
