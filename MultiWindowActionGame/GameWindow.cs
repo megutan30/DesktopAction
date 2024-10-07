@@ -235,7 +235,7 @@ namespace MultiWindowActionGame
 
                 case WM_SYSCOMMAND:
                     int command = m.WParam.ToInt32() & 0xFFF0;
-                    if (command == SC_MOVE || command == SC_MINIMIZE || command == SC_MAXIMIZE || command == SC_CLOSE)
+                    if (command == SC_MOVE || command == SC_MAXIMIZE || command == SC_CLOSE)
                     {
                         return;  // これらのコマンドを無視
                     }
