@@ -10,6 +10,8 @@ namespace MultiWindowActionGame
         private float gravity = 500.0f;
         private float verticalVelocity = 0;
         private Size currentSize;
+        private Size enterPlayerSize;
+        private Size enterWindowSize;
         private SizeF currentScale = new SizeF(1.0f, 1.0f);
         private Size originalSize;
         private GameWindow? currentWindow;
@@ -22,6 +24,7 @@ namespace MultiWindowActionGame
         {
             Bounds = new Rectangle(100, 100, 40, 40);
             originalSize = new Size(40, 40);
+            enterPlayerSize = originalSize;
             currentSize = originalSize;
             currentState = new NormalState();
         }
@@ -54,8 +57,8 @@ namespace MultiWindowActionGame
                 if (currentWindow.IsResizable())
                 {
                     // 新しいウィンドウがリサイズ可能な場合、プレイヤーのサイズを更新
-                    float scaleX = (float)currentWindow.Size.Width / currentWindow.OriginalSize.Width;
-                    float scaleY = (float)currentWindow.Size.Height / currentWindow.OriginalSize.Height;
+                    float scaleX = (float)currentWindow.Size.Width / enterWindowSize.Width;
+                    float scaleY = (float)currentWindow.Size.Height / enterWindowSize.Height;
                     currentScale = new SizeF(scaleX, scaleY);
                     UpdatePlayerSize();
                 }
@@ -113,8 +116,8 @@ namespace MultiWindowActionGame
 
         private void UpdatePlayerSize()
         {
-            int newWidth = (int)(originalSize.Width * currentScale.Width);
-            int newHeight = (int)(originalSize.Height * currentScale.Height);
+            int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
+            int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
             currentSize = new Size(newWidth, newHeight);
 
             // プレイヤーの位置を調整して中心を維持
@@ -150,8 +153,8 @@ namespace MultiWindowActionGame
         {
             if (currentWindow != null && currentWindow.IsResizable())
             {
-                float scaleX = (float)e.NewSize.Width / currentWindow.OriginalSize.Width;
-                float scaleY = (float)e.NewSize.Height / currentWindow.OriginalSize.Height;
+                float scaleX = (float)e.NewSize.Width / enterWindowSize.Width;
+                float scaleY = (float)e.NewSize.Height / enterWindowSize.Height;
 
                 if (scaleX != currentScale.Width || scaleY != currentScale.Height)
                 {
@@ -226,7 +229,10 @@ namespace MultiWindowActionGame
         private void EnterWindow(GameWindow window)
         {
             currentWindow = window;
-            Console.WriteLine($"Player entered window {window.Id}");
+            
+            enterPlayerSize = Bounds.Size;
+            enterWindowSize = window.Size;
+            System.Diagnostics.Debug.WriteLine($"Player entered window {window.Id}");
         }
 
         private void ExitWindow()
