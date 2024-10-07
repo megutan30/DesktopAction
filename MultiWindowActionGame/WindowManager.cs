@@ -146,6 +146,35 @@ public class WindowManager : IWindowObserver
                 rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
     }
 
+    public GameWindow? GetNearestWindow(Rectangle bounds)
+    {
+        GameWindow? nearestWindow = null;
+        float minDistance = float.MaxValue;
+
+        lock (windowLock)
+        {
+            foreach (var window in windows)
+            {
+                float distance = DistanceToWindow(bounds, window.AdjustedBounds);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    nearestWindow = window;
+                }
+            }
+        }
+
+        return nearestWindow;
+    }
+
+    private float DistanceToWindow(Rectangle bounds, Rectangle windowBounds)
+    {
+        // ウィンドウとの最短距離を計算
+        float dx = Math.Max(0, Math.Max(windowBounds.Left - bounds.Right, bounds.Left - windowBounds.Right));
+        float dy = Math.Max(0, Math.Max(windowBounds.Top - bounds.Bottom, bounds.Top - windowBounds.Bottom));
+        return (float)Math.Sqrt(dx * dx + dy * dy);
+    }
+
     public async Task BringWindowToFrontAsync(GameWindow window)
     {
         lock (windowLock)

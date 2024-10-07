@@ -13,6 +13,7 @@ namespace MultiWindowActionGame
         public bool CanEnter { get; set; } = true;
         public bool CanExit { get; set; } = true;
         public Size OriginalSize { get; private set; }
+        public IWindowStrategy Strategy { get; private set; }
 
         private new const int Margin = 0;
         protected IWindowStrategy strategy;
@@ -86,6 +87,7 @@ namespace MultiWindowActionGame
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
             this.strategy = strategy;
+            this.Strategy = strategy;
             this.OriginalSize = size;
 
             this.FormBorderStyle = FormBorderStyle.Sizable;
