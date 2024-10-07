@@ -24,7 +24,7 @@ namespace MultiWindowActionGame
             }
             else if (type == WindowType.Resizable)
             {
-                window.FormBorderStyle = FormBorderStyle.Sizable;
+                window.FormBorderStyle = FormBorderStyle.FixedSingle;
             }
             else
             {

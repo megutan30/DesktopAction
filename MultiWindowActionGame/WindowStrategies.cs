@@ -30,7 +30,23 @@ namespace MultiWindowActionGame
     {
         private bool isResizing = false;
         private Point lastMousePos;
-        private Size originalSize;
+        private Rectangle originalBounds;
+        private ResizeDirection currentResizeDirection;
+
+        private const int ResizeBorderSize = 5;
+
+        private enum ResizeDirection
+        {
+            None,
+            Top,
+            TopRight,
+            Right,
+            BottomRight,
+            Bottom,
+            BottomLeft,
+            Left,
+            TopLeft
+        }
 
         public void Update(GameWindow window, float deltaTime)
         {
@@ -44,7 +60,6 @@ namespace MultiWindowActionGame
 
         public void HandleResize(GameWindow window)
         {
-            // リサイズ後の処理が必要な場合はここに実装します
             window.OnWindowResized();
         }
 
@@ -52,32 +67,151 @@ namespace MultiWindowActionGame
         {
             switch (m.Msg)
             {
+                case 0x0020: // WM_SETCURSOR
+                    Point cursorPos = window.PointToClient(Cursor.Position);
+                    ResizeDirection direction = GetResizeDirection(window, cursorPos);
+                    SetCursor(direction);
+                    m.Result = (IntPtr)1; // カーソル設定を処理したことを示す
+                    return;
+
                 case 0x0201: // WM_LBUTTONDOWN
                     isResizing = true;
-                    lastMousePos = window.PointToClient(Cursor.Position);
-                    originalSize = window.Size;
+                    lastMousePos = Cursor.Position;
+                    originalBounds = window.Bounds;
+                    currentResizeDirection = GetResizeDirection(window, window.PointToClient(lastMousePos));
+                    window.Capture = true;
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
                     isResizing = false;
+                    window.Capture = false;
                     break;
 
                 case 0x0200: // WM_MOUSEMOVE
                     if (isResizing)
                     {
-                        Point currentMousePos = window.PointToClient(Cursor.Position);
-                        int dx = currentMousePos.X - lastMousePos.X;
-                        int dy = currentMousePos.Y - lastMousePos.Y;
-
-                        Size newSize = new Size(originalSize.Width + dx, originalSize.Height + dy);
-                        newSize.Width = Math.Max(newSize.Width, window.MinimumSize.Width);
-                        newSize.Height = Math.Max(newSize.Height, window.MinimumSize.Height);
-
-                        window.Size = newSize;
-                        window.OnWindowResized();
+                        Point currentMousePos = Cursor.Position;
+                        ResizeWindow(window, currentMousePos);
+                        lastMousePos = currentMousePos;
                     }
                     break;
             }
+        }
+
+        private ResizeDirection GetResizeDirection(GameWindow window, Point mousePos)
+        {
+            bool top = mousePos.Y <= ResizeBorderSize;
+            bool bottom = mousePos.Y >= window.ClientSize.Height - ResizeBorderSize;
+            bool left = mousePos.X <= ResizeBorderSize;
+            bool right = mousePos.X >= window.ClientSize.Width - ResizeBorderSize;
+
+            if (top && left) return ResizeDirection.TopLeft;
+            if (top && right) return ResizeDirection.TopRight;
+            if (bottom && left) return ResizeDirection.BottomLeft;
+            if (bottom && right) return ResizeDirection.BottomRight;
+            if (top) return ResizeDirection.Top;
+            if (bottom) return ResizeDirection.Bottom;
+            if (left) return ResizeDirection.Left;
+            if (right) return ResizeDirection.Right;
+
+            return ResizeDirection.None;
+        }
+
+        private void SetCursor(ResizeDirection direction)
+        {
+            switch (direction)
+            {
+                case ResizeDirection.Top:
+                case ResizeDirection.Bottom:
+                    Cursor.Current = Cursors.SizeNS;
+                    break;
+                case ResizeDirection.Left:
+                case ResizeDirection.Right:
+                    Cursor.Current = Cursors.SizeWE;
+                    break;
+                case ResizeDirection.TopLeft:
+                case ResizeDirection.BottomRight:
+                    Cursor.Current = Cursors.SizeNWSE;
+                    break;
+                case ResizeDirection.TopRight:
+                case ResizeDirection.BottomLeft:
+                    Cursor.Current = Cursors.SizeNESW;
+                    break;
+                default:
+                    Cursor.Current = Cursors.Default;
+                    break;
+            }
+        }
+
+        private void ResizeWindow(GameWindow window, Point currentMousePos)
+        {
+            int dx = currentMousePos.X - lastMousePos.X;
+            int dy = currentMousePos.Y - lastMousePos.Y;
+
+            Rectangle newBounds = window.Bounds;
+
+            switch (currentResizeDirection)
+            {
+                case ResizeDirection.Top:
+                    newBounds.Y += dy;
+                    newBounds.Height -= dy;
+                    break;
+                case ResizeDirection.TopRight:
+                    newBounds.Y += dy;
+                    newBounds.Height -= dy;
+                    newBounds.Width += dx;
+                    break;
+                case ResizeDirection.Right:
+                    newBounds.Width += dx;
+                    break;
+                case ResizeDirection.BottomRight:
+                    newBounds.Width += dx;
+                    newBounds.Height += dy;
+                    break;
+                case ResizeDirection.Bottom:
+                    newBounds.Height += dy;
+                    break;
+                case ResizeDirection.BottomLeft:
+                    newBounds.X += dx;
+                    newBounds.Width -= dx;
+                    newBounds.Height += dy;
+                    break;
+                case ResizeDirection.Left:
+                    newBounds.X += dx;
+                    newBounds.Width -= dx;
+                    break;
+                case ResizeDirection.TopLeft:
+                    newBounds.X += dx;
+                    newBounds.Y += dy;
+                    newBounds.Width -= dx;
+                    newBounds.Height -= dy;
+                    break;
+            }
+
+            // 最小サイズの制約を適用
+            if (newBounds.Width < window.MinimumSize.Width)
+            {
+                if (currentResizeDirection == ResizeDirection.Left ||
+                    currentResizeDirection == ResizeDirection.TopLeft ||
+                    currentResizeDirection == ResizeDirection.BottomLeft)
+                {
+                    newBounds.X = window.Bounds.Right - window.MinimumSize.Width;
+                }
+                newBounds.Width = window.MinimumSize.Width;
+            }
+            if (newBounds.Height < window.MinimumSize.Height)
+            {
+                if (currentResizeDirection == ResizeDirection.Top ||
+                    currentResizeDirection == ResizeDirection.TopLeft ||
+                    currentResizeDirection == ResizeDirection.TopRight)
+                {
+                    newBounds.Y = window.Bounds.Bottom - window.MinimumSize.Height;
+                }
+                newBounds.Height = window.MinimumSize.Height;
+            }
+
+            window.Bounds = newBounds;
+            window.OnWindowResized();
         }
     }
 

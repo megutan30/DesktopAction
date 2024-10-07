@@ -240,6 +240,16 @@ namespace MultiWindowActionGame
                         return;  // これらのコマンドを無視
                     }
                     break;
+                case 0x0020: // WM_SETCURSOR
+                    if (strategy is ResizableWindowStrategy resizableStrategyForCursor)
+                    {
+                        resizableStrategyForCursor.HandleWindowMessage(this, m);
+                        if (m.Result == (IntPtr)1)
+                        {
+                            return;
+                        }
+                    }
+                    break;
             }
 
             base.WndProc(ref m);
