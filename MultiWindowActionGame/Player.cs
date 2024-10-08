@@ -6,8 +6,8 @@ namespace MultiWindowActionGame
     public class Player : IDrawable, IUpdatable
     {
         public Rectangle Bounds { get; private set; }
-        private float speed = 200.0f;
-        private float gravity = 500.0f;
+        private float speed = 400.0f;
+        private float gravity = 1000.0f;
         private float verticalVelocity = 0;
         private Size currentSize;
         private Size enterPlayerSize;
@@ -71,7 +71,7 @@ namespace MultiWindowActionGame
         currentState.HandleInput(this);
         currentState.Update(this, deltaTime);
 
-        Rectangle newBounds = CalculateNewPosition(deltaTime);
+        Rectangle newBounds = Bounds;
 
         GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
 
@@ -186,29 +186,6 @@ namespace MultiWindowActionGame
             }
         }
 
-        private Rectangle CalculateNewPosition(float deltaTime)
-        {
-            float moveX = 0;
-            float moveY = 0;
-
-            if (Input.IsKeyDown(Keys.A)) moveX -= speed * deltaTime;
-            if (Input.IsKeyDown(Keys.D)) moveX += speed * deltaTime;
-
-            // 重力の適用
-            if (!IsGrounded)
-            {
-                verticalVelocity += gravity * deltaTime;
-            }
-            moveY = verticalVelocity * deltaTime;
-
-            return new Rectangle(
-                (int)(Bounds.X + moveX),
-                (int)(Bounds.Y + moveY),
-                Bounds.Width,
-                Bounds.Height
-            );
-        }
-
         public void Draw(Graphics g)
         {
             currentState.Draw(this, g);
@@ -219,6 +196,7 @@ namespace MultiWindowActionGame
             float moveX = 0;
             if (Input.IsKeyDown(Keys.A)) moveX -= speed * deltaTime;
             if (Input.IsKeyDown(Keys.D)) moveX += speed * deltaTime;
+            if (Input.IsKeyDown(Keys.W)&&IsGrounded) Jump();
 
             Bounds = new Rectangle(
                 (int)(Bounds.X + moveX),
@@ -244,7 +222,7 @@ namespace MultiWindowActionGame
 
         public void Jump()
         {
-            verticalVelocity = -300;
+            verticalVelocity = -500;
             IsGrounded = false;
         }
 
