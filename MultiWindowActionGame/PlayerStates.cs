@@ -27,6 +27,7 @@ namespace MultiWindowActionGame
             if (Input.IsKeyDown(Keys.W) && player.IsGrounded)
             {
                 player.SetState(new JumpingState());
+                player.Jump();
             }
         }
     }
