@@ -65,54 +65,76 @@ namespace MultiWindowActionGame
             }
         }
 
-        public async Task UpdateAsync(float deltaTime)
+        
+    public async Task UpdateAsync(float deltaTime)
+    {
+        currentState.HandleInput(this);
+        currentState.Update(this, deltaTime);
+
+        Rectangle newBounds = CalculateNewPosition(deltaTime);
+
+        GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
+
+        if (newWindow != currentWindow)
         {
-            currentState.HandleInput(this);
-            currentState.Update(this, deltaTime);
-
-            Rectangle newBounds = CalculateNewPosition(deltaTime);
-
-            GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
-
-            if (newWindow != currentWindow)
+            if (newWindow != null && newWindow.CanEnter)
             {
-                if (newWindow != null && newWindow.CanEnter)
+                // 新しいウィンドウに入る
+                if (currentWindow != null)
                 {
-                    // 新しいウィンドウに入る
-                    if (currentWindow != null)
-                    {
-                        ExitWindow();
-                    }
-                    EnterWindow(newWindow);
-                    await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
-                    ConstrainToWindow(newWindow, ref newBounds);
+                    ExitWindow();
                 }
-                else if (currentWindow != null && currentWindow.CanExit)
-                {
+                EnterWindow(newWindow);
+                await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
+                ConstrainToWindow(newWindow, ref newBounds);
+            }
+            else if (currentWindow != null && currentWindow.CanExit)
+            {
                     // 現在のウィンドウから出る
+                if (currentWindow.Strategy is DeletableWindowStrategy deletableStrategy && deletableStrategy.IsMinimized)
+                {
+                    // DeletableWindowStrategyで、かつ最小化されている場合のみ外に出る
                     ExitWindow();
                     ConstrainToMainForm(ref newBounds);
                 }
                 else
                 {
-                    // 現在のウィンドウ内で移動を制限
-                    ConstrainToWindow(currentWindow, ref newBounds);
+                    // それ以外の場合は、最も近いウィンドウに戻す
+                    GameWindow? nearestWindow = WindowManager.Instance.GetNearestWindow(newBounds);
+                    if (nearestWindow != null)
+                    {
+                        ExitWindow();
+                        EnterWindow(nearestWindow);
+                        await WindowManager.Instance.BringWindowToFrontAsync(nearestWindow);
+                        ConstrainToWindow(nearestWindow, ref newBounds);
+                    }
+                    else
+                    {
+                        // 近くにウィンドウがない場合は、現在のウィンドウ内に制限
+                        ConstrainToWindow(currentWindow, ref newBounds);
+                    }
                 }
-            }
-            else if (currentWindow != null)
-            {
-                // 同じウィンドウ内で移動を制限
-                ConstrainToWindow(currentWindow, ref newBounds);
             }
             else
             {
-                // メインフォーム内で移動を制限
-                ConstrainToMainForm(ref newBounds);
+                // 現在のウィンドウ内で移動を制限
+                ConstrainToWindow(currentWindow, ref newBounds);
             }
-
-            Bounds = newBounds;
-            Console.WriteLine($"Player position updated: {Bounds}");
         }
+        else if (currentWindow != null)
+        {
+            // 同じウィンドウ内で移動を制限
+            ConstrainToWindow(currentWindow, ref newBounds);
+        }
+        else
+        {
+            // メインフォーム内で移動を制限
+            ConstrainToMainForm(ref newBounds);
+        }
+
+        Bounds = newBounds;
+        Console.WriteLine($"Player position updated: {Bounds}");
+    }
 
         private void UpdatePlayerSize()
         {

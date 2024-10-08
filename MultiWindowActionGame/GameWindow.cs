@@ -13,6 +13,7 @@ namespace MultiWindowActionGame
         public bool CanEnter { get; set; } = true;
         public bool CanExit { get; set; } = true;
         public Size OriginalSize { get; private set; }
+        public IWindowStrategy Strategy { get; private set; }
 
         private new const int Margin = 0;
         protected IWindowStrategy strategy;
@@ -86,6 +87,7 @@ namespace MultiWindowActionGame
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
             this.strategy = strategy;
+            this.Strategy = strategy;
             this.OriginalSize = size;
 
             this.FormBorderStyle = FormBorderStyle.Sizable;
@@ -243,6 +245,20 @@ namespace MultiWindowActionGame
             }
 
             base.WndProc(ref m);
+
+            if (m.Msg == 0x0112) // WM_SYSCOMMAND
+            {
+                int command = m.WParam.ToInt32() & 0xFFF0;
+                if (command == 0xF020) // SC_MINIMIZE
+                {
+                    (Strategy as DeletableWindowStrategy)?.HandleMinimize(this);
+                }
+                else if (command == 0xF120) // SC_RESTORE
+                {
+                    (Strategy as DeletableWindowStrategy)?.HandleRestore(this);
+                }
+            }
+
             if (strategy is ResizableWindowStrategy resizableStrategy)
             {
                 resizableStrategy.HandleWindowMessage(this, m);
