@@ -26,8 +26,8 @@ namespace MultiWindowActionGame
         {
             if (Input.IsKeyDown(Keys.W) && player.IsGrounded)
             {
-                player.SetState(new JumpingState());
                 player.Jump();
+                player.SetState(new JumpingState());
             }
         }
     }
@@ -40,11 +40,12 @@ namespace MultiWindowActionGame
         public void Update(Player player, float deltaTime)
         {
             jumpTime += deltaTime;
-            if (jumpTime >= MaxJumpTime || !Input.IsKeyDown(Keys.W))
+            if (jumpTime >= MaxJumpTime ||player.verticalVelocity > 0)
             {
                 player.SetState(new FallingState());
             }
             player.Move(deltaTime);
+            player.ApplyGravity(deltaTime);
         }
 
         public void Draw(Player player, Graphics g)
