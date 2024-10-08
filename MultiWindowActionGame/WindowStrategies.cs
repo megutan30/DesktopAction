@@ -10,6 +10,7 @@ namespace MultiWindowActionGame
         void Update(GameWindow window, float deltaTime);
         void HandleInput(GameWindow window);
         void HandleResize(GameWindow window);
+        void UpdateCursor(GameWindow window, Point clientMousePos);
     }
 
     public class NormalWindowStrategy : IWindowStrategy
@@ -24,6 +25,10 @@ namespace MultiWindowActionGame
             // 通常ウィンドウの入力処理（必要に応じて）
         }
         public void HandleResize(GameWindow window) { }
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            window.Cursor = Cursors.Default;
+        }
     }
 
     public class ResizableWindowStrategy : IWindowStrategy
@@ -79,6 +84,11 @@ namespace MultiWindowActionGame
                     break;
             }
         }
+
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            window.Cursor = Cursors.SizeNWSE;
+        }
     }
 
     public class MovableWindowStrategy : IWindowStrategy
@@ -133,6 +143,11 @@ namespace MultiWindowActionGame
                     break;
             }
         }
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            // ウィンドウ全体で移動カーソルを表示
+            window.Cursor = Cursors.SizeAll;
+        }
         public void HandleResize(GameWindow window) { }
     }
 
@@ -166,6 +181,10 @@ namespace MultiWindowActionGame
         {
             IsMinimized = false;
             // ここで復元に関する追加の処理を行うことができます
+        }
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            window.Cursor = Cursors.Default;
         }
     }
 }

@@ -237,11 +237,15 @@ namespace MultiWindowActionGame
 
                 case WM_SYSCOMMAND:
                     int command = m.WParam.ToInt32() & 0xFFF0;
-                    if (command == SC_MOVE || command == SC_MAXIMIZE || command == SC_CLOSE)
-                    {
-                        return;  // これらのコマンドを無視
-                    }
+                    if (command == 0xF020) // SC_MINIMIZE
+                        (Strategy as DeletableWindowStrategy)?.HandleMinimize(this);
+                    else if (command == 0xF120) // SC_RESTORE
+                        (Strategy as DeletableWindowStrategy)?.HandleRestore(this);
                     break;
+                case 0x0200: // WM_MOUSEMOVE
+                    Strategy.UpdateCursor(this, PointToClient(Cursor.Position));
+                    break;
+
             }
 
             base.WndProc(ref m);
