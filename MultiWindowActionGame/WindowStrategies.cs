@@ -138,9 +138,11 @@ namespace MultiWindowActionGame
 
     public class DeletableWindowStrategy : IWindowStrategy
     {
+        public bool IsMinimized { get; private set; }
+
         public void Update(GameWindow window, float deltaTime)
         {
-            // 削除可能ウィンドウの更新ロジック（必要に応じて）
+            // 既存の更新ロジック
         }
 
         public void HandleInput(GameWindow window)
@@ -151,6 +153,19 @@ namespace MultiWindowActionGame
                 window.NotifyObservers(WindowChangeType.Deleted);
             }
         }
+
         public void HandleResize(GameWindow window) { }
+
+        public void HandleMinimize(GameWindow window)
+        {
+            IsMinimized = true;
+            // ここで最小化に関する追加の処理を行うことができます
+        }
+
+        public void HandleRestore(GameWindow window)
+        {
+            IsMinimized = false;
+            // ここで復元に関する追加の処理を行うことができます
+        }
     }
 }

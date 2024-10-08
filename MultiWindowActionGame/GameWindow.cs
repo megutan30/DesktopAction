@@ -245,6 +245,20 @@ namespace MultiWindowActionGame
             }
 
             base.WndProc(ref m);
+
+            if (m.Msg == 0x0112) // WM_SYSCOMMAND
+            {
+                int command = m.WParam.ToInt32() & 0xFFF0;
+                if (command == 0xF020) // SC_MINIMIZE
+                {
+                    (Strategy as DeletableWindowStrategy)?.HandleMinimize(this);
+                }
+                else if (command == 0xF120) // SC_RESTORE
+                {
+                    (Strategy as DeletableWindowStrategy)?.HandleRestore(this);
+                }
+            }
+
             if (strategy is ResizableWindowStrategy resizableStrategy)
             {
                 resizableStrategy.HandleWindowMessage(this, m);

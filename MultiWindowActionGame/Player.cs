@@ -90,10 +90,10 @@ namespace MultiWindowActionGame
             }
             else if (currentWindow != null && currentWindow.CanExit)
             {
-                // 現在のウィンドウから出る
-                if (currentWindow.Strategy is DeletableWindowStrategy)
+                    // 現在のウィンドウから出る
+                if (currentWindow.Strategy is DeletableWindowStrategy deletableStrategy && deletableStrategy.IsMinimized)
                 {
-                    // DeletableWindowStrategyの場合は、そのまま外に出る
+                    // DeletableWindowStrategyで、かつ最小化されている場合のみ外に出る
                     ExitWindow();
                     ConstrainToMainForm(ref newBounds);
                 }
