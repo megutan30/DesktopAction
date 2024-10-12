@@ -98,20 +98,16 @@ public class WindowManager : IWindowObserver
         }
     }
 
-    public GameWindow? GetWindowAt(Rectangle bounds)
+    public GameWindow? GetWindowAt(Rectangle bounds, GameWindow? currentWindow = null)
     {
         lock (windowLock)
         {
-            Console.WriteLine($"GetWindowAt called with bounds: {bounds}");
-            Console.WriteLine($"Number of windows: {windows.Count}");
-
             GameWindow? bestMatch = null;
             int bestOverlap = 0;
 
-            for (int i = windows.Count - 1; i >= 0; i--)
+            foreach (var window in windows)
             {
-                var window = windows[i];
-                Console.WriteLine($"Checking window {window.Id}: AdjustedBounds = {window.AdjustedBounds}");
+                if (window == currentWindow) continue; // 現在のウィンドウをスキップ
 
                 Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, bounds);
                 int overlap = intersection.Width * intersection.Height;
@@ -123,18 +119,10 @@ public class WindowManager : IWindowObserver
                         bestMatch = window;
                         bestOverlap = overlap;
                     }
-                    Console.WriteLine($"Overlap or adjacency found with window {window.Id}, overlap area: {overlap}");
                 }
             }
 
-            if (bestMatch != null)
-            {
-                Console.WriteLine($"Best matching window: {bestMatch.Id}");
-                return bestMatch;
-            }
-
-            Console.WriteLine("No matching window found");
-            return null;
+            return bestMatch;
         }
     }
 
