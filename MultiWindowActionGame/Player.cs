@@ -66,76 +66,100 @@ namespace MultiWindowActionGame
             }
         }
 
-        
-    public async Task UpdateAsync(float deltaTime)
-    {
-        currentState.HandleInput(this);
-        currentState.Update(this, deltaTime);
-
-        Rectangle newBounds = Bounds;
-
-        GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
-
-        if (newWindow != currentWindow)
+        private Rectangle CalculateNewPosition(float deltaTime)
         {
-            if (newWindow != null && newWindow.CanEnter)
+            float moveX = 0;
+            float moveY = 0;
+
+            // 水平方向の移動
+            if (Input.IsKeyDown(Keys.A)) moveX -= speed * deltaTime;
+            if (Input.IsKeyDown(Keys.D)) moveX += speed * deltaTime;
+
+            // 垂直方向の移動（重力を含む）
+            if (!IsGrounded)
             {
-                // 新しいウィンドウに入る
-                if (currentWindow != null)
-                {
-                    ExitWindow();
-                }
-                EnterWindow(newWindow);
-                await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
-                ConstrainToWindow(newWindow, ref newBounds);
+                verticalVelocity += gravity * deltaTime;
             }
-            else if (currentWindow != null && currentWindow.CanExit)
+            moveY = verticalVelocity * deltaTime;
+
+            // 新しい位置を計算
+            return new Rectangle(
+                (int)(Bounds.X + moveX),
+                (int)(Bounds.Y + moveY),
+                Bounds.Width,
+                Bounds.Height
+            );
+        }
+        public async Task UpdateAsync(float deltaTime)
+        {
+            currentState.HandleInput(this);
+            currentState.Update(this, deltaTime);
+
+            Rectangle newBounds = Bounds;
+
+            GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
+            bool isAdjacentToNewWindow = newWindow != null && WindowManager.Instance.IsAdjacentTo(currentWindow?.AdjustedBounds ?? Rectangle.Empty, newWindow.AdjustedBounds);
+
+            if (newWindow != currentWindow)
             {
-                    // 現在のウィンドウから出る
-                if (currentWindow.Strategy is DeletableWindowStrategy deletableStrategy && deletableStrategy.IsMinimized)
+                if (newWindow != null && (newWindow.CanEnter || isAdjacentToNewWindow))
                 {
-                    // DeletableWindowStrategyで、かつ最小化されている場合のみ外に出る
-                    ExitWindow();
-                    ConstrainToMainForm(ref newBounds);
-                }
-                else
-                {
-                    // それ以外の場合は、最も近いウィンドウに戻す
-                    GameWindow? nearestWindow = WindowManager.Instance.GetNearestWindow(newBounds);
-                    if (nearestWindow != null)
+                    // 新しいウィンドウに入る、または隣接している場合
+                    if (currentWindow != null)
                     {
                         ExitWindow();
-                        EnterWindow(nearestWindow);
-                        await WindowManager.Instance.BringWindowToFrontAsync(nearestWindow);
-                        ConstrainToWindow(nearestWindow, ref newBounds);
+                    }
+                    EnterWindow(newWindow);
+                    await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
+                    ConstrainToWindow(newWindow, ref newBounds);
+                }
+                else if (currentWindow != null && currentWindow.CanExit)
+                {
+                    // 現在のウィンドウから出る
+                    if (currentWindow.Strategy is DeletableWindowStrategy deletableStrategy && deletableStrategy.IsMinimized)
+                    {
+                        // DeletableWindowStrategyで、かつ最小化されている場合のみ外に出る
+                        ExitWindow();
+                        ConstrainToMainForm(ref newBounds);
                     }
                     else
                     {
-                        // 近くにウィンドウがない場合は、現在のウィンドウ内に制限
-                        ConstrainToWindow(currentWindow, ref newBounds);
+                        // 最も近いウィンドウを探す
+                        GameWindow? nearestWindow = WindowManager.Instance.GetNearestWindow(newBounds);
+                        if (nearestWindow != null && (nearestWindow.CanEnter || WindowManager.Instance.IsAdjacentTo(currentWindow.AdjustedBounds, nearestWindow.AdjustedBounds)))
+                        {
+                            ExitWindow();
+                            EnterWindow(nearestWindow);
+                            await WindowManager.Instance.BringWindowToFrontAsync(nearestWindow);
+                            ConstrainToWindow(nearestWindow, ref newBounds);
+                        }
+                        else
+                        {
+                            // 近くに入れるウィンドウがない場合は、現在のウィンドウ内に制限
+                            ConstrainToWindow(currentWindow, ref newBounds);
+                        }
                     }
                 }
+                else
+                {
+                    // 現在のウィンドウ内で移動を制限
+                    ConstrainToWindow(currentWindow, ref newBounds);
+                }
+            }
+            else if (currentWindow != null)
+            {
+                // 同じウィンドウ内で移動を制限
+                ConstrainToWindow(currentWindow, ref newBounds);
             }
             else
             {
-                // 現在のウィンドウ内で移動を制限
-                ConstrainToWindow(currentWindow, ref newBounds);
+                // メインフォーム内で移動を制限
+                ConstrainToMainForm(ref newBounds);
             }
-        }
-        else if (currentWindow != null)
-        {
-            // 同じウィンドウ内で移動を制限
-            ConstrainToWindow(currentWindow, ref newBounds);
-        }
-        else
-        {
-            // メインフォーム内で移動を制限
-            ConstrainToMainForm(ref newBounds);
-        }
 
-        Bounds = newBounds;
-        Console.WriteLine($"Player position updated: {Bounds}");
-    }
+            Bounds = newBounds;
+            Console.WriteLine($"Player position updated: {Bounds}");
+        }
 
         private void UpdatePlayerSize()
         {
@@ -218,6 +242,12 @@ namespace MultiWindowActionGame
                     Bounds.Height
                 );
             }
+        }
+
+        public void DrawDebugInfo(Graphics g)
+        {
+            // プレイヤーの矩形を黄色で描画
+            g.DrawRectangle(new Pen(Color.Yellow, 2), Bounds);
         }
 
         public void Jump()

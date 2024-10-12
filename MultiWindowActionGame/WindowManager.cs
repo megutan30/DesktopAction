@@ -138,12 +138,39 @@ public class WindowManager : IWindowObserver
         }
     }
 
-    private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
+    public bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
-        return (Math.Abs(rect1.Right - rect2.Left) <= 1 || Math.Abs(rect1.Left - rect2.Right) <= 1 ||
-                Math.Abs(rect1.Bottom - rect2.Top) <= 1 || Math.Abs(rect1.Top - rect2.Bottom) <= 1) &&
+        return (Math.Abs(rect1.Right - rect2.Left) <= 100 || Math.Abs(rect1.Left - rect2.Right) <= 100 ||
+                Math.Abs(rect1.Bottom - rect2.Top) <= 100 || Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
                (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
                 rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
+    }
+
+     public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
+    {
+        lock (windowLock)
+        {
+            foreach (var window in windows)
+            {
+                // ウィンドウの枠を描画
+                g.DrawRectangle(Pens.Blue, window.AdjustedBounds);
+
+                // プレイヤーとの交差を確認
+                Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, playerBounds);
+                if (!intersection.IsEmpty)
+                {
+                    // 交差している場合、交差部分を赤で塗りつぶす
+                    g.FillRectangle(new SolidBrush(Color.FromArgb(100, Color.Red)), intersection);
+                }
+
+                // 隣接しているかチェック
+                if (IsAdjacentTo(window.AdjustedBounds, playerBounds))
+                {
+                    // 隣接している場合、ウィンドウの枠を緑で描画
+                    g.DrawRectangle(new Pen(Color.Green, 2), window.AdjustedBounds);
+                }
+            }
+        }
     }
 
     public GameWindow? GetNearestWindow(Rectangle bounds)
