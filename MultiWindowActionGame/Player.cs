@@ -165,7 +165,7 @@ namespace MultiWindowActionGame
                 {
                     ExitWindow();
                     EnterWindow(newWindow);
-                    await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
+                    //await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
                 }
                 else if (currentWindow != null)
                 {
@@ -250,7 +250,7 @@ namespace MultiWindowActionGame
                 );
 
                 // プレイヤーをウィンドウ内に収める
-                ConstrainToWindow(currentWindow);
+                //ConstrainToWindow(currentWindow);
 
                 IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
             }
@@ -340,8 +340,11 @@ namespace MultiWindowActionGame
         {
             currentWindow = window;
             
-            enterPlayerSize = Bounds.Size;
-            enterWindowSize = window.Size;
+            if(currentWindow.Strategy is ResizableWindowStrategy)
+            {
+                enterPlayerSize = Bounds.Size;
+                enterWindowSize = window.Size;
+            }
 
             UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(currentWindow));
             System.Diagnostics.Debug.WriteLine($"Player entered window {window.Id}");
