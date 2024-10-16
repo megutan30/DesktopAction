@@ -24,9 +24,11 @@ namespace MultiWindowActionGame
 
 
         private const int WM_SYSCOMMAND = 0x0112;
+        private const int WM_MOUSEMOVE = 0x0200;
         private const int SC_CLOSE = 0xF060;
         private const int SC_MINIMIZE = 0xF020;
         private const int SC_MAXIMIZE = 0xF030;
+        private const int SC_RESTORE = 0xF120;
 
         private const uint MF_BYCOMMAND = 0x00000000;
         private const uint MF_GRAYED = 0x00000001;
@@ -237,31 +239,19 @@ namespace MultiWindowActionGame
 
                 case WM_SYSCOMMAND:
                     int command = m.WParam.ToInt32() & 0xFFF0;
-                    if (command == 0xF020) // SC_MINIMIZE
+                    if (command == SC_CLOSE) return;
+                    if (command == SC_MINIMIZE)
                         (Strategy as DeletableWindowStrategy)?.HandleMinimize(this);
-                    else if (command == 0xF120) // SC_RESTORE
+                    else if (command == SC_RESTORE)
                         (Strategy as DeletableWindowStrategy)?.HandleRestore(this);
                     break;
-                case 0x0200: // WM_MOUSEMOVE
+                case WM_MOUSEMOVE:
                     Strategy.UpdateCursor(this, PointToClient(Cursor.Position));
                     break;
 
             }
 
             base.WndProc(ref m);
-
-            if (m.Msg == 0x0112) // WM_SYSCOMMAND
-            {
-                int command = m.WParam.ToInt32() & 0xFFF0;
-                if (command == 0xF020) // SC_MINIMIZE
-                {
-                    (Strategy as DeletableWindowStrategy)?.HandleMinimize(this);
-                }
-                else if (command == 0xF120) // SC_RESTORE
-                {
-                    (Strategy as DeletableWindowStrategy)?.HandleRestore(this);
-                }
-            }
 
             if (strategy is ResizableWindowStrategy resizableStrategy)
             {

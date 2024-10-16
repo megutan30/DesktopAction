@@ -9,7 +9,7 @@ namespace MultiWindowActionGame
         private Player player = new Player();
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
-
+        public static bool IsDebugMode { get; private set; } = true;
         public void Initialize()
         {
             player = new Player();
@@ -56,7 +56,11 @@ namespace MultiWindowActionGame
 
                 int elapsedTime = Environment.TickCount - startTime;
                 int sleepTime = targetFrameTime - elapsedTime;
-
+                if (Input.IsKeyDown(Keys.F3)) // F3キーでデバッグモードを切り替え
+                {
+                    IsDebugMode = !IsDebugMode;
+                    await Task.Delay(200); // キーの連続入力を防ぐための遅延
+                }
                 if (sleepTime > 0)
                 {
                     await Task.Delay(sleepTime);
@@ -82,7 +86,30 @@ namespace MultiWindowActionGame
             windowManager.Draw(g);
             player.Draw(g);
 
+            // デバッグ情報の描画
+            if (IsDebugMode) // デバッグモードフラグを追加
+            {
+                windowManager.DrawDebugInfo(g, player.Bounds);
+                player.DrawDebugInfo(g);
+                DrawDebugInfo(g);
+            }
+
             graphicsBuffer.Render();
         }
+        private void DrawDebugInfo(Graphics g)
+        {
+            // プレイヤーの位置情報を描画
+            g.DrawString($"Player Position: {player.Bounds.Location}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 10));
+
+            // 現在のウィンドウ情報を描画
+            GameWindow? currentWindow = player.GetCurrentWindow();
+            if (currentWindow != null)
+            {
+                g.DrawString($"Current Window: {currentWindow.Id}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 30));
+            }
+
+            // その他のデバッグ情報を追加...
+        }
+
     }
 }

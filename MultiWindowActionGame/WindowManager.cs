@@ -98,20 +98,16 @@ public class WindowManager : IWindowObserver
         }
     }
 
-    public GameWindow? GetWindowAt(Rectangle bounds)
+    public GameWindow? GetWindowAt(Rectangle bounds, GameWindow? currentWindow = null)
     {
         lock (windowLock)
         {
-            Console.WriteLine($"GetWindowAt called with bounds: {bounds}");
-            Console.WriteLine($"Number of windows: {windows.Count}");
-
             GameWindow? bestMatch = null;
             int bestOverlap = 0;
 
-            for (int i = windows.Count - 1; i >= 0; i--)
+            foreach (var window in windows)
             {
-                var window = windows[i];
-                Console.WriteLine($"Checking window {window.Id}: AdjustedBounds = {window.AdjustedBounds}");
+                if (window == currentWindow) continue; // 現在のウィンドウをスキップ
 
                 Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, bounds);
                 int overlap = intersection.Width * intersection.Height;
@@ -123,27 +119,46 @@ public class WindowManager : IWindowObserver
                         bestMatch = window;
                         bestOverlap = overlap;
                     }
-                    Console.WriteLine($"Overlap or adjacency found with window {window.Id}, overlap area: {overlap}");
                 }
             }
 
-            if (bestMatch != null)
-            {
-                Console.WriteLine($"Best matching window: {bestMatch.Id}");
-                return bestMatch;
-            }
-
-            Console.WriteLine("No matching window found");
-            return null;
+            return bestMatch;
         }
     }
 
-    private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
+    public bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
-        return (Math.Abs(rect1.Right - rect2.Left) <= 1 || Math.Abs(rect1.Left - rect2.Right) <= 1 ||
-                Math.Abs(rect1.Bottom - rect2.Top) <= 1 || Math.Abs(rect1.Top - rect2.Bottom) <= 1) &&
+        return (Math.Abs(rect1.Right - rect2.Left) <= 100 || Math.Abs(rect1.Left - rect2.Right) <= 100 ||
+                Math.Abs(rect1.Bottom - rect2.Top) <= 100 || Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
                (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
                 rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
+    }
+
+     public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
+    {
+        lock (windowLock)
+        {
+            foreach (var window in windows)
+            {
+                // ウィンドウの枠を描画
+                g.DrawRectangle(Pens.Blue, window.AdjustedBounds);
+
+                // プレイヤーとの交差を確認
+                Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, playerBounds);
+                if (!intersection.IsEmpty)
+                {
+                    // 交差している場合、交差部分を赤で塗りつぶす
+                    g.FillRectangle(new SolidBrush(Color.FromArgb(100, Color.Red)), intersection);
+                }
+
+                // 隣接しているかチェック
+                if (IsAdjacentTo(window.AdjustedBounds, playerBounds))
+                {
+                    // 隣接している場合、ウィンドウの枠を緑で描画
+                    g.DrawRectangle(new Pen(Color.Green, 2), window.AdjustedBounds);
+                }
+            }
+        }
     }
 
     public GameWindow? GetNearestWindow(Rectangle bounds)
@@ -185,6 +200,27 @@ public class WindowManager : IWindowObserver
         await Task.Run(() => window.BringToFront());
     }
 
+    public Region CalculateMovableRegion(GameWindow currentWindow)
+    {
+        Region movableRegion = new Region(currentWindow.AdjustedBounds);
+
+        lock (windowLock)
+        {
+            foreach (var window in windows)
+            {
+                if (window == currentWindow) continue;
+
+                if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
+                    IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
+                {
+                    movableRegion.Union(window.AdjustedBounds);
+                }
+            }
+        }
+
+        return movableRegion;
+    }
+
     public void OnWindowChanged(GameWindow window, WindowChangeType changeType)
     {
         if (changeType == WindowChangeType.Deleted)
@@ -193,6 +229,16 @@ public class WindowManager : IWindowObserver
             {
                 windows.Remove(window);
             }
+        }
+        // すべてのウィンドウの変更で移動可能領域を更新
+        UpdatePlayerMovableRegion();
+    }
+    private void UpdatePlayerMovableRegion()
+    {
+        if (player != null && player.GetCurrentWindow() != null)
+        {
+            Region newMovableRegion = CalculateMovableRegion(player.GetCurrentWindow());
+            player.UpdateMovableRegion(newMovableRegion);
         }
     }
 }
