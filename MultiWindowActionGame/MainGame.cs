@@ -9,7 +9,7 @@ namespace MultiWindowActionGame
         private Player player = new Player();
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
-        private bool IsDebugMode = true;
+        public static bool IsDebugMode { get; private set; } = true;
         public void Initialize()
         {
             player = new Player();
@@ -91,9 +91,25 @@ namespace MultiWindowActionGame
             {
                 windowManager.DrawDebugInfo(g, player.Bounds);
                 player.DrawDebugInfo(g);
+                DrawDebugInfo(g);
             }
 
             graphicsBuffer.Render();
         }
+        private void DrawDebugInfo(Graphics g)
+        {
+            // プレイヤーの位置情報を描画
+            g.DrawString($"Player Position: {player.Bounds.Location}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 10));
+
+            // 現在のウィンドウ情報を描画
+            GameWindow? currentWindow = player.GetCurrentWindow();
+            if (currentWindow != null)
+            {
+                g.DrawString($"Current Window: {currentWindow.Id}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 30));
+            }
+
+            // その他のデバッグ情報を追加...
+        }
+
     }
 }

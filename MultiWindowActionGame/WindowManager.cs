@@ -200,6 +200,27 @@ public class WindowManager : IWindowObserver
         await Task.Run(() => window.BringToFront());
     }
 
+    public Region CalculateMovableRegion(GameWindow currentWindow)
+    {
+        Region movableRegion = new Region(currentWindow.AdjustedBounds);
+
+        lock (windowLock)
+        {
+            foreach (var window in windows)
+            {
+                if (window == currentWindow) continue;
+
+                if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
+                    IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
+                {
+                    movableRegion.Union(window.AdjustedBounds);
+                }
+            }
+        }
+
+        return movableRegion;
+    }
+
     public void OnWindowChanged(GameWindow window, WindowChangeType changeType)
     {
         if (changeType == WindowChangeType.Deleted)
@@ -208,6 +229,16 @@ public class WindowManager : IWindowObserver
             {
                 windows.Remove(window);
             }
+        }
+        // すべてのウィンドウの変更で移動可能領域を更新
+        UpdatePlayerMovableRegion();
+    }
+    private void UpdatePlayerMovableRegion()
+    {
+        if (player != null && player.GetCurrentWindow() != null)
+        {
+            Region newMovableRegion = CalculateMovableRegion(player.GetCurrentWindow());
+            player.UpdateMovableRegion(newMovableRegion);
         }
     }
 }
