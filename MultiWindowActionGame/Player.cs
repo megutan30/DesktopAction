@@ -91,34 +91,6 @@ namespace MultiWindowActionGame
                    region.IsVisible(bounds.Right - 1, bounds.Bottom - 1, g);
         }
 
-        private Vector2 CalculateMaxMovement(Vector2 desiredMovement, Graphics g)
-        {
-            Vector2 maxMovement = Vector2.Zero;
-            float step = 0.1f; // より細かいステップサイズに変更
-
-            for (float t = 0; t <= 1; t += step)
-            {
-                Vector2 testMovement = desiredMovement * t;
-                Rectangle testBounds = new Rectangle(
-                    (int)(Bounds.X + testMovement.X),
-                    (int)(Bounds.Y + testMovement.Y),
-                    Bounds.Width,
-                    Bounds.Height
-                );
-
-                if (IsCompletelyInside(testBounds, MovableRegion, g))
-                {
-                    maxMovement = testMovement;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            return maxMovement;
-        }
-
         public async Task UpdateAsync(float deltaTime)
         {
             currentState.HandleInput(this);
@@ -132,28 +104,12 @@ namespace MultiWindowActionGame
                 Bounds.Height
             );
 
-            // 移動可能領域内に制限
             using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
             {
-                if (!MovableRegion.IsEmpty(g))
+                if (!IsValidMove(newBounds, g))
                 {
-                    // 新しい位置が完全に移動可能領域内かどうかをチェック
-                    if (!IsCompletelyInside(newBounds, MovableRegion, g))
-                    {
-                        // 移動可能な最大距離を計算
-                        Vector2 maxMovement = CalculateMaxMovement(movement, g);
-                        newBounds = new Rectangle(
-                            (int)(Bounds.X + maxMovement.X),
-                            (int)(Bounds.Y + maxMovement.Y),
-                            Bounds.Width,
-                            Bounds.Height
-                        );
-                    }
-                }
-                else
-                {
-                    // 移動可能領域が空の場合（例：デスクトップ上）、メインフォームに制限
-                    ConstrainToMainForm(ref newBounds);
+                    // 移動が無効な場合、X軸とY軸で個別に調整
+                    newBounds = AdjustMovement(Bounds, newBounds, g);
                 }
             }
 
@@ -165,7 +121,6 @@ namespace MultiWindowActionGame
                 {
                     ExitWindow();
                     EnterWindow(newWindow);
-                    //await WindowManager.Instance.BringWindowToFrontAsync(newWindow);
                 }
                 else if (currentWindow != null)
                 {
@@ -176,6 +131,82 @@ namespace MultiWindowActionGame
 
             Bounds = newBounds;
             Console.WriteLine($"Player position updated: {Bounds}");
+        }
+
+        private Rectangle AdjustMovement(Rectangle oldBounds, Rectangle newBounds, Graphics g)
+        {
+            Rectangle adjustedBounds = oldBounds;
+
+            // X軸の移動を調整
+            if (oldBounds.X != newBounds.X)
+            {
+                int step = Math.Sign(newBounds.X - oldBounds.X);
+                while (adjustedBounds.X != newBounds.X)
+                {
+                    Rectangle testBounds = new Rectangle(
+                        adjustedBounds.X + step,
+                        adjustedBounds.Y,
+                        adjustedBounds.Width,
+                        adjustedBounds.Height
+                    );
+                    if (IsValidMove(testBounds, g))
+                    {
+                        adjustedBounds.X += step;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // Y軸の移動を調整
+            if (oldBounds.Y != newBounds.Y)
+            {
+                int step = Math.Sign(newBounds.Y - oldBounds.Y);
+                while (adjustedBounds.Y != newBounds.Y)
+                {
+                    Rectangle testBounds = new Rectangle(
+                        adjustedBounds.X,
+                        adjustedBounds.Y + step,
+                        adjustedBounds.Width,
+                        adjustedBounds.Height
+                    );
+                    if (IsValidMove(testBounds, g))
+                    {
+                        adjustedBounds.Y += step;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return adjustedBounds;
+        }
+
+        private bool IsValidMove(Rectangle bounds, Graphics g)
+        {
+            if (!MovableRegion.IsEmpty(g))
+            {
+                return IsCompletelyInside(bounds, MovableRegion, g);
+            }
+            else
+            {
+                // 移動可能領域が空の場合（例：デスクトップ上）、メインフォームに制限
+                return IsWithinMainForm(bounds);
+            }
+        }
+
+        private bool IsWithinMainForm(Rectangle bounds)
+        {
+            if (Program.mainForm != null)
+            {
+                return bounds.Left >= 0 && bounds.Right <= Program.mainForm.ClientSize.Width &&
+                       bounds.Top >= 0 && bounds.Bottom <= Program.mainForm.ClientSize.Height;
+            }
+            return false;
         }
 
         private Rectangle ConstrainToRegion(Rectangle bounds, Region region)
