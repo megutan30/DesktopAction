@@ -75,9 +75,7 @@ namespace MultiWindowActionGame
             Vector2 movement = Vector2.Zero;
             if (Input.IsKeyDown(Keys.A)) movement.X -= speed * deltaTime;
             if (Input.IsKeyDown(Keys.D)) movement.X += speed * deltaTime;
-            if (Input.IsKeyDown(Keys.W)) movement.Y -= speed * deltaTime;
-            if (Input.IsKeyDown(Keys.S)) movement.Y += speed * deltaTime;
-
+            movement.Y += verticalVelocity * deltaTime;
             return movement;
         }
 
@@ -97,6 +95,7 @@ namespace MultiWindowActionGame
             currentState.Update(this, deltaTime);
 
             Vector2 movement = CalculateMovement(deltaTime);
+            ApplyGravity(deltaTime);
             Rectangle newBounds = new Rectangle(
                 (int)(Bounds.X + movement.X),
                 (int)(Bounds.Y + movement.Y),
@@ -130,6 +129,7 @@ namespace MultiWindowActionGame
             }
 
             Bounds = newBounds;
+            CheckGrounded();
             Console.WriteLine($"Player position updated: {Bounds}");
         }
 
@@ -256,13 +256,23 @@ namespace MultiWindowActionGame
         {
             int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
             int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
-            currentSize = new Size(newWidth, newHeight);
+            Size newSize = new Size(newWidth, newHeight);
 
-            // プレイヤーの位置を調整して中心を維持
-            int x = Bounds.X + (Bounds.Width - newWidth) / 2;
-            int y = Bounds.Y + (Bounds.Height - newHeight) / 2;
+            // プレイヤーの中心位置を維持
+            Point center = new Point(Bounds.X + Bounds.Width / 2, Bounds.Y + Bounds.Height / 2);
+            Rectangle newBounds = new Rectangle(
+                center.X - newWidth / 2,
+                center.Y - newHeight / 2,
+                newWidth,
+                newHeight
+            );
 
-            Bounds = new Rectangle(x, y, newWidth, newHeight);
+            // 新しい位置とサイズを設定
+            Bounds = newBounds;
+            currentSize = newSize;
+
+            // ウィンドウ内に収める
+            ConstrainToCurrentWindow();
         }
 
         private void OnWindowMoved(object? sender, EventArgs e)
@@ -287,6 +297,29 @@ namespace MultiWindowActionGame
             }
         }
 
+        private void ConstrainToCurrentWindow()
+        {
+            if (currentWindow != null)
+            {
+                Rectangle adjustedBounds = currentWindow.AdjustedBounds;
+                Bounds = new Rectangle(
+                    Math.Max(adjustedBounds.Left, Math.Min(Bounds.X, adjustedBounds.Right - Bounds.Width)),
+                    Math.Max(adjustedBounds.Top, Math.Min(Bounds.Y, adjustedBounds.Bottom - Bounds.Height)),
+                    Bounds.Width,
+                    Bounds.Height
+                );
+            }
+            else if (Program.mainForm != null)
+            {
+                Bounds = new Rectangle(
+                    Math.Max(0, Math.Min(Bounds.X, Program.mainForm.ClientSize.Width - Bounds.Width)),
+                    Math.Max(0, Math.Min(Bounds.Y, Program.mainForm.ClientSize.Height - Bounds.Height)),
+                    Bounds.Width,
+                    Bounds.Height
+                );
+            }
+        }
+
         private void OnWindowResized(object? sender, SizeChangedEventArgs e)
         {
             if (currentWindow != null && currentWindow.IsResizable())
@@ -300,7 +333,9 @@ namespace MultiWindowActionGame
                     UpdatePlayerSize();
                 }
             }
+            ConstrainToCurrentWindow(); // ウィンドウのリサイズ後に位置を調整
         }
+
 
         public void Draw(Graphics g)
         {
@@ -343,16 +378,14 @@ namespace MultiWindowActionGame
 
         public void ApplyGravity(float deltaTime)
         {
-            //if (!IsGrounded)
-            //{
-            //    verticalVelocity += gravity * deltaTime;
-            //    Bounds = new Rectangle(
-            //        Bounds.X,
-            //        (int)(Bounds.Y + verticalVelocity * deltaTime),
-            //        Bounds.Width,
-            //        Bounds.Height
-            //    );
-            //}
+            if (!IsGrounded)
+            {
+                verticalVelocity += gravity * deltaTime;
+            }
+            else
+            {
+                verticalVelocity = 0;
+            }
         }
 
         public void DrawDebugInfo(Graphics g)
@@ -363,10 +396,34 @@ namespace MultiWindowActionGame
 
         public void Jump()
         {
-            verticalVelocity = -jampForce;
-            IsGrounded = false;
+            if (IsGrounded)
+            {
+                verticalVelocity = -jampForce;
+                IsGrounded = false;
+            }
         }
 
+        private void CheckGrounded()
+        {
+            if (currentWindow != null)
+            {
+                IsGrounded = Bounds.Bottom >= currentWindow.AdjustedBounds.Bottom;
+                if (IsGrounded)
+                {
+                    Bounds = new Rectangle(Bounds.X, currentWindow.AdjustedBounds.Bottom - Bounds.Height, Bounds.Width, Bounds.Height);
+                    verticalVelocity = 0;
+                }
+            }
+            else if (Program.mainForm != null)
+            {
+                IsGrounded = Bounds.Bottom >= Program.mainForm.ClientSize.Height;
+                if (IsGrounded)
+                {
+                    Bounds = new Rectangle(Bounds.X, Program.mainForm.ClientSize.Height - Bounds.Height, Bounds.Width, Bounds.Height);
+                    verticalVelocity = 0;
+                }
+            }
+        }
         private void EnterWindow(GameWindow window)
         {
             currentWindow = window;
