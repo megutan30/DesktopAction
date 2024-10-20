@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.Numerics;
 using static MultiWindowActionGame.GameWindow;
@@ -96,6 +97,7 @@ namespace MultiWindowActionGame
 
             Vector2 movement = CalculateMovement(deltaTime);
             ApplyGravity(deltaTime);
+
             Rectangle newBounds = new Rectangle(
                 (int)(Bounds.X + movement.X),
                 (int)(Bounds.Y + movement.Y),
@@ -112,19 +114,18 @@ namespace MultiWindowActionGame
                 }
             }
 
-            // 現在のウィンドウの更新
-            GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
-            if (newWindow != currentWindow)
+            GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(new Point(Bounds.X, Bounds.Y));
+            if (topWindow != currentWindow)
             {
-                if (newWindow != null && newWindow.CanEnter)
+                if (topWindow != null && topWindow.CanEnter)
                 {
                     ExitWindow();
-                    EnterWindow(newWindow);
+                    EnterWindow(topWindow);
                 }
                 else if (currentWindow != null)
                 {
-                    // 新しいウィンドウに入れない場合は、現在のウィンドウ内に留まる
                     newBounds = ConstrainToWindow(newBounds, currentWindow);
+                    Bounds = newBounds;
                 }
             }
 
@@ -254,25 +255,33 @@ namespace MultiWindowActionGame
 
         private void UpdatePlayerSize()
         {
-            int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
-            int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
-            Size newSize = new Size(newWidth, newHeight);
+            try
+            {
+                int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
+                int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
+                Size newSize = new Size(newWidth, newHeight);
 
-            // プレイヤーの中心位置を維持
-            Point center = new Point(Bounds.X + Bounds.Width / 2, Bounds.Y + Bounds.Height / 2);
-            Rectangle newBounds = new Rectangle(
-                center.X - newWidth / 2,
-                center.Y - newHeight / 2,
-                newWidth,
-                newHeight
-            );
+                // プレイヤーの中心位置を維持
+                Point center = new Point(Bounds.X + Bounds.Width / 2, Bounds.Y + Bounds.Height / 2);
+                Rectangle newBounds = new Rectangle(
+                    center.X - newWidth / 2,
+                    center.Y - newHeight / 2,
+                    newWidth,
+                    newHeight
+                );
 
-            // 新しい位置とサイズを設定
-            Bounds = newBounds;
-            currentSize = newSize;
+                // 新しい位置とサイズを設定
+                Bounds = newBounds;
+                currentSize = newSize;
 
-            // ウィンドウ内に収める
-            ConstrainToCurrentWindow();
+                // ウィンドウ内に収める
+                ConstrainToCurrentWindow();
+            }
+            catch (OverflowException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in UpdatePlayerSize: {ex.Message}");
+                // エラーが発生した場合、サイズを変更せずに現在のサイズを維持
+            }
         }
 
         private void OnWindowMoved(object? sender, EventArgs e)
@@ -289,9 +298,6 @@ namespace MultiWindowActionGame
                     Bounds.Width,
                     Bounds.Height
                 );
-
-                // プレイヤーをウィンドウ内に収める
-                //ConstrainToWindow(currentWindow);
 
                 IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
             }
@@ -440,7 +446,6 @@ namespace MultiWindowActionGame
 
         private void ExitWindow()
         {
-            Console.WriteLine($"Player exited window {currentWindow?.Id}");
             currentWindow = null;
             IsGrounded = false;
         }

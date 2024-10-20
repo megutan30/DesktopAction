@@ -111,7 +111,7 @@ namespace MultiWindowActionGame
 
             this.Move += GameWindow_Move;
             this.Resize += GameWindow_Resize;
-
+            this.Click += GameWindow_Click;
             Console.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
         }
@@ -166,7 +166,10 @@ namespace MultiWindowActionGame
             NotifyObservers(WindowChangeType.Resized);
             strategy.HandleResize(this);
         }
-
+            private void GameWindow_Click(object? sender, EventArgs e)
+    {
+        WindowManager.Instance.BringWindowToFront(this);
+    }
         private void UpdateBounds()
         {
             Rectangle clientRect = GetClientRectangle();

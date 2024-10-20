@@ -125,7 +125,43 @@ public class WindowManager : IWindowObserver
             return bestMatch;
         }
     }
+    public GameWindow? GetTopWindowAt(Point position)
+    {
+        lock (windowLock)
+        {
+            for (int i = windows.Count - 1; i >= 0; i--)
+            {
+                var window = windows[i];
+                if (window.AdjustedBounds.Contains(position))
+                {
+                    return window;
+                }
+            }
+        }
+        return null;
+    }
 
+    public void BringWindowToFront(GameWindow window)
+    {
+        lock (windowLock)
+        {
+            windows.Remove(window);
+            windows.Add(window);
+        }
+        UpdatePlayerWindow();
+    }
+
+    private void UpdatePlayerWindow()
+    {
+        if (player != null)
+        {
+            GameWindow? newWindow = GetTopWindowAt(new Point(player.Bounds.X, player.Bounds.Y));
+            if (newWindow != player.GetCurrentWindow())
+            {
+                player.SetCurrentWindow(newWindow);
+            }
+        }
+    }
     public bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
         return (Math.Abs(rect1.Right - rect2.Left) <= 100 || Math.Abs(rect1.Left - rect2.Right) <= 100 ||
