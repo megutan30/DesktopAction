@@ -23,6 +23,9 @@ namespace MultiWindowActionGame
 
         public bool IsGrounded { get; private set; }
 
+        private bool isResizing = false;
+        private Vector2 lastMovement = Vector2.Zero;
+
         private IPlayerState currentState;
 
         public Player()
@@ -51,6 +54,8 @@ namespace MultiWindowActionGame
             {
                 currentWindow.WindowMoved -= OnWindowMoved;
                 currentWindow.WindowResized -= OnWindowResized;
+                currentWindow.ResizeStarted -= OnResizeStarted;
+                currentWindow.ResizeEnded -= OnResizeEnded;
             }
 
             currentWindow = window;
@@ -59,15 +64,10 @@ namespace MultiWindowActionGame
             {
                 currentWindow.WindowMoved += OnWindowMoved;
                 currentWindow.WindowResized += OnWindowResized;
+                currentWindow.ResizeStarted -= OnResizeStarted;
+                currentWindow.ResizeEnded -= OnResizeEnded;
 
-                if (currentWindow.IsResizable())
-                {
-                    // 新しいウィンドウがリサイズ可能な場合、プレイヤーのサイズを更新
-                    float scaleX = (float)currentWindow.Size.Width / enterWindowSize.Width;
-                    float scaleY = (float)currentWindow.Size.Height / enterWindowSize.Height;
-                    currentScale = new SizeF(scaleX, scaleY);
-                    UpdatePlayerSize();
-                }
+                EnterWindow(currentWindow);
             }
         }
 
@@ -114,20 +114,25 @@ namespace MultiWindowActionGame
                 }
             }
 
-            GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(new Point(Bounds.X, Bounds.Y));
-            if (topWindow != currentWindow)
+            if (!isResizing || movement != Vector2.Zero)
             {
-                if (topWindow != null && topWindow.CanEnter)
+                GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(new Point(Bounds.X, Bounds.Y));
+                if (topWindow != currentWindow)
                 {
-                    ExitWindow();
-                    EnterWindow(topWindow);
-                }
-                else if (currentWindow != null)
-                {
-                    newBounds = ConstrainToWindow(newBounds, currentWindow);
-                    Bounds = newBounds;
+                    if (topWindow != null && topWindow.CanEnter)
+                    {
+                        ExitWindow();
+                        SetCurrentWindow(topWindow);
+                    }
+                    else if (currentWindow != null)
+                    {
+                        newBounds = ConstrainToWindow(newBounds, currentWindow);
+                        Bounds = newBounds;
+                    }
                 }
             }
+
+            lastMovement = movement;
 
             Bounds = newBounds;
             CheckGrounded();
@@ -283,7 +288,15 @@ namespace MultiWindowActionGame
                 // エラーが発生した場合、サイズを変更せずに現在のサイズを維持
             }
         }
+        private void OnResizeStarted(object? sender, EventArgs e)
+        {
+            isResizing = true;
+        }
 
+        private void OnResizeEnded(object? sender, EventArgs e)
+        {
+            isResizing = false;
+        }
         private void OnWindowMoved(object? sender, EventArgs e)
         {
             if (currentWindow != null)
@@ -333,7 +346,7 @@ namespace MultiWindowActionGame
                 float scaleX = (float)e.NewSize.Width / enterWindowSize.Width;
                 float scaleY = (float)e.NewSize.Height / enterWindowSize.Height;
 
-                if (scaleX != currentScale.Width || scaleY != currentScale.Height)
+                if (!float.IsInfinity(scaleX) && !float.IsInfinity(scaleY))
                 {
                     currentScale = new SizeF(scaleX, scaleY);
                     UpdatePlayerSize();
@@ -432,13 +445,8 @@ namespace MultiWindowActionGame
         }
         private void EnterWindow(GameWindow window)
         {
-            currentWindow = window;
-            
-            if(currentWindow.Strategy is ResizableWindowStrategy)
-            {
-                enterPlayerSize = Bounds.Size;
-                enterWindowSize = window.Size;
-            }
+            enterPlayerSize = Bounds.Size;
+            enterWindowSize = window.Size;
 
             UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(currentWindow));
             System.Diagnostics.Debug.WriteLine($"Player entered window {window.Id}");

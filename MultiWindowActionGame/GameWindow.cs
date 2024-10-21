@@ -21,7 +21,8 @@ namespace MultiWindowActionGame
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
-
+        public event EventHandler? ResizeStarted;
+        public event EventHandler? ResizeEnded;
 
         private const int WM_SYSCOMMAND = 0x0112;
         private const int WM_MOUSEMOVE = 0x0200;
@@ -238,6 +239,13 @@ namespace MultiWindowActionGame
                     {
                         return;  // タイトルバーでのクリックを無視
                     }
+                    break;
+
+                case 0x0214: // WM_SIZING
+                    ResizeStarted?.Invoke(this, EventArgs.Empty);
+                    break;
+                case 0x0232: // WM_EXITSIZEMOVE
+                    ResizeEnded?.Invoke(this, EventArgs.Empty);
                     break;
 
                 case WM_SYSCOMMAND:
