@@ -66,10 +66,6 @@ public class WindowManager : IWindowObserver
         {
             // ウィンドウ内のプレイヤーのサイズを更新
             Player? player = GetPlayerInWindow(window);
-            if (player != null && window.IsResizable())
-            {
-                player.SetCurrentWindow(window);
-            }
         }
     }
 
@@ -125,7 +121,124 @@ public class WindowManager : IWindowObserver
             return bestMatch;
         }
     }
+    private bool IsWindowInFrontOf(GameWindow window1, GameWindow window2)
+    {
+        lock (windowLock)
+        {
+            int index1 = windows.IndexOf(window1);
+            int index2 = windows.IndexOf(window2);
+            return index1 > index2;
+        }
+    }
 
+    public GameWindow? GetTopWindowAt(Rectangle playerBounds, GameWindow? currentWindow)
+    {
+        Point[] checkPoints = new Point[]
+        {
+            new Point(playerBounds.Left, playerBounds.Bottom-5), // 左下
+            new Point(playerBounds.Right, playerBounds.Bottom-5), // 右下
+            new Point(playerBounds.Left, playerBounds.Top), // 左上
+            new Point(playerBounds.Right, playerBounds.Top), // 右上
+            new Point(playerBounds.X + playerBounds.Width / 2, playerBounds.Y + playerBounds.Height / 2) // 中心
+        };
+
+        Dictionary<GameWindow, HashSet<Point>> windowPoints = new Dictionary<GameWindow, HashSet<Point>>();
+
+        lock (windowLock)
+        {
+            // 各チェックポイントについて、どのウィンドウに含まれているかをチェック
+            foreach (var point in checkPoints)
+            {
+                for (int i = windows.Count - 1; i >= 0; i--)
+                {
+                    var window = windows[i];
+                    if (window.AdjustedBounds.Contains(point))
+                    {
+                        if (!windowPoints.ContainsKey(window))
+                        {
+                            windowPoints[window] = new HashSet<Point>();
+                        }
+                        windowPoints[window].Add(point);
+                        break;
+                    }
+                }
+            }
+
+            // 現在のウィンドウに点が残っているかチェック
+            if (currentWindow != null && windowPoints.TryGetValue(currentWindow, out var currentPoints))
+            {
+                // まだ点が残っている場合は、他のウィンドウへの移動条件を厳密にチェック
+                var potentialWindows = windowPoints
+                    .Where(pair => pair.Key != currentWindow)
+                    .OrderByDescending(pair => windows.IndexOf(pair.Key)) // Z-orderで降順ソート
+                    .ToList();
+
+                foreach (var pair in potentialWindows)
+                {
+                    var window = pair.Key;
+                    var points = pair.Value;
+                    bool isWindowInFront = IsWindowInFrontOf(window, currentWindow);
+
+                    if (isWindowInFront)
+                    {
+                        // 前面のウィンドウの場合
+                        bool hasBottomPoint = points.Contains(checkPoints[0]) || points.Contains(checkPoints[1]);
+                        if (hasBottomPoint)
+                        {
+                            return window; // 前面のウィンドウに下部の点が入っている場合は移動
+                        }
+                    }
+                    else if (points.Count == checkPoints.Length)
+                    {
+                        // 後面のウィンドウの場合は全ての点が入っている必要がある
+                        return window;
+                    }
+                }
+
+                // 他のウィンドウへの移動条件を満たさない場合は現在のウィンドウを維持
+                if (currentPoints.Count > 0)
+                {
+                    return currentWindow;
+                }
+            }
+            else
+            {
+                // 現在のウィンドウに点がない、または現在のウィンドウがない場合
+                var bestWindow = windowPoints
+                    .OrderByDescending(pair => windows.IndexOf(pair.Key)) // Z-orderで降順ソート
+                    .FirstOrDefault(pair => pair.Value.Count == checkPoints.Length);
+
+                if (bestWindow.Key != null)
+                {
+                    return bestWindow.Key;
+                }
+            }
+        }
+
+        return null; // 適切なウィンドウが見つからない場合
+    }
+
+    public void BringWindowToFront(GameWindow window)
+    {
+        lock (windowLock)
+        {
+            windows.Remove(window);
+            windows.Add(window);
+        }
+        UpdatePlayerWindow();
+    }
+
+    private void UpdatePlayerWindow()
+    {
+        if (player != null)
+        {
+            GameWindow? newWindow = GetTopWindowAt(player.Bounds,player.GetCurrentWindow());
+            if (newWindow != player.GetCurrentWindow())
+            {
+                player.SetCurrentWindow(newWindow);
+            }
+        }
+    }
     public bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
         return (Math.Abs(rect1.Right - rect2.Left) <= 100 || Math.Abs(rect1.Left - rect2.Right) <= 100 ||

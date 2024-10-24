@@ -1,7 +1,9 @@
 ﻿using System.Drawing;
+using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.Numerics;
 using static MultiWindowActionGame.GameWindow;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MultiWindowActionGame
 {
@@ -21,6 +23,11 @@ namespace MultiWindowActionGame
         public Region MovableRegion { get; private set; }
 
         public bool IsGrounded { get; private set; }
+
+        private bool isResizing = false;
+        private bool isWindowMoving = false;
+        private bool isWindowResizing = false;
+        private Vector2 lastMovement = Vector2.Zero;
 
         private IPlayerState currentState;
 
@@ -50,6 +57,10 @@ namespace MultiWindowActionGame
             {
                 currentWindow.WindowMoved -= OnWindowMoved;
                 currentWindow.WindowResized -= OnWindowResized;
+                currentWindow.MoveStarted -= OnMoveStarted;
+                currentWindow.MoveEnded -= OnMoveEnded;
+                currentWindow.ResizeStarted -= OnResizeStarted;
+                currentWindow.ResizeEnded -= OnResizeEnded;
             }
 
             currentWindow = window;
@@ -58,15 +69,12 @@ namespace MultiWindowActionGame
             {
                 currentWindow.WindowMoved += OnWindowMoved;
                 currentWindow.WindowResized += OnWindowResized;
+                currentWindow.MoveStarted += OnMoveStarted;
+                currentWindow.MoveEnded += OnMoveEnded;
+                currentWindow.ResizeStarted += OnResizeStarted;
+                currentWindow.ResizeEnded += OnResizeEnded;
 
-                if (currentWindow.IsResizable())
-                {
-                    // 新しいウィンドウがリサイズ可能な場合、プレイヤーのサイズを更新
-                    float scaleX = (float)currentWindow.Size.Width / enterWindowSize.Width;
-                    float scaleY = (float)currentWindow.Size.Height / enterWindowSize.Height;
-                    currentScale = new SizeF(scaleX, scaleY);
-                    UpdatePlayerSize();
-                }
+                EnterWindow(currentWindow);
             }
         }
 
@@ -96,6 +104,7 @@ namespace MultiWindowActionGame
 
             Vector2 movement = CalculateMovement(deltaTime);
             ApplyGravity(deltaTime);
+
             Rectangle newBounds = new Rectangle(
                 (int)(Bounds.X + movement.X),
                 (int)(Bounds.Y + movement.Y),
@@ -112,19 +121,21 @@ namespace MultiWindowActionGame
                 }
             }
 
-            // 現在のウィンドウの更新
-            GameWindow? newWindow = WindowManager.Instance.GetWindowAt(newBounds);
-            if (newWindow != currentWindow)
+            if (true)
             {
-                if (newWindow != null && newWindow.CanEnter)
+                GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(Bounds,currentWindow);
+                if (topWindow != currentWindow)
                 {
-                    ExitWindow();
-                    EnterWindow(newWindow);
-                }
-                else if (currentWindow != null)
-                {
-                    // 新しいウィンドウに入れない場合は、現在のウィンドウ内に留まる
-                    newBounds = ConstrainToWindow(newBounds, currentWindow);
+                    if (topWindow != null && topWindow.CanEnter)
+                    {
+                        ExitWindow(currentWindow);
+                        SetCurrentWindow(topWindow);
+                    }
+                    else if (currentWindow != null)
+                    {
+                        newBounds = ConstrainToWindow(newBounds, currentWindow);
+                        Bounds = newBounds;
+                    }
                 }
             }
 
@@ -254,27 +265,52 @@ namespace MultiWindowActionGame
 
         private void UpdatePlayerSize()
         {
-            int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
-            int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
-            Size newSize = new Size(newWidth, newHeight);
+            try
+            {
+                int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
+                int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
+                Size newSize = new Size(newWidth, newHeight);
 
-            // プレイヤーの中心位置を維持
-            Point center = new Point(Bounds.X + Bounds.Width / 2, Bounds.Y + Bounds.Height / 2);
-            Rectangle newBounds = new Rectangle(
-                center.X - newWidth / 2,
-                center.Y - newHeight / 2,
-                newWidth,
-                newHeight
-            );
+                // プレイヤーの中心位置を維持
+                Point center = new Point(Bounds.X + Bounds.Width / 2, Bounds.Y + Bounds.Height / 2);
+                Rectangle newBounds = new Rectangle(
+                    center.X - newWidth / 2,
+                    center.Y - newHeight / 2,
+                    newWidth,
+                    newHeight
+                );
 
-            // 新しい位置とサイズを設定
-            Bounds = newBounds;
-            currentSize = newSize;
+                // 新しい位置とサイズを設定
+                Bounds = newBounds;
+                currentSize = newSize;
 
-            // ウィンドウ内に収める
-            ConstrainToCurrentWindow();
+                // ウィンドウ内に収める
+                ConstrainToCurrentWindow();
+            }
+            catch (OverflowException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in UpdatePlayerSize: {ex.Message}");
+                // エラーが発生した場合、サイズを変更せずに現在のサイズを維持
+            }
+        }
+        private void OnMoveStarted(object? sender, EventArgs e)
+        {
+            isWindowMoving = true;
         }
 
+        private void OnMoveEnded(object? sender, EventArgs e)
+        {
+            isWindowMoving = false;
+        }
+        private void OnResizeStarted(object? sender, EventArgs e)
+        {
+            isResizing = true;
+        }
+
+        private void OnResizeEnded(object? sender, EventArgs e)
+        {
+            isResizing = false;
+        }
         private void OnWindowMoved(object? sender, EventArgs e)
         {
             if (currentWindow != null)
@@ -289,9 +325,6 @@ namespace MultiWindowActionGame
                     Bounds.Width,
                     Bounds.Height
                 );
-
-                // プレイヤーをウィンドウ内に収める
-                //ConstrainToWindow(currentWindow);
 
                 IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
             }
@@ -327,7 +360,7 @@ namespace MultiWindowActionGame
                 float scaleX = (float)e.NewSize.Width / enterWindowSize.Width;
                 float scaleY = (float)e.NewSize.Height / enterWindowSize.Height;
 
-                if (scaleX != currentScale.Width || scaleY != currentScale.Height)
+                if (!float.IsInfinity(scaleX) && !float.IsInfinity(scaleY))
                 {
                     currentScale = new SizeF(scaleX, scaleY);
                     UpdatePlayerSize();
@@ -341,25 +374,6 @@ namespace MultiWindowActionGame
         {
             // プレイヤーを描画
             g.FillRectangle(Brushes.Blue, Bounds);
-
-            // デバッグモードの場合、移動可能領域を描画
-            if (!MainGame.IsDebugMode)
-            {
-                using (Pen pen = new Pen(Color.Green, 2))
-                {
-                    //g.DrawRectangle(pen, Bounds);  // プレイヤーの境界線を描画
-
-                    // 移動可能領域を描画
-                    using (Matrix matrix = new Matrix())
-                    {
-                        RectangleF[] scans = MovableRegion.GetRegionScans(matrix);
-                        foreach (RectangleF rect in scans)
-                        {
-                            g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
-                        }
-                    }
-                }
-            }
         }
 
         public void Move(float deltaTime)
@@ -392,6 +406,20 @@ namespace MultiWindowActionGame
         {
             // プレイヤーの矩形を黄色で描画
             g.DrawRectangle(new Pen(Color.Yellow, 2), Bounds);
+            using (Pen pen = new Pen(Color.Green, 2))
+            {
+                //g.DrawRectangle(pen, Bounds);  // プレイヤーの境界線を描画
+
+                // 移動可能領域を描画
+                using (Matrix matrix = new Matrix())
+                {
+                    RectangleF[] scans = MovableRegion.GetRegionScans(matrix);
+                    foreach (RectangleF rect in scans)
+                    {
+                        g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
+                    }
+                }
+            }
         }
 
         public void Jump()
@@ -426,21 +454,17 @@ namespace MultiWindowActionGame
         }
         private void EnterWindow(GameWindow window)
         {
-            currentWindow = window;
-            
-            if(currentWindow.Strategy is ResizableWindowStrategy)
-            {
-                enterPlayerSize = Bounds.Size;
-                enterWindowSize = window.Size;
-            }
+            enterPlayerSize = Bounds.Size;
+            enterWindowSize = window.Size;
 
             UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(currentWindow));
             System.Diagnostics.Debug.WriteLine($"Player entered window {window.Id}");
         }
 
-        private void ExitWindow()
+        private void ExitWindow(GameWindow window)
         {
-            Console.WriteLine($"Player exited window {currentWindow?.Id}");
+            if(currentWindow == null)return;
+            System.Diagnostics.Debug.WriteLine($"Player Exit window {window.Id}");
             currentWindow = null;
             IsGrounded = false;
         }

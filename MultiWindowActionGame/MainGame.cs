@@ -73,7 +73,6 @@ namespace MultiWindowActionGame
             await player.UpdateAsync(GameTime.DeltaTime);
             await windowManager.UpdateAsync(GameTime.DeltaTime);
             GameWindow? currentWindow = windowManager.GetWindowAt(player.Bounds);
-            player.SetCurrentWindow(currentWindow);
         }
 
         private void Render()
