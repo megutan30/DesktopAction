@@ -330,29 +330,6 @@ namespace MultiWindowActionGame
             }
         }
 
-        private void ConstrainToCurrentWindow()
-        {
-            if (currentWindow != null)
-            {
-                Rectangle adjustedBounds = currentWindow.AdjustedBounds;
-                Bounds = new Rectangle(
-                    Math.Max(adjustedBounds.Left, Math.Min(Bounds.X, adjustedBounds.Right - Bounds.Width)),
-                    Math.Max(adjustedBounds.Top, Math.Min(Bounds.Y, adjustedBounds.Bottom - Bounds.Height)),
-                    Bounds.Width,
-                    Bounds.Height
-                );
-            }
-            else if (Program.mainForm != null)
-            {
-                Bounds = new Rectangle(
-                    Math.Max(0, Math.Min(Bounds.X, Program.mainForm.ClientSize.Width - Bounds.Width)),
-                    Math.Max(0, Math.Min(Bounds.Y, Program.mainForm.ClientSize.Height - Bounds.Height)),
-                    Bounds.Width,
-                    Bounds.Height
-                );
-            }
-        }
-
         private void OnWindowResized(object? sender, SizeChangedEventArgs e)
         {
             if (currentWindow != null && currentWindow.IsResizable())
@@ -366,9 +343,7 @@ namespace MultiWindowActionGame
                     UpdatePlayerSize();
                 }
             }
-            ConstrainToCurrentWindow(); // ウィンドウのリサイズ後に位置を調整
         }
-
 
         public void Draw(Graphics g)
         {
@@ -468,7 +443,28 @@ namespace MultiWindowActionGame
             currentWindow = null;
             IsGrounded = false;
         }
-        
+        private void ConstrainToCurrentWindow()
+        {
+            if (currentWindow != null)
+            {
+                Rectangle adjustedBounds = currentWindow.AdjustedBounds;
+                Bounds = new Rectangle(
+                    Math.Max(adjustedBounds.Left, Math.Min(Bounds.X, adjustedBounds.Right - Bounds.Width)),
+                    Math.Max(adjustedBounds.Top, Math.Min(Bounds.Y, adjustedBounds.Bottom - Bounds.Height)),
+                    Bounds.Width,
+                    Bounds.Height
+                );
+            }
+            else if (Program.mainForm != null)
+            {
+                Bounds = new Rectangle(
+                    Math.Max(0, Math.Min(Bounds.X, Program.mainForm.ClientSize.Width - Bounds.Width)),
+                    Math.Max(0, Math.Min(Bounds.Y, Program.mainForm.ClientSize.Height - Bounds.Height)),
+                    Bounds.Width,
+                    Bounds.Height
+                );
+            }
+        }
         public void ConstrainToWindow(GameWindow window)
         {
             Rectangle newBounds = Bounds;
