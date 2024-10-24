@@ -131,6 +131,7 @@ public class WindowManager : IWindowObserver
         }
     }
 
+
     public GameWindow? GetTopWindowAt(Rectangle playerBounds, GameWindow? currentWindow)
     {
         Point[] checkPoints = new Point[]
@@ -164,12 +165,7 @@ public class WindowManager : IWindowObserver
                 }
             }
 
-            // ウィンドウをZ-orderで降順ソート
-            var sortedWindows = windowPoints
-                .OrderByDescending(pair => windows.IndexOf(pair.Key))
-                .ToList();
-
-            if (sortedWindows.Count == 0)
+            if (windowPoints.Count == 0)
             {
                 return null;
             }
@@ -179,77 +175,99 @@ public class WindowManager : IWindowObserver
                 ? windowPoints[currentWindow]
                 : new HashSet<Point>();
 
-            // 最前面のウィンドウを取得
-            var frontmostWindow = sortedWindows.FirstOrDefault();
-
             if (currentWindow == null)
             {
                 // 現在のウィンドウがない場合、すべての点を含むウィンドウを探す
-                var fullWindow = sortedWindows
-                    .FirstOrDefault(w => w.Value.Count == checkPoints.Length);
-                return fullWindow.Key ?? frontmostWindow.Key;
+                var fullWindow = windowPoints
+                    .Where(w => w.Value.Count == checkPoints.Length)
+                    .Select(w => new { Window = w.Key, BottomEdge = w.Key.AdjustedBounds.Bottom })
+                    .OrderBy(w => w.BottomEdge)
+                    .ThenByDescending(w => windows.IndexOf(w.Window))
+                    .FirstOrDefault();
+
+                return fullWindow?.Window ?? windowPoints.First().Key;
             }
 
             // 現在のウィンドウに点が残っている場合の処理
             if (currentWindowPoints.Count > 0)
             {
-                // 前面のウィンドウへの移動条件をチェック
-                var frontWindows = sortedWindows
-                    .Where(w => IsWindowInFrontOf(w.Key, currentWindow))
+                // 下部の点を含むウィンドウを探し、下端の位置で優先順位付け
+                var candidateWindows = windowPoints
+                    .Where(w => w.Key != currentWindow &&
+                               (w.Value.Contains(checkPoints[0]) || w.Value.Contains(checkPoints[1])))
+                    .Select(w => new
+                    {
+                        Window = w.Key,
+                        Points = w.Value,
+                        BottomEdge = w.Key.AdjustedBounds.Bottom
+                    })
+                    .OrderBy(w => w.BottomEdge)
+                    .ThenByDescending(w => windows.IndexOf(w.Window))
                     .ToList();
 
-                foreach (var frontWindow in frontWindows)
+                if (candidateWindows.Any())
                 {
-                    bool hasBottomPoint = frontWindow.Value.Contains(checkPoints[0]) ||
-                                        frontWindow.Value.Contains(checkPoints[1]);
-                    if (hasBottomPoint)
+                    var bestWindow = candidateWindows.First();
+                    // 現在のウィンドウより下端が低い場合は移動しない
+                    if (bestWindow.BottomEdge <= currentWindow.AdjustedBounds.Bottom)
                     {
-                        return frontWindow.Key;
+                        return bestWindow.Window;
                     }
                 }
 
                 // 後面のウィンドウへの移動条件をチェック
-                var backWindows = sortedWindows
-                    .Where(w => !IsWindowInFrontOf(w.Key, currentWindow))
-                    .ToList();
+                var backWindows = windowPoints
+                    .Where(w => w.Key != currentWindow && w.Value.Count == checkPoints.Length)
+                    .Select(w => w.Key)
+                    .FirstOrDefault();
 
-                foreach (var backWindow in backWindows)
+                if (backWindows != null)
                 {
-                    if (backWindow.Value.Count == checkPoints.Length)
-                    {
-                        return backWindow.Key;
-                    }
+                    return backWindows;
                 }
 
-                // 条件を満たすウィンドウがない場合は現在のウィンドウを維持
                 return currentWindow;
             }
             else
             {
-                // 現在のウィンドウに点が残っていない場合
-                // 最も多くの点を含む前面のウィンドウを探す
-                var bestFrontWindow = sortedWindows
-                    .Where(w => w.Value.Count > 0)
-                    .OrderByDescending(w => w.Value.Count)
+                // 下部の点を含むウィンドウの中から最適なものを選択
+                var candidateWindows = windowPoints
+                    .Where(w => w.Value.Contains(checkPoints[0]) || w.Value.Contains(checkPoints[1]))
+                    .Select(w => new
+                    {
+                        Window = w.Key,
+                        Points = w.Value,
+                        BottomEdge = w.Key.AdjustedBounds.Bottom
+                    })
+                    .OrderBy(w => w.BottomEdge) // 下端が高いものを優先
+                    .ThenByDescending(w => windows.IndexOf(w.Window)) // 同じ高さならZ-orderが高いものを優先
+                    .ToList();
+
+                if (candidateWindows.Any())
+                {
+                    return candidateWindows.First().Window;
+                }
+
+                // 下部の点を含むウィンドウがない場合は、すべての点を含むウィンドウを探す
+                var fullWindow = windowPoints
+                    .Where(w => w.Value.Count == checkPoints.Length)
+                    .Select(w => new
+                    {
+                        Window = w.Key,
+                        BottomEdge = w.Key.AdjustedBounds.Bottom
+                    })
+                    .OrderBy(w => w.BottomEdge)
+                    .ThenByDescending(w => windows.IndexOf(w.Window))
                     .FirstOrDefault();
 
-                if (bestFrontWindow.Key != null)
+                if (fullWindow != null)
                 {
-                    // 前面のウィンドウに下部の点が含まれているか、
-                    // すべての点が含まれている場合に移動
-                    bool hasBottomPoint = bestFrontWindow.Value.Contains(checkPoints[0]) ||
-                                        bestFrontWindow.Value.Contains(checkPoints[1]);
-                    bool hasAllPoints = bestFrontWindow.Value.Count == checkPoints.Length;
-
-                    if (hasBottomPoint || hasAllPoints)
-                    {
-                        return bestFrontWindow.Key;
-                    }
+                    return fullWindow.Window;
                 }
             }
-        }
 
-        return currentWindow; // 適切な移動先が見つからない場合は現在のウィンドウを維持
+            return currentWindow;
+        }
     }
 
     public void BringWindowToFront(GameWindow window)
