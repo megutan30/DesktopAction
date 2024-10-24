@@ -121,9 +121,9 @@ namespace MultiWindowActionGame
                 }
             }
 
-            if ((!isWindowMoving && !isWindowResizing) || movement != Vector2.Zero)
+            if (true)
             {
-                GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(new Point(Bounds.X, Bounds.Y));
+                GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(Bounds,currentWindow);
                 if (topWindow != currentWindow)
                 {
                     if (topWindow != null && topWindow.CanEnter)
@@ -138,8 +138,6 @@ namespace MultiWindowActionGame
                     }
                 }
             }
-
-            lastMovement = movement;
 
             Bounds = newBounds;
             CheckGrounded();
@@ -376,25 +374,6 @@ namespace MultiWindowActionGame
         {
             // プレイヤーを描画
             g.FillRectangle(Brushes.Blue, Bounds);
-
-            // デバッグモードの場合、移動可能領域を描画
-            if (!MainGame.IsDebugMode)
-            {
-                using (Pen pen = new Pen(Color.Green, 2))
-                {
-                    //g.DrawRectangle(pen, Bounds);  // プレイヤーの境界線を描画
-
-                    // 移動可能領域を描画
-                    using (Matrix matrix = new Matrix())
-                    {
-                        RectangleF[] scans = MovableRegion.GetRegionScans(matrix);
-                        foreach (RectangleF rect in scans)
-                        {
-                            g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
-                        }
-                    }
-                }
-            }
         }
 
         public void Move(float deltaTime)
@@ -427,6 +406,20 @@ namespace MultiWindowActionGame
         {
             // プレイヤーの矩形を黄色で描画
             g.DrawRectangle(new Pen(Color.Yellow, 2), Bounds);
+            using (Pen pen = new Pen(Color.Green, 2))
+            {
+                //g.DrawRectangle(pen, Bounds);  // プレイヤーの境界線を描画
+
+                // 移動可能領域を描画
+                using (Matrix matrix = new Matrix())
+                {
+                    RectangleF[] scans = MovableRegion.GetRegionScans(matrix);
+                    foreach (RectangleF rect in scans)
+                    {
+                        g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
+                    }
+                }
+            }
         }
 
         public void Jump()
