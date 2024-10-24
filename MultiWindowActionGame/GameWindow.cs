@@ -21,8 +21,13 @@ namespace MultiWindowActionGame
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
+        public event EventHandler? MoveStarted;
+        public event EventHandler? MoveEnded;
         public event EventHandler? ResizeStarted;
         public event EventHandler? ResizeEnded;
+
+            private bool isMoving = false;
+    private bool isResizing = false;
 
         private const int WM_SYSCOMMAND = 0x0112;
         private const int WM_MOUSEMOVE = 0x0200;
@@ -244,8 +249,30 @@ namespace MultiWindowActionGame
                 case 0x0214: // WM_SIZING
                     ResizeStarted?.Invoke(this, EventArgs.Empty);
                     break;
+                case 0x0231: // WM_ENTERSIZEMOVE
+                    if (Strategy is MovableWindowStrategy)
+                    {
+                        isMoving = true;
+                        MoveStarted?.Invoke(this, EventArgs.Empty);
+                    }
+                    else if (Strategy is ResizableWindowStrategy)
+                    {
+                        isResizing = true;
+                        ResizeStarted?.Invoke(this, EventArgs.Empty);
+                    }
+                    break;
                 case 0x0232: // WM_EXITSIZEMOVE
-                    ResizeEnded?.Invoke(this, EventArgs.Empty);
+                    if (isMoving)
+                    {
+                        isMoving = false;
+                        MoveEnded?.Invoke(this, EventArgs.Empty);
+                    }
+                    else if (isResizing)
+                    {
+                        isResizing = false;
+                        ResizeEnded?.Invoke(this, EventArgs.Empty);
+                    }
+                    break;
                     break;
 
                 case WM_SYSCOMMAND:

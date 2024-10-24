@@ -3,6 +3,7 @@ using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.Numerics;
 using static MultiWindowActionGame.GameWindow;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MultiWindowActionGame
 {
@@ -24,6 +25,8 @@ namespace MultiWindowActionGame
         public bool IsGrounded { get; private set; }
 
         private bool isResizing = false;
+        private bool isWindowMoving = false;
+        private bool isWindowResizing = false;
         private Vector2 lastMovement = Vector2.Zero;
 
         private IPlayerState currentState;
@@ -54,6 +57,8 @@ namespace MultiWindowActionGame
             {
                 currentWindow.WindowMoved -= OnWindowMoved;
                 currentWindow.WindowResized -= OnWindowResized;
+                currentWindow.MoveStarted -= OnMoveStarted;
+                currentWindow.MoveEnded -= OnMoveEnded;
                 currentWindow.ResizeStarted -= OnResizeStarted;
                 currentWindow.ResizeEnded -= OnResizeEnded;
             }
@@ -64,8 +69,10 @@ namespace MultiWindowActionGame
             {
                 currentWindow.WindowMoved += OnWindowMoved;
                 currentWindow.WindowResized += OnWindowResized;
-                currentWindow.ResizeStarted -= OnResizeStarted;
-                currentWindow.ResizeEnded -= OnResizeEnded;
+                currentWindow.MoveStarted += OnMoveStarted;
+                currentWindow.MoveEnded += OnMoveEnded;
+                currentWindow.ResizeStarted += OnResizeStarted;
+                currentWindow.ResizeEnded += OnResizeEnded;
 
                 EnterWindow(currentWindow);
             }
@@ -114,14 +121,14 @@ namespace MultiWindowActionGame
                 }
             }
 
-            if (!isResizing || movement != Vector2.Zero)
+            if ((!isWindowMoving && !isWindowResizing) || movement != Vector2.Zero)
             {
                 GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(new Point(Bounds.X, Bounds.Y));
                 if (topWindow != currentWindow)
                 {
                     if (topWindow != null && topWindow.CanEnter)
                     {
-                        ExitWindow();
+                        ExitWindow(currentWindow);
                         SetCurrentWindow(topWindow);
                     }
                     else if (currentWindow != null)
@@ -288,6 +295,15 @@ namespace MultiWindowActionGame
                 // エラーが発生した場合、サイズを変更せずに現在のサイズを維持
             }
         }
+        private void OnMoveStarted(object? sender, EventArgs e)
+        {
+            isWindowMoving = true;
+        }
+
+        private void OnMoveEnded(object? sender, EventArgs e)
+        {
+            isWindowMoving = false;
+        }
         private void OnResizeStarted(object? sender, EventArgs e)
         {
             isResizing = true;
@@ -452,8 +468,10 @@ namespace MultiWindowActionGame
             System.Diagnostics.Debug.WriteLine($"Player entered window {window.Id}");
         }
 
-        private void ExitWindow()
+        private void ExitWindow(GameWindow window)
         {
+            if(currentWindow == null)return;
+            System.Diagnostics.Debug.WriteLine($"Player Exit window {window.Id}");
             currentWindow = null;
             IsGrounded = false;
         }
