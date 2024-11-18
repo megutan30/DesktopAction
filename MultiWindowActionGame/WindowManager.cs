@@ -399,14 +399,41 @@ public class WindowManager : IWindowObserver
 
     public void BringWindowToFront(GameWindow window)
     {
+
+    }
+    public void UpdateWindowOrders()
+    {
         lock (windowLock)
         {
-            windows.Remove(window);
-            windows.Add(window);
+            // 親子関係に基づいてZ-orderを調整
+            var orderedWindows = new List<GameWindow>();
+
+            // 親を持たないウィンドウを先に追加
+            foreach (var window in windows.Where(w => !parentChildRelations.ContainsKey(w)))
+            {
+                AddWindowAndChildren(window, orderedWindows);
+            }
+
+            // ウィンドウリストを更新
+            windows = orderedWindows;
         }
-        UpdatePlayerWindow();
     }
 
+    private void AddWindowAndChildren(GameWindow window, List<GameWindow> orderedWindows)
+    {
+        orderedWindows.Add(window);
+
+        // このウィンドウを親とする子ウィンドウを追加
+        var children = parentChildRelations
+            .Where(kv => kv.Value == window)
+            .Select(kv => kv.Key)
+            .OfType<GameWindow>();
+
+        foreach (var child in children)
+        {
+            AddWindowAndChildren(child, orderedWindows);
+        }
+    }
     private void UpdatePlayerWindow()
     {
         if (player != null)
@@ -537,6 +564,36 @@ public class WindowManager : IWindowObserver
 
         return movableRegion;
     }
+    public void HandleWindowActivation(GameWindow window)
+    {
+        lock (windowLock)
+        {
+            // 現在のウィンドウが子として含まれているか確認
+            var potentialParents = windows
+                .Where(w => w != window && windows.IndexOf(w) < windows.IndexOf(window))
+                .OrderByDescending(w => windows.IndexOf(w));
+
+            var containingParent = potentialParents
+                .FirstOrDefault(p => p.AdjustedBounds.Contains(window.AdjustedBounds));
+
+            if (containingParent != null)
+            {
+                // 親となるウィンドウが見つかった場合
+                parentChildRelations[window] = containingParent;
+                // Z-orderは変更しない
+                Console.WriteLine($"Window {window.Id} became child of {containingParent.Id}");
+            }
+            else
+            {
+                // 親となるウィンドウがない場合は最前面に移動
+                windows.Remove(window);
+                windows.Add(window);
+                window.BringToFront();
+                Console.WriteLine($"Window {window.Id} brought to front");
+            }
+        }
+    }
+
     // イベントハンドラでキャッシュを無効化
     void IWindowObserver.OnWindowChanged(GameWindow window, WindowChangeType changeType)
     {

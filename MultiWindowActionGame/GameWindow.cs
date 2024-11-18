@@ -30,6 +30,7 @@ namespace MultiWindowActionGame
 
         private bool isMoving = false;
         private bool isResizing = false;
+        private bool shouldBringToFront = false;
 
         private const int WM_SYSCOMMAND = 0x0112;
         private const int WM_MOUSEMOVE = 0x0200;
@@ -37,6 +38,9 @@ namespace MultiWindowActionGame
         private const int SC_MINIMIZE = 0xF020;
         private const int SC_MAXIMIZE = 0xF030;
         private const int SC_RESTORE = 0xF120;
+        private const int HWND_TOP = 0;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
 
         private const uint MF_BYCOMMAND = 0x00000000;
         private const uint MF_GRAYED = 0x00000001;
@@ -45,6 +49,8 @@ namespace MultiWindowActionGame
         private const int WM_NCLBUTTONDOWN = 0x00A1;
         private const int SC_MOVE = 0xF010;
         private const int HTCAPTION = 2;
+        private const int WM_MOUSEACTIVATE = 0x0021;
+        private const int MA_NOACTIVATE = 3;
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
@@ -73,7 +79,16 @@ namespace MultiWindowActionGame
             public int X;
             public int Y;
         }
-
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(
+            IntPtr hWnd,
+            int hWndInsertAfter,
+            int X,
+            int Y,
+            int cx,
+            int cy,
+            uint uFlags
+         );
         private Rectangle GetClientRectangle()
         {
             RECT rect;
@@ -335,11 +350,11 @@ namespace MultiWindowActionGame
         {
             if (this.InvokeRequired)
             {
-                this.Invoke(new Action(BringToFront));
+                this.Invoke(new Action(() => SetWindowPos(this.Handle, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)));
             }
             else
             {
-                base.BringToFront();
+                SetWindowPos(this.Handle, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             }
         }
 
@@ -352,6 +367,24 @@ namespace MultiWindowActionGame
         {
             switch (m.Msg)
             {
+                case WM_MOUSEACTIVATE:
+                    // クリック時のアクティブ化を防止
+                    m.Result = (IntPtr)MA_NOACTIVATE;
+                    return;
+
+                case 0x0201: // WM_LBUTTONDOWN
+                             // クリック開始時の処理
+                    shouldBringToFront = true;
+                    break;
+
+                case 0x0202: // WM_LBUTTONUP
+                    if (shouldBringToFront)
+                    {
+                        // マウスボタンを離した時に適切なZ-order調整を行う
+                        WindowManager.Instance.HandleWindowActivation(this);
+                        shouldBringToFront = false;
+                    }
+                    break;
                 case WM_NCHITTEST:
                     // タイトルバーのヒットテストを処理
                     base.WndProc(ref m);
