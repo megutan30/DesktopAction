@@ -11,14 +11,58 @@ public class WindowManager : IWindowObserver
 
     private List<GameWindow> windows = new List<GameWindow>();
     private object windowLock = new object();
-
     private Player? player;
+    private bool isInitialized = false;
+
+    private readonly Dictionary<GameWindow, HashSet<IEffectTarget>> containedTargetsCache = new();
+    private bool needsUpdateCache = true;
 
     private WindowManager()
     {
-        CreateInitialWindows();
+        
     }
 
+    public void Initialize()
+    {
+        if (isInitialized) return;
+
+        CreateInitialWindows();
+        isInitialized = true;
+    }
+    public void InvalidateCache()
+    {
+        needsUpdateCache = true;
+    }
+    private void UpdateContainedTargetsCache()
+    {
+        if (!needsUpdateCache) return;
+
+        lock (windowLock)
+        {
+            containedTargetsCache.Clear();
+            foreach (var window in windows)
+            {
+                containedTargetsCache[window] = new HashSet<IEffectTarget>();
+                foreach (var component in GetAllComponents())
+                {
+                    if (component is IEffectTarget target &&
+                        component != window &&
+                        target.IsCompletelyContained(window))
+                    {
+                        containedTargetsCache[window].Add(target);
+                    }
+                }
+            }
+        }
+
+        needsUpdateCache = false;
+    }
+
+    public HashSet<IEffectTarget> GetContainedTargets(GameWindow window)
+    {
+        UpdateContainedTargetsCache();
+        return containedTargetsCache.GetValueOrDefault(window, new HashSet<IEffectTarget>());
+    }
     public void SetPlayer(Player player)
     {
         this.player = player;
@@ -66,6 +110,24 @@ public class WindowManager : IWindowObserver
         {
             // ウィンドウ内のプレイヤーのサイズを更新
             Player? player = GetPlayerInWindow(window);
+        }
+    }
+    public IEnumerable<IWindowComponent> GetAllComponents()
+    {
+        lock (windowLock)
+        {
+            return new List<IWindowComponent>(windows);
+        }
+    }
+
+    public List<GameWindow> GetIntersectingWindows(Rectangle bounds)
+    {
+        lock (windowLock)
+        {
+            return windows
+                .Where(w => w.AdjustedBounds.IntersectsWith(bounds))
+                .OrderByDescending(w => windows.IndexOf(w))
+                .ToList();
         }
     }
 
@@ -385,8 +447,8 @@ public class WindowManager : IWindowObserver
 
         return movableRegion;
     }
-
-    public void OnWindowChanged(GameWindow window, WindowChangeType changeType)
+    // イベントハンドラでキャッシュを無効化
+    void IWindowObserver.OnWindowChanged(GameWindow window, WindowChangeType changeType)
     {
         if (changeType == WindowChangeType.Deleted)
         {
@@ -395,9 +457,68 @@ public class WindowManager : IWindowObserver
                 windows.Remove(window);
             }
         }
-        // すべてのウィンドウの変更で移動可能領域を更新
+
+        // キャッシュを無効化
+        InvalidateCache();
+
+        // 移動可能領域を更新
         UpdatePlayerMovableRegion();
+
+        // 含まれているターゲットの更新
+        UpdateContainedTargets(window);
     }
+    private void UpdateContainedTargets(GameWindow changedWindow)
+    {
+        if (player == null) return;
+
+        lock (windowLock)
+        {
+            // プレイヤーが変更されたウィンドウに完全に含まれているかチェック
+            if (player.IsCompletelyContained(changedWindow))
+            {
+                var containedTargets = GetContainedTargets(changedWindow);
+                if (!containedTargets.Contains(player))
+                {
+                    containedTargets.Add(player);
+                }
+            }
+
+            // 他のウィンドウとの関係も更新
+            foreach (var window in windows)
+            {
+                var targets = GetContainedTargets(window);
+                var effects = window.Strategy switch
+                {
+                    MovableWindowStrategy moveStrategy => new[] { moveStrategy.MovementEffect },
+                    ResizableWindowStrategy resizeStrategy => new[] { resizeStrategy.ResizeEffect },
+                    _ => Array.Empty<IWindowEffect>()
+                };
+
+                foreach (var effect in effects)
+                {
+                    foreach (var target in targets)
+                    {
+                        if (target.CanReceiveEffect(effect))
+                        {
+                            target.ApplyEffect(effect);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    //public void OnWindowChanged(GameWindow window, WindowChangeType changeType)
+    //{
+    //    if (changeType == WindowChangeType.Deleted)
+    //    {
+    //        lock (windowLock)
+    //        {
+    //            windows.Remove(window);
+    //        }
+    //    }
+    //    // すべてのウィンドウの変更で移動可能領域を更新
+    //    UpdatePlayerMovableRegion();
+    //}
     private void UpdatePlayerMovableRegion()
     {
         if (player != null && player.GetCurrentWindow() != null)

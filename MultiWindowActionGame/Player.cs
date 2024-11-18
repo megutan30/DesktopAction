@@ -7,7 +7,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MultiWindowActionGame
 {
-    public class Player : IDrawable, IUpdatable
+    public class Player : IDrawable, IUpdatable,IEffectTarget
     {
         public Rectangle Bounds { get; private set; }
         private float speed = 400.0f;
@@ -18,7 +18,7 @@ namespace MultiWindowActionGame
         private Size enterPlayerSize;
         private Size enterWindowSize;
         private SizeF currentScale = new SizeF(1.0f, 1.0f);
-        private Size originalSize;
+        public Size originalSize;
         private GameWindow? currentWindow;
         public Region MovableRegion { get; private set; }
 
@@ -31,6 +31,7 @@ namespace MultiWindowActionGame
 
         private IPlayerState currentState;
 
+        private Vector2 externalMovement = Vector2.Zero;
         public Player()
         {
             Bounds = new Rectangle(150, 150, 40, 40);
@@ -87,6 +88,45 @@ namespace MultiWindowActionGame
             return movement;
         }
 
+        public bool CanReceiveEffect(IWindowEffect effect)
+        {
+            // プレイヤーが効果を受けられる状態かチェック
+            if (IsInBetweenWindows()) return false;
+
+            // 現在のウィンドウがある場合、そのウィンドウの効果のみ受け付ける
+            if (currentWindow != null && !currentWindow.AdjustedBounds.Contains(Bounds))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public void ApplyEffect(IWindowEffect effect)
+        {
+            if (!CanReceiveEffect(effect)) return;
+            effect.Apply(this);
+        }
+
+        public bool IsCompletelyContained(GameWindow container)
+        {
+            return container.AdjustedBounds.Contains(Bounds);
+        }
+        private bool IsInBetweenWindows()
+        {
+            var intersectingWindows = WindowManager.Instance.GetIntersectingWindows(Bounds);
+            return intersectingWindows.Count > 1;
+        }
+        public void ApplyExternalMovement(Vector2 movement)
+        {
+            externalMovement = movement;
+        }
+
+        public void ApplyScale(SizeF scale)
+        {
+            currentScale = scale;
+            UpdatePlayerSize();
+        }
 
         private bool IsCompletelyInside(Rectangle bounds, Region region, Graphics g)
         {
@@ -103,6 +143,8 @@ namespace MultiWindowActionGame
             currentState.Update(this, deltaTime);
 
             Vector2 movement = CalculateMovement(deltaTime);
+            movement += externalMovement;
+            externalMovement = Vector2.Zero;
             ApplyGravity(deltaTime);
 
             Rectangle newBounds = new Rectangle(
@@ -344,7 +386,13 @@ namespace MultiWindowActionGame
                 }
             }
         }
-
+        public void SetPosition(Point newPosition)
+        {
+            Bounds = new Rectangle(
+                newPosition,
+                Bounds.Size
+            );
+        }
         public void Draw(Graphics g)
         {
             // プレイヤーを描画

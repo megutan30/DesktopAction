@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace MultiWindowActionGame
 {
-    public class GameWindow : Form, IWindowComponent, IWindowSubject
+    public class GameWindow : Form, IWindowComponent, IWindowSubject,IEffectTarget
     {
         public Rectangle ClientBounds { get; private set; }
         public Rectangle AdjustedBounds { get; private set; }
@@ -14,10 +14,12 @@ namespace MultiWindowActionGame
         public bool CanExit { get; set; } = true;
         public Size OriginalSize { get; private set; }
         public IWindowStrategy Strategy { get; private set; }
-
+        public Rectangle Bounds => AdjustedBounds;
         private new const int Margin = 0;
         protected IWindowStrategy strategy;
         private List<IWindowObserver> observers = new List<IWindowObserver>();
+        private readonly List<IWindowEffect> effects = new();
+        private readonly HashSet<IEffectTarget> containedTargets = new();
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
@@ -26,8 +28,8 @@ namespace MultiWindowActionGame
         public event EventHandler? ResizeStarted;
         public event EventHandler? ResizeEnded;
 
-            private bool isMoving = false;
-    private bool isResizing = false;
+        private bool isMoving = false;
+        private bool isResizing = false;
 
         private const int WM_SYSCOMMAND = 0x0112;
         private const int WM_MOUSEMOVE = 0x0200;
@@ -98,30 +100,118 @@ namespace MultiWindowActionGame
             this.Strategy = strategy;
             this.OriginalSize = size;
 
-            this.FormBorderStyle = FormBorderStyle.Sizable;
-            this.StartPosition = FormStartPosition.Manual;
-            this.Location = location;
-            this.Size = size;
-            this.TopMost = true;
-
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
-            this.ControlBox = true;  // タイトルバーのボタンを表示
-            this.MaximizeBox = false;  // 最大化ボタンを無効化
-            this.MinimizeBox = false;  // 最小化ボタンを無効化
-
             this.MinimumSize = new Size(100, 100);
 
             this.Load += GameWindow_Load;
 
-            UpdateBounds();
+            InitializeWindow(location, size);
+            InitializeEvents();
 
-            this.Move += GameWindow_Move;
-            this.Resize += GameWindow_Resize;
-            this.Click += GameWindow_Click;
             Console.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
         }
+        private void InitializeWindow(Point location, Size size)
+        {
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.StartPosition = FormStartPosition.Manual;
+            this.Location = location;
+            this.Size = size;
+            this.TopMost = true;
+            this.ControlBox = true;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.MinimumSize = new Size(100, 100);
+        }
 
+        private void InitializeEvents()
+        {
+            this.Load += GameWindow_Load;
+            this.Move += GameWindow_Move;
+            this.Resize += GameWindow_Resize;
+            this.Click += GameWindow_Click;
+            UpdateBounds();
+        }
+
+        public void AddEffect(IWindowEffect effect)
+        {
+            effects.Add(effect);
+        }
+        public void RemoveEffect(IWindowEffect effect)
+        {
+            effects.Remove(effect);
+        }
+
+        public bool CanReceiveEffect(IWindowEffect effect)
+        {
+            if (isMoving && effect.Type == EffectType.Resize) return false;
+            if (isResizing && effect.Type == EffectType.Movement) return false;
+            return true;
+        }
+
+        public void ApplyEffect(IWindowEffect effect)
+        {
+            if (!CanReceiveEffect(effect)) return;
+
+            effect.Apply(this);
+
+            // 含まれているターゲットに効果を適用
+            foreach (var target in containedTargets)
+            {
+                if (target.CanReceiveEffect(effect))
+                {
+                    target.ApplyEffect(effect);
+                }
+            }
+        }
+
+        public bool IsCompletelyContained(GameWindow container)
+        {
+            // ウィンドウが別のウィンドウに完全に含まれているかチェック
+            return container.AdjustedBounds.Contains(this.AdjustedBounds);
+        }
+
+        private void UpdateContainedTargets()
+        {
+            var oldTargets = new HashSet<IEffectTarget>(containedTargets);
+            containedTargets.Clear();
+
+            foreach (var component in WindowManager.Instance.GetAllComponents())
+            {
+                if (component is IEffectTarget target &&
+                    component != this &&
+                    target.IsCompletelyContained(this))
+                {
+                    containedTargets.Add(target);
+                }
+            }
+
+            // 新しく含まれるようになったターゲットと離れたターゲットを処理
+            foreach (var target in containedTargets.Except(oldTargets))
+            {
+                OnTargetEntered(target);
+            }
+            foreach (var target in oldTargets.Except(containedTargets))
+            {
+                OnTargetExited(target);
+            }
+        }
+        private void OnTargetEntered(IEffectTarget target)
+        {
+            // ターゲットが入ってきたときの処理
+            foreach (var effect in effects.Where(e => e.IsActive))
+            {
+                if (target.CanReceiveEffect(effect))
+                {
+                    target.ApplyEffect(effect);
+                }
+            }
+        }
+
+        private void OnTargetExited(IEffectTarget target)
+        {
+            // ターゲットが出て行ったときの処理
+            // 必要に応じて効果をクリアするなど
+        }
         public void AddChild(IWindowComponent child)
         {
             throw new NotSupportedException("GameWindow cannot have children");
@@ -143,14 +233,67 @@ namespace MultiWindowActionGame
         {
             strategy.Update(this, deltaTime);
             strategy.HandleInput(this);
-            UpdateBounds(); // 毎フレームバウンドを更新
+            UpdateBounds();
+            UpdateContainedTargets();
         }
+        //public async Task UpdateAsync(float deltaTime)
+        //{
+        //    // 既存の更新処理
+        //    await base.UpdateAsync(deltaTime);
 
+        //    // 含まれているターゲットの更新
+        //    UpdateContainedTargets();
+
+        //    // アクティブな効果の適用
+        //    foreach (var effect in effects.Where(e => e.IsActive))
+        //    {
+        //        foreach (var target in containedTargets)
+        //        {
+        //            if (target.CanReceiveEffect(effect))
+        //            {
+        //                target.ApplyEffect(effect);
+        //            }
+        //        }
+        //    }
+        //}
         public void Draw(Graphics g)
         {
-            //g.DrawRectangle(Pens.Black, Margin, Margin, this.ClientSize.Width - (2 * Margin) - 1, this.ClientSize.Height - (2 * Margin) - 1);
             g.DrawString($"Window ID: {Id}", this.Font, Brushes.Black, 10, 10);
             g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Black, 10, 30);
+
+
+            if (MainGame.IsDebugMode)
+            {
+                DrawDebugInfo(g);
+            }
+        }
+
+        private void DrawDebugInfo(Graphics g)
+        {
+            // 含まれているターゲットの数を表示
+            g.DrawString($"Contained Targets: {containedTargets.Count}",
+                this.Font, Brushes.Red, 10, 50);
+
+            // 効果の状態を表示
+            int y = 70;
+            foreach (var effect in effects)
+            {
+                g.DrawString($"Effect: {effect.Type} Active: {effect.IsActive}",
+                    this.Font, Brushes.Blue, 10, y);
+                y += 20;
+            }
+        }
+
+        protected override void OnMove(EventArgs e)
+        {
+            base.OnMove(e);
+            WindowManager.Instance.InvalidateCache();
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            WindowManager.Instance.InvalidateCache();
         }
 
         private void GameWindow_Load(object sender, EventArgs e)
@@ -172,10 +315,10 @@ namespace MultiWindowActionGame
             NotifyObservers(WindowChangeType.Resized);
             strategy.HandleResize(this);
         }
-            private void GameWindow_Click(object? sender, EventArgs e)
-    {
-        WindowManager.Instance.BringWindowToFront(this);
-    }
+        private void GameWindow_Click(object? sender, EventArgs e)
+        {
+            WindowManager.Instance.BringWindowToFront(this);
+        }
         private void UpdateBounds()
         {
             Rectangle clientRect = GetClientRectangle();
@@ -224,7 +367,6 @@ namespace MultiWindowActionGame
             return strategy is ResizableWindowStrategy;
         }
 
-
         protected override void WndProc(ref Message m)
         {
             switch (m.Msg)
@@ -272,7 +414,6 @@ namespace MultiWindowActionGame
                         isResizing = false;
                         ResizeEnded?.Invoke(this, EventArgs.Empty);
                     }
-                    break;
                     break;
 
                 case WM_SYSCOMMAND:

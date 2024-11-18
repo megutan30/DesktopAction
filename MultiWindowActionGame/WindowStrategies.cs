@@ -1,6 +1,7 @@
 ﻿using MultiWindowActionGame;
 using System;
 using System.Drawing;
+using System.Numerics;
 using System.Windows.Forms;
 
 namespace MultiWindowActionGame
@@ -33,15 +34,19 @@ namespace MultiWindowActionGame
 
     public class ResizableWindowStrategy : IWindowStrategy
     {
+        private readonly ResizeEffect resizeEffect = new ResizeEffect();
         private bool isResizing = false;
         private Point lastMousePos;
         private Size originalSize;
 
+        // リサイズ効果を公開するプロパティを追加
+        public ResizeEffect ResizeEffect => resizeEffect;
+        // 移動開始時の各ターゲットとの相対位置を保存
+        private Dictionary<IEffectTarget, Point> initialRelativePositions = new Dictionary<IEffectTarget, Point>();
         public void Update(GameWindow window, float deltaTime)
         {
-            // 通常の更新ロジック（必要に応じて）
-        }
 
+        }
         public void HandleInput(GameWindow window)
         {
             // キーボード入力の処理（必要に応じて）
@@ -61,6 +66,9 @@ namespace MultiWindowActionGame
                     isResizing = true;
                     lastMousePos = window.PointToClient(Cursor.Position);
                     originalSize = window.Size;
+
+                    window.AddEffect(resizeEffect);
+                    resizeEffect.UpdateScale(new SizeF(1.0f, 1.0f));
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
@@ -70,16 +78,50 @@ namespace MultiWindowActionGame
                 case 0x0200: // WM_MOUSEMOVE
                     if (isResizing)
                     {
+                        // 現在のマウス位置を取得
                         Point currentMousePos = window.PointToClient(Cursor.Position);
+
+                        // マウスの移動量を計算
                         int dx = currentMousePos.X - lastMousePos.X;
                         int dy = currentMousePos.Y - lastMousePos.Y;
 
-                        Size newSize = new Size(originalSize.Width + dx, originalSize.Height + dy);
+                        // 新しいサイズを計算
+                        Size newSize = new Size(
+                            originalSize.Width + dx,
+                            originalSize.Height + dy
+                        );
+
+                        // 最小サイズ制限を適用
                         newSize.Width = Math.Max(newSize.Width, window.MinimumSize.Width);
                         newSize.Height = Math.Max(newSize.Height, window.MinimumSize.Height);
 
+                        // 新しいスケールを計算
+                        SizeF scale = new SizeF(
+                            (float)newSize.Width / window.OriginalSize.Width,
+                            (float)newSize.Height / window.OriginalSize.Height
+                        );
+
+                        // まず効果を更新
+                        ResizeEffect.UpdateScale(scale);
+
+                        // ウィンドウのサイズを更新
                         window.Size = newSize;
+
+                        // 含まれているターゲットに効果を適用
+                        var containedTargets = WindowManager.Instance.GetContainedTargets(window);
+                        foreach (var target in containedTargets)
+                        {
+                            if (target.CanReceiveEffect(ResizeEffect))
+                            {
+                                target.ApplyEffect(ResizeEffect);
+                            }
+                        }
+
+                        // リサイズイベントを発火
                         window.OnWindowResized();
+
+                        // デバッグ情報
+                        Console.WriteLine($"Resizing - New Size: {newSize}, Scale: {scale}, Targets: {containedTargets.Count}");
                     }
                     break;
             }
@@ -97,9 +139,11 @@ namespace MultiWindowActionGame
         private Point lastMousePos;
         private const int WM_NCHITTEST = 0x84;
         private const int HTCAPTION = 2;
+        public MovementEffect MovementEffect { get; } = new MovementEffect();
+        private Dictionary<IEffectTarget, Point> initialRelativePositions = new Dictionary<IEffectTarget, Point>();
         public void Update(GameWindow window, float deltaTime)
         {
-            // 更新ロジック（必要に応じて）
+           
         }
 
         public void HandleInput(GameWindow window)
@@ -118,10 +162,13 @@ namespace MultiWindowActionGame
                 case 0x0201: // WM_LBUTTONDOWN
                     isDragging = true;
                     lastMousePos = window.PointToClient(Cursor.Position);
+                    StoreInitialRelativePositions(window);
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
                     isDragging = false;
+                    MovementEffect.UpdateMovement(Vector2.Zero);
+                    initialRelativePositions.Clear();
                     break;
 
                 case 0x0200: // WM_MOUSEMOVE
@@ -130,17 +177,71 @@ namespace MultiWindowActionGame
                         Point currentMousePos = window.PointToClient(Cursor.Position);
                         int dx = currentMousePos.X - lastMousePos.X;
                         int dy = currentMousePos.Y - lastMousePos.Y;
-                        window.Location = new Point(window.Location.X + dx, window.Location.Y + dy);
-                        window.OnWindowMoved();
+                        Vector2 movement = new Vector2(dx, dy);
 
-                        // プレイヤーの位置を更新
-                        Player? player = WindowManager.Instance.GetPlayerInWindow(window);
-                        if (player != null)
+                        MovementEffect.UpdateMovement(movement);
+
+                        // まずウィンドウ自体を移動
+                        window.Location = new Point(window.Location.X + dx, window.Location.Y + dy);
+
+                        // 効果を適用
+                        foreach (var target in WindowManager.Instance.GetContainedTargets(window))
                         {
-                            player.ConstrainToWindow(window);
+                            if (target.CanReceiveEffect(MovementEffect))
+                            {
+                                target.ApplyEffect(MovementEffect);
+                            }
                         }
+                        window.OnWindowMoved();
                     }
                     break;
+            }
+        }
+        private void StoreInitialRelativePositions(GameWindow window)
+        {
+            initialRelativePositions.Clear();
+            foreach (var target in WindowManager.Instance.GetContainedTargets(window))
+            {
+                if (target is Player player)
+                {
+                    // プレイヤーの場合、ウィンドウとの相対位置を記録
+                    Point relativePos = new Point(
+                        player.Bounds.X - window.AdjustedBounds.X,
+                        player.Bounds.Y - window.AdjustedBounds.Y
+                    );
+                    initialRelativePositions[player] = relativePos;
+                }
+                else if (target is GameWindow targetWindow)
+                {
+                    // 子ウィンドウの場合、親ウィンドウとの相対位置を記録
+                    Point relativePos = new Point(
+                        targetWindow.Location.X - window.Location.X,
+                        targetWindow.Location.Y - window.Location.Y
+                    );
+                    initialRelativePositions[targetWindow] = relativePos;
+                }
+            }
+        }
+
+        private void UpdateTargetPosition(IEffectTarget target, GameWindow parentWindow, Point relativePos, Point newParentLocation)
+        {
+            if (target is Player player)
+            {
+                // プレイヤーの場合、親ウィンドウのAdjustedBoundsに対する相対位置を維持
+                Point newPlayerPos = new Point(
+                    parentWindow.AdjustedBounds.X + relativePos.X,
+                    parentWindow.AdjustedBounds.Y + relativePos.Y
+                );
+                player.SetPosition(newPlayerPos);
+            }
+            else if (target is GameWindow targetWindow)
+            {
+                // 子ウィンドウの場合、親ウィンドウの位置に対する相対位置を維持
+                Point newWindowPos = new Point(
+                    newParentLocation.X + relativePos.X,
+                    newParentLocation.Y + relativePos.Y
+                );
+                targetWindow.Location = newWindowPos;
             }
         }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
@@ -163,7 +264,16 @@ namespace MultiWindowActionGame
         public void HandleInput(GameWindow window)
         {
             if (Input.IsKeyDown(Keys.Delete))
-            {
+            {               
+                // 削除前に含まれているターゲットを解放
+                foreach (var target in WindowManager.Instance.GetContainedTargets(window))
+                {
+                    if (target is Player player)
+                    {
+                        player.SetCurrentWindow(null);
+                    }
+                }
+
                 window.Close();
                 window.NotifyObservers(WindowChangeType.Deleted);
             }

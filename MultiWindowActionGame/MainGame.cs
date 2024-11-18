@@ -12,6 +12,7 @@ namespace MultiWindowActionGame
         public static bool IsDebugMode { get; private set; } = true;
         public void Initialize()
         {
+            WindowManager.Instance.Initialize();
             player = new Player();
             windowManager = WindowManager.Instance;
             windowManager.SetPlayer(player);
@@ -106,8 +107,6 @@ namespace MultiWindowActionGame
             {
                 g.DrawString($"Current Window: {currentWindow.Id}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 30));
             }
-
-            // その他のデバッグ情報を追加...
         }
 
     }
