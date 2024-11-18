@@ -236,26 +236,7 @@ namespace MultiWindowActionGame
             UpdateBounds();
             UpdateContainedTargets();
         }
-        //public async Task UpdateAsync(float deltaTime)
-        //{
-        //    // 既存の更新処理
-        //    await base.UpdateAsync(deltaTime);
 
-        //    // 含まれているターゲットの更新
-        //    UpdateContainedTargets();
-
-        //    // アクティブな効果の適用
-        //    foreach (var effect in effects.Where(e => e.IsActive))
-        //    {
-        //        foreach (var target in containedTargets)
-        //        {
-        //            if (target.CanReceiveEffect(effect))
-        //            {
-        //                target.ApplyEffect(effect);
-        //            }
-        //        }
-        //    }
-        //}
         public void Draw(Graphics g)
         {
             g.DrawString($"Window ID: {Id}", this.Font, Brushes.Black, 10, 10);

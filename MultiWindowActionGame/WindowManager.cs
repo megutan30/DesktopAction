@@ -15,8 +15,11 @@ public class WindowManager : IWindowObserver
     private bool isInitialized = false;
 
     private readonly Dictionary<GameWindow, HashSet<IEffectTarget>> containedTargetsCache = new();
+    private Dictionary<IEffectTarget, GameWindow> parentChildRelations = new Dictionary<IEffectTarget, GameWindow>();
+    private bool isCheckingParentChild = false;
     private bool needsUpdateCache = true;
-
+    private Dictionary<GameWindow, GameWindow> childToParentRelations = new Dictionary<GameWindow, GameWindow>();
+    private bool isCheckingRelations = false;
     private WindowManager()
     {
         
@@ -58,10 +61,73 @@ public class WindowManager : IWindowObserver
         needsUpdateCache = false;
     }
 
+    // プレイヤーの操作による親子関係の解除をチェック
+    public void CheckParentChildRelationBreak(IEffectTarget child, bool isBeingOperated)
+    {
+        if (!isBeingOperated || !parentChildRelations.ContainsKey(child)) return;
+
+        var parent = parentChildRelations[child];
+        if (!child.IsCompletelyContained(parent))
+        {
+            parentChildRelations.Remove(child);
+            Console.WriteLine($"Broke parent-child relation due to operation: Parent={parent.Id}, Child={child}");
+        }
+    }
+
+    // 親を取得するメソッド
+    public GameWindow? GetParentWindow(IEffectTarget child)
+    {
+        return parentChildRelations.TryGetValue(child, out var parent) ? parent : null;
+    }
+    public void CheckPotentialParentWindow(GameWindow operatedWindow)
+    {
+        if (isCheckingParentChild) return;
+
+        try
+        {
+            isCheckingParentChild = true;
+
+            // 操作されたウィンドウよりもZ-orderが低い（奥にある）ウィンドウを探す
+            var potentialParents = windows
+                .Where(w => w != operatedWindow && windows.IndexOf(w) < windows.IndexOf(operatedWindow))
+                .OrderByDescending(w => windows.IndexOf(w));
+
+            foreach (var potentialParent in potentialParents)
+            {
+                // 完全に内包されているか確認
+                if (potentialParent.AdjustedBounds.Contains(operatedWindow.AdjustedBounds))
+                {
+                    parentChildRelations[operatedWindow] = potentialParent;
+                    Console.WriteLine($"Established parent-child relation: Parent={potentialParent.Id}, Child={operatedWindow.Id}");
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            isCheckingParentChild = false;
+        }
+    }
+
+    public void CheckChildRelationBreak(IEffectTarget child)
+    {
+        if (!parentChildRelations.ContainsKey(child)) return;
+
+        var parent = parentChildRelations[child];
+        if (!parent.AdjustedBounds.Contains(child.Bounds))
+        {
+            parentChildRelations.Remove(child);
+            Console.WriteLine($"Broke parent-child relation: Parent={parent.Id}, Child={child}");
+        }
+    }
+
     public HashSet<IEffectTarget> GetContainedTargets(GameWindow window)
     {
-        UpdateContainedTargetsCache();
-        return containedTargetsCache.GetValueOrDefault(window, new HashSet<IEffectTarget>());
+        return new HashSet<IEffectTarget>(
+            parentChildRelations
+                .Where(kv => kv.Value == window)
+                .Select(kv => kv.Key)
+        );
     }
     public void SetPlayer(Player player)
     {
@@ -192,7 +258,6 @@ public class WindowManager : IWindowObserver
             return index1 > index2;
         }
     }
-
 
     public GameWindow? GetTopWindowAt(Rectangle playerBounds, GameWindow? currentWindow)
     {
@@ -383,6 +448,31 @@ public class WindowManager : IWindowObserver
                 {
                     // 隣接している場合、ウィンドウの枠を緑で描画
                     g.DrawRectangle(new Pen(Color.Green, 2), window.AdjustedBounds);
+                }
+
+                foreach (var relation in parentChildRelations)
+                {
+                    var child = relation.Key;
+                    var parent = relation.Value;
+
+                    // 親子関係を線で表示
+                    using (Pen pen = new Pen(Color.Yellow, 2))
+                    {
+                        Point childCenter = new Point(
+                            child.Bounds.X + child.Bounds.Width / 2,
+                            child.Bounds.Y + child.Bounds.Height / 2
+                        );
+                        Point parentCenter = new Point(
+                            parent.Bounds.X + parent.Bounds.Width / 2,
+                            parent.Bounds.Y + parent.Bounds.Height / 2
+                        );
+                        g.DrawLine(pen, childCenter, parentCenter);
+                    }
+
+                    // 関係情報を表示
+                    string info = $"Parent: {parent.Id}";
+                    g.DrawString(info, SystemFonts.DefaultFont, Brushes.Yellow,
+                        child.Bounds.X, child.Bounds.Y - 20);
                 }
             }
         }

@@ -9,7 +9,8 @@ namespace MultiWindowActionGame
 {
     public class Player : IDrawable, IUpdatable,IEffectTarget
     {
-        public Rectangle Bounds { get; private set; }
+        private Rectangle bounds;
+        public Rectangle Bounds => bounds;
         private float speed = 400.0f;
         private float gravity = 1000.0f;
         private float jampForce = 500;
@@ -18,7 +19,7 @@ namespace MultiWindowActionGame
         private Size enterPlayerSize;
         private Size enterWindowSize;
         private SizeF currentScale = new SizeF(1.0f, 1.0f);
-        public Size originalSize;
+        public Size OriginalSize { get; private set; }
         private GameWindow? currentWindow;
         public Region MovableRegion { get; private set; }
 
@@ -33,11 +34,11 @@ namespace MultiWindowActionGame
 
         private Vector2 externalMovement = Vector2.Zero;
         public Player()
-        {
-            Bounds = new Rectangle(150, 150, 40, 40);
-            originalSize = new Size(40, 40);
-            enterPlayerSize = originalSize;
-            currentSize = originalSize;
+        {   
+            OriginalSize = new Size(40, 40);
+            bounds = new Rectangle(150, 150, OriginalSize.Width, OriginalSize.Height);
+            enterPlayerSize = OriginalSize;
+            currentSize = OriginalSize;
             currentState = new NormalState();
             MovableRegion = new Region();
         }
@@ -45,6 +46,23 @@ namespace MultiWindowActionGame
         public GameWindow? GetCurrentWindow()
         {
             return currentWindow;
+        }
+        // 位置を更新するための公開メソッド
+        public void UpdatePosition(Point newPosition)
+        {
+            bounds.Location = newPosition;
+        }
+
+        // サイズを更新するための公開メソッド
+        public void UpdateSize(Size newSize)
+        {
+            bounds.Size = newSize;
+        }
+
+        // バウンドを直接更新するための内部メソッド
+        protected void SetBounds(Rectangle newBounds)
+        {
+            bounds = newBounds;
         }
 
         public void SetState(IPlayerState newState)
@@ -176,12 +194,12 @@ namespace MultiWindowActionGame
                     else if (currentWindow != null)
                     {
                         newBounds = ConstrainToWindow(newBounds, currentWindow);
-                        Bounds = newBounds;
+                        SetBounds(newBounds);
                     }
                 }
             }
 
-            Bounds = newBounds;
+            SetBounds(newBounds);
             CheckGrounded();
             Console.WriteLine($"Player position updated: {Bounds}");
         }
@@ -323,7 +341,7 @@ namespace MultiWindowActionGame
                 );
 
                 // 新しい位置とサイズを設定
-                Bounds = newBounds;
+                SetBounds(newBounds);
                 currentSize = newSize;
 
                 // ウィンドウ内に収める
@@ -361,12 +379,12 @@ namespace MultiWindowActionGame
                 float relativeX = (Bounds.X - currentWindow.AdjustedBounds.X) / (float)currentWindow.AdjustedBounds.Width;
                 float relativeY = (Bounds.Y - currentWindow.AdjustedBounds.Y) / (float)currentWindow.AdjustedBounds.Height;
 
-                Bounds = new Rectangle(
+                SetBounds(new Rectangle(
                     (int)(currentWindow.AdjustedBounds.X + relativeX * currentWindow.AdjustedBounds.Width),
                     (int)(currentWindow.AdjustedBounds.Y + relativeY * currentWindow.AdjustedBounds.Height),
                     Bounds.Width,
                     Bounds.Height
-                );
+                ));
 
                 IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
             }
@@ -388,10 +406,10 @@ namespace MultiWindowActionGame
         }
         public void SetPosition(Point newPosition)
         {
-            Bounds = new Rectangle(
+            SetBounds(new Rectangle(
                 newPosition,
                 Bounds.Size
-            );
+            ));
         }
         public void Draw(Graphics g)
         {
@@ -461,7 +479,7 @@ namespace MultiWindowActionGame
                 IsGrounded = Bounds.Bottom >= currentWindow.AdjustedBounds.Bottom;
                 if (IsGrounded)
                 {
-                    Bounds = new Rectangle(Bounds.X, currentWindow.AdjustedBounds.Bottom - Bounds.Height, Bounds.Width, Bounds.Height);
+                    SetBounds(new Rectangle(Bounds.X, currentWindow.AdjustedBounds.Bottom - Bounds.Height, Bounds.Width, Bounds.Height));
                     verticalVelocity = 0;
                 }
             }
@@ -470,7 +488,7 @@ namespace MultiWindowActionGame
                 IsGrounded = Bounds.Bottom >= Program.mainForm.ClientSize.Height;
                 if (IsGrounded)
                 {
-                    Bounds = new Rectangle(Bounds.X, Program.mainForm.ClientSize.Height - Bounds.Height, Bounds.Width, Bounds.Height);
+                    SetBounds(new Rectangle(Bounds.X, Program.mainForm.ClientSize.Height - Bounds.Height, Bounds.Width, Bounds.Height));
                     verticalVelocity = 0;
                 }
             }
@@ -496,21 +514,21 @@ namespace MultiWindowActionGame
             if (currentWindow != null)
             {
                 Rectangle adjustedBounds = currentWindow.AdjustedBounds;
-                Bounds = new Rectangle(
+                SetBounds(new Rectangle(
                     Math.Max(adjustedBounds.Left, Math.Min(Bounds.X, adjustedBounds.Right - Bounds.Width)),
                     Math.Max(adjustedBounds.Top, Math.Min(Bounds.Y, adjustedBounds.Bottom - Bounds.Height)),
                     Bounds.Width,
                     Bounds.Height
-                );
+                )); 
             }
             else if (Program.mainForm != null)
             {
-                Bounds = new Rectangle(
+                SetBounds(new Rectangle(
                     Math.Max(0, Math.Min(Bounds.X, Program.mainForm.ClientSize.Width - Bounds.Width)),
                     Math.Max(0, Math.Min(Bounds.Y, Program.mainForm.ClientSize.Height - Bounds.Height)),
                     Bounds.Width,
                     Bounds.Height
-                );
+                ));
             }
         }
         public void ConstrainToWindow(GameWindow window)
@@ -518,7 +536,7 @@ namespace MultiWindowActionGame
             Rectangle newBounds = Bounds;
             newBounds.X = Math.Max(window.AdjustedBounds.Left, Math.Min(newBounds.X, window.AdjustedBounds.Right - newBounds.Width));
             newBounds.Y = Math.Max(window.AdjustedBounds.Top, Math.Min(newBounds.Y, window.AdjustedBounds.Bottom - newBounds.Height));
-            Bounds = newBounds;
+            SetBounds(newBounds);
 
             if (Bounds.Bottom >= window.AdjustedBounds.Bottom)
             {

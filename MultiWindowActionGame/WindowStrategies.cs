@@ -66,13 +66,12 @@ namespace MultiWindowActionGame
                     isResizing = true;
                     lastMousePos = window.PointToClient(Cursor.Position);
                     originalSize = window.Size;
-
-                    window.AddEffect(resizeEffect);
-                    resizeEffect.UpdateScale(new SizeF(1.0f, 1.0f));
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
                     isResizing = false;
+                    ResizeEffect.UpdateScale(new SizeF(1.0f, 1.0f));
+                    WindowManager.Instance.CheckPotentialParentWindow(window);
                     break;
 
                 case 0x0200: // WM_MOUSEMOVE
@@ -119,7 +118,7 @@ namespace MultiWindowActionGame
 
                         // リサイズイベントを発火
                         window.OnWindowResized();
-
+                        WindowManager.Instance.CheckChildRelationBreak(window);
                         // デバッグ情報
                         Console.WriteLine($"Resizing - New Size: {newSize}, Scale: {scale}, Targets: {containedTargets.Count}");
                     }
@@ -162,13 +161,12 @@ namespace MultiWindowActionGame
                 case 0x0201: // WM_LBUTTONDOWN
                     isDragging = true;
                     lastMousePos = window.PointToClient(Cursor.Position);
-                    StoreInitialRelativePositions(window);
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
                     isDragging = false;
                     MovementEffect.UpdateMovement(Vector2.Zero);
-                    initialRelativePositions.Clear();
+                    WindowManager.Instance.CheckPotentialParentWindow(window);
                     break;
 
                 case 0x0200: // WM_MOUSEMOVE
@@ -179,20 +177,23 @@ namespace MultiWindowActionGame
                         int dy = currentMousePos.Y - lastMousePos.Y;
                         Vector2 movement = new Vector2(dx, dy);
 
-                        MovementEffect.UpdateMovement(movement);
+                        //MovementEffect.UpdateMovement(movement);
 
-                        // まずウィンドウ自体を移動
-                        window.Location = new Point(window.Location.X + dx, window.Location.Y + dy);
-
-                        // 効果を適用
+                        // 現在の子要素に効果を適用
                         foreach (var target in WindowManager.Instance.GetContainedTargets(window))
                         {
-                            if (target.CanReceiveEffect(MovementEffect))
-                            {
-                                target.ApplyEffect(MovementEffect);
-                            }
+                            MovementEffect.Apply(target);
                         }
+
+                        window.Location = new Point(
+                            window.Location.X + (int)movement.X,
+                            window.Location.Y + (int)movement.Y
+                        );
                         window.OnWindowMoved();
+                        // プレイヤーの位置を更新
+                        Player? player = WindowManager.Instance.GetPlayerInWindow(window);
+                        if (player != null) player.ConstrainToWindow(window);
+                        WindowManager.Instance.CheckChildRelationBreak(window);
                     }
                     break;
             }

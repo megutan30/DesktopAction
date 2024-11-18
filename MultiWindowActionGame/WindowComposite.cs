@@ -60,12 +60,11 @@ namespace MultiWindowActionGame
             }
             else if (target is Player player)
             {
-                player.Bounds = new Rectangle(
-                    player.Bounds.X + (int)movement.X,
-                    player.Bounds.Y + (int)movement.Y,
-                    player.Bounds.Width,
-                    player.Bounds.Height
-                );
+                player.ApplyExternalMovement(movement);
+                //player.UpdatePosition(new Point(
+                //    player.Bounds.X + (int)movement.X,
+                //    player.Bounds.Y + (int)movement.Y
+                //));
             }
         }
     }
@@ -96,14 +95,13 @@ namespace MultiWindowActionGame
             }
             else if (target is Player player)
             {
-                Size newSize = new Size(
-                    (int)(player.OriginalSize.Width * scale.Width),
-                    (int)(player.OriginalSize.Height * scale.Height)
-                );
-                player.Bounds = new Rectangle(
-                    player.Bounds.Location,
-                    newSize
-                );
+                player.ApplyScale(scale);
+            //    Size newSize = new Size(
+            //        (int)(player.OriginalSize.Width * scale.Width),
+            //        (int)(player.OriginalSize.Height * scale.Height)
+            //    );
+
+            //    player.UpdateSize(newSize);
             }
         }
     }
