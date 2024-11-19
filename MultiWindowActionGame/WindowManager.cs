@@ -36,43 +36,6 @@ public class WindowManager : IWindowObserver
     {
         needsUpdateCache = true;
     }
-    private void UpdateContainedTargetsCache()
-    {
-        if (!needsUpdateCache) return;
-
-        lock (windowLock)
-        {
-            containedTargetsCache.Clear();
-            foreach (var window in windows)
-            {
-                containedTargetsCache[window] = new HashSet<IEffectTarget>();
-                foreach (var component in GetAllComponents())
-                {
-                    if (component is IEffectTarget target &&
-                        component != window &&
-                        target.IsCompletelyContained(window))
-                    {
-                        containedTargetsCache[window].Add(target);
-                    }
-                }
-            }
-        }
-
-        needsUpdateCache = false;
-    }
-
-    // プレイヤーの操作による親子関係の解除をチェック
-    public void CheckParentChildRelationBreak(IEffectTarget child, bool isBeingOperated)
-    {
-        if (!isBeingOperated || !parentChildRelations.ContainsKey(child)) return;
-
-        var parent = parentChildRelations[child];
-        if (!child.IsCompletelyContained(parent))
-        {
-            parentChildRelations.Remove(child);
-            Console.WriteLine($"Broke parent-child relation due to operation: Parent={parent.Id}, Child={child}");
-        }
-    }
 
     // 親を取得するメソッド
     public GameWindow? GetParentWindow(IEffectTarget child)
@@ -87,19 +50,38 @@ public class WindowManager : IWindowObserver
         {
             isCheckingParentChild = true;
 
-            // 操作されたウィンドウよりもZ-orderが低い（奥にある）ウィンドウを探す
+            // 既存の親子関係を解除
+            if (parentChildRelations.ContainsKey(operatedWindow))
+            {
+                parentChildRelations.Remove(operatedWindow);
+            }
+
+            // 操作されたウィンドウより奥にあるウィンドウをチェック（子になれるか）
             var potentialParents = windows
                 .Where(w => w != operatedWindow && windows.IndexOf(w) < windows.IndexOf(operatedWindow))
                 .OrderByDescending(w => windows.IndexOf(w));
 
             foreach (var potentialParent in potentialParents)
             {
-                // 完全に内包されているか確認
                 if (potentialParent.AdjustedBounds.Contains(operatedWindow.AdjustedBounds))
                 {
                     parentChildRelations[operatedWindow] = potentialParent;
-                    Console.WriteLine($"Established parent-child relation: Parent={potentialParent.Id}, Child={operatedWindow.Id}");
-                    break;
+                    Console.WriteLine($"Window {operatedWindow.Id} became child of {potentialParent.Id}");
+                    return;
+                }
+            }
+
+            // 操作されたウィンドウより手前にあるウィンドウをチェック（親になれるか）
+            var potentialChildren = windows
+                .Where(w => w != operatedWindow && windows.IndexOf(w) > windows.IndexOf(operatedWindow))
+                .OrderBy(w => windows.IndexOf(w));
+
+            foreach (var potentialChild in potentialChildren)
+            {
+                if (operatedWindow.AdjustedBounds.Contains(potentialChild.AdjustedBounds))
+                {
+                    parentChildRelations[potentialChild] = operatedWindow;
+                    Console.WriteLine($"Window {operatedWindow.Id} became parent of {potentialChild.Id}");
                 }
             }
         }
@@ -568,25 +550,21 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
-            // 現在のウィンドウが子として含まれているか確認
-            var potentialParents = windows
-                .Where(w => w != window && windows.IndexOf(w) < windows.IndexOf(window))
-                .OrderByDescending(w => windows.IndexOf(w));
+            // 親子関係が存在するかチェック
+            bool hasParentChildRelation = parentChildRelations.ContainsKey(window) ||
+                                        parentChildRelations.Any(kvp => kvp.Value == window);
 
-            var containingParent = potentialParents
-                .FirstOrDefault(p => p.AdjustedBounds.Contains(window.AdjustedBounds));
-
-            if (containingParent != null)
+            if (hasParentChildRelation)
             {
-                // 親となるウィンドウが見つかった場合
-                parentChildRelations[window] = containingParent;
-                // Z-orderは変更しない
-                Console.WriteLine($"Window {window.Id} became child of {containingParent.Id}");
+                // 親子関係が存在する場合、相対的なZ-orderを維持
+                // すなわち、特に何もしない
+                Console.WriteLine($"Maintaining Z-order for window {window.Id} due to parent-child relationship");
             }
             else
             {
-                // 親となるウィンドウがない場合は最前面に移動
-                windows.Remove(window);
+                // 親子関係がない場合は最前面に移動
+                var currentIndex = windows.IndexOf(window);
+                windows.RemoveAt(currentIndex);
                 windows.Add(window);
                 window.BringToFront();
                 Console.WriteLine($"Window {window.Id} brought to front");

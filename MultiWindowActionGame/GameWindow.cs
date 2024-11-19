@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MultiWindowActionGame
 {
@@ -380,8 +381,11 @@ namespace MultiWindowActionGame
                 case 0x0202: // WM_LBUTTONUP
                     if (shouldBringToFront)
                     {
+                        WindowManager.Instance.CheckPotentialParentWindow(this);
                         // マウスボタンを離した時に適切なZ-order調整を行う
                         WindowManager.Instance.HandleWindowActivation(this);
+                        WindowManager.Instance.CheckPotentialParentWindow(this);
+
                         shouldBringToFront = false;
                     }
                     break;

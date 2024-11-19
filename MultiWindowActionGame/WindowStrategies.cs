@@ -71,7 +71,7 @@ namespace MultiWindowActionGame
                 case 0x0202: // WM_LBUTTONUP
                     isResizing = false;
                     ResizeEffect.UpdateScale(new SizeF(1.0f, 1.0f));
-                    WindowManager.Instance.CheckPotentialParentWindow(window);
+                    //WindowManager.Instance.CheckPotentialParentWindow(window);
                     break;
 
                 case 0x0200: // WM_MOUSEMOVE
@@ -166,7 +166,7 @@ namespace MultiWindowActionGame
                 case 0x0202: // WM_LBUTTONUP
                     isDragging = false;
                     MovementEffect.UpdateMovement(Vector2.Zero);
-                    WindowManager.Instance.CheckPotentialParentWindow(window);
+                    //WindowManager.Instance.CheckPotentialParentWindow(window);
                     break;
 
                 case 0x0200: // WM_MOUSEMOVE
@@ -177,12 +177,15 @@ namespace MultiWindowActionGame
                         int dy = currentMousePos.Y - lastMousePos.Y;
                         Vector2 movement = new Vector2(dx, dy);
 
-                        //MovementEffect.UpdateMovement(movement);
-
+                        MovementEffect.UpdateMovement(movement);
+                        var containedTargets = WindowManager.Instance.GetContainedTargets(window);
                         // 現在の子要素に効果を適用
-                        foreach (var target in WindowManager.Instance.GetContainedTargets(window))
+                        foreach (var target in containedTargets)
                         {
-                            MovementEffect.Apply(target);
+                            if (target.CanReceiveEffect(MovementEffect))
+                            {
+                                target.ApplyEffect(MovementEffect);
+                            }
                         }
 
                         window.Location = new Point(
@@ -196,53 +199,6 @@ namespace MultiWindowActionGame
                         WindowManager.Instance.CheckChildRelationBreak(window);
                     }
                     break;
-            }
-        }
-        private void StoreInitialRelativePositions(GameWindow window)
-        {
-            initialRelativePositions.Clear();
-            foreach (var target in WindowManager.Instance.GetContainedTargets(window))
-            {
-                if (target is Player player)
-                {
-                    // プレイヤーの場合、ウィンドウとの相対位置を記録
-                    Point relativePos = new Point(
-                        player.Bounds.X - window.AdjustedBounds.X,
-                        player.Bounds.Y - window.AdjustedBounds.Y
-                    );
-                    initialRelativePositions[player] = relativePos;
-                }
-                else if (target is GameWindow targetWindow)
-                {
-                    // 子ウィンドウの場合、親ウィンドウとの相対位置を記録
-                    Point relativePos = new Point(
-                        targetWindow.Location.X - window.Location.X,
-                        targetWindow.Location.Y - window.Location.Y
-                    );
-                    initialRelativePositions[targetWindow] = relativePos;
-                }
-            }
-        }
-
-        private void UpdateTargetPosition(IEffectTarget target, GameWindow parentWindow, Point relativePos, Point newParentLocation)
-        {
-            if (target is Player player)
-            {
-                // プレイヤーの場合、親ウィンドウのAdjustedBoundsに対する相対位置を維持
-                Point newPlayerPos = new Point(
-                    parentWindow.AdjustedBounds.X + relativePos.X,
-                    parentWindow.AdjustedBounds.Y + relativePos.Y
-                );
-                player.SetPosition(newPlayerPos);
-            }
-            else if (target is GameWindow targetWindow)
-            {
-                // 子ウィンドウの場合、親ウィンドウの位置に対する相対位置を維持
-                Point newWindowPos = new Point(
-                    newParentLocation.X + relativePos.X,
-                    newParentLocation.Y + relativePos.Y
-                );
-                targetWindow.Location = newWindowPos;
             }
         }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
