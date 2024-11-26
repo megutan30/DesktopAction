@@ -36,7 +36,10 @@ public class WindowManager : IWindowObserver
     {
         needsUpdateCache = true;
     }
-
+    public void SetPlayer(Player player)
+    {
+        this.player = player;
+    }
     // 親を取得するメソッド
     public GameWindow? GetParentWindow(IEffectTarget child)
     {
@@ -44,19 +47,15 @@ public class WindowManager : IWindowObserver
     }
     public void CheckPotentialParentWindow(GameWindow operatedWindow)
     {
-        if (isCheckingParentChild) return;
-
-        try
+        lock (windowLock)
         {
-            isCheckingParentChild = true;
-
-            // 既存の親子関係を解除
-            if (parentChildRelations.ContainsKey(operatedWindow))
+            // まず現在の親子関係を解除
+            if (operatedWindow.Parent != null)
             {
-                parentChildRelations.Remove(operatedWindow);
+                operatedWindow.Parent.RemoveChild(operatedWindow);
             }
 
-            // 操作されたウィンドウより奥にあるウィンドウをチェック（子になれるか）
+            // 操作されたウィンドウより奥にあるウィンドウをチェック（親になれるか）
             var potentialParents = windows
                 .Where(w => w != operatedWindow && windows.IndexOf(w) < windows.IndexOf(operatedWindow))
                 .OrderByDescending(w => windows.IndexOf(w));
@@ -65,13 +64,13 @@ public class WindowManager : IWindowObserver
             {
                 if (potentialParent.AdjustedBounds.Contains(operatedWindow.AdjustedBounds))
                 {
-                    parentChildRelations[operatedWindow] = potentialParent;
+                    potentialParent.AddChild(operatedWindow);
                     Console.WriteLine($"Window {operatedWindow.Id} became child of {potentialParent.Id}");
                     return;
                 }
             }
 
-            // 操作されたウィンドウより手前にあるウィンドウをチェック（親になれるか）
+            // 操作されたウィンドウが親になれるかチェック
             var potentialChildren = windows
                 .Where(w => w != operatedWindow && windows.IndexOf(w) > windows.IndexOf(operatedWindow))
                 .OrderBy(w => windows.IndexOf(w));
@@ -80,14 +79,10 @@ public class WindowManager : IWindowObserver
             {
                 if (operatedWindow.AdjustedBounds.Contains(potentialChild.AdjustedBounds))
                 {
-                    parentChildRelations[potentialChild] = operatedWindow;
+                    operatedWindow.AddChild(potentialChild);
                     Console.WriteLine($"Window {operatedWindow.Id} became parent of {potentialChild.Id}");
                 }
             }
-        }
-        finally
-        {
-            isCheckingParentChild = false;
         }
     }
 
@@ -111,20 +106,6 @@ public class WindowManager : IWindowObserver
                 .Select(kv => kv.Key)
         );
     }
-    public void SetPlayer(Player player)
-    {
-        this.player = player;
-    }
-
-    public Player? GetPlayerInWindow(GameWindow window)
-    {
-        if (player != null && player.GetCurrentWindow() == window)
-        {
-            return player;
-        }
-        return null;
-    }
-
     public void CreateInitialWindows()
     {
         lock (windowLock)
@@ -143,28 +124,22 @@ public class WindowManager : IWindowObserver
                 {
                     window.AddObserver(this);
                     windows.Add(window);
-                    if (window.IsResizable())
-                    {
-                        window.WindowResized += OnWindowResized;
-                    }
                 }
             }
         }
     }
 
-    private void OnWindowResized(object? sender, SizeChangedEventArgs e)
-    {
-        if (sender is GameWindow window)
-        {
-            // ウィンドウ内のプレイヤーのサイズを更新
-            Player? player = GetPlayerInWindow(window);
-        }
-    }
-    public IEnumerable<IWindowComponent> GetAllComponents()
+
+    public IEnumerable<IEffectTarget> GetAllComponents()
     {
         lock (windowLock)
         {
-            return new List<IWindowComponent>(windows);
+            var components = new List<IEffectTarget>(windows);
+            if (player != null)
+            {
+                components.Add(player);
+            }
+            return components;
         }
     }
 
@@ -201,9 +176,51 @@ public class WindowManager : IWindowObserver
             {
                 window.Draw(g);
             }
+
+            if (MainGame.IsDebugMode)
+            {
+                DrawDebugInfo(g);
+            }
         }
     }
+    public void DrawDebugInfo(Graphics g)
+    {
+        foreach (var window in windows)
+        {
+            // ウィンドウの基本情報
+            g.DrawRectangle(new Pen(Color.Blue, 1), window.AdjustedBounds);
 
+            // Z-order情報
+            g.DrawString($"Z: {windows.IndexOf(window)}",
+                SystemFonts.DefaultFont, Brushes.White,
+                window.Location.X + 5, window.Location.Y + 5);
+
+            // 親子関係の表示
+            if (window.Parent != null)
+            {
+                using (var pen = new Pen(Color.Yellow, 2))
+                {
+                    Point childCenter = new Point(
+                        window.Bounds.X + window.Bounds.Width / 2,
+                        window.Bounds.Y + window.Bounds.Height / 2
+                    );
+                    Point parentCenter = new Point(
+                        window.Parent.Bounds.X + window.Parent.Bounds.Width / 2,
+                        window.Parent.Bounds.Y + window.Parent.Bounds.Height / 2
+                    );
+                    g.DrawLine(pen, childCenter, parentCenter);
+                }
+            }
+
+            // 子の数を表示
+            if (window.Children.Any())
+            {
+                g.DrawString($"Children: {window.Children.Count}",
+                    SystemFonts.DefaultFont, Brushes.Yellow,
+                    window.Location.X + 5, window.Location.Y + 25);
+            }
+        }
+    }
     public GameWindow? GetWindowAt(Rectangle bounds, GameWindow? currentWindow = null)
     {
         lock (windowLock)
@@ -416,26 +433,38 @@ public class WindowManager : IWindowObserver
             AddWindowAndChildren(child, orderedWindows);
         }
     }
-    private void UpdatePlayerWindow()
+    public Region CalculateMovableRegion(GameWindow currentWindow)
     {
-        if (player != null)
+        Region movableRegion = new Region(currentWindow.AdjustedBounds);
+
+        lock (windowLock)
         {
-            GameWindow? newWindow = GetTopWindowAt(player.Bounds,player.GetCurrentWindow());
-            if (newWindow != player.GetCurrentWindow())
+            foreach (var window in windows)
             {
-                player.SetCurrentWindow(newWindow);
+                if (window == currentWindow) continue;
+
+                if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
+                    IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
+                {
+                    movableRegion.Union(window.AdjustedBounds);
+                }
             }
         }
+
+        return movableRegion;
     }
-    public bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
+
+    private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
-        return (Math.Abs(rect1.Right - rect2.Left) <= 100 || Math.Abs(rect1.Left - rect2.Right) <= 100 ||
-                Math.Abs(rect1.Bottom - rect2.Top) <= 100 || Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
+        return (Math.Abs(rect1.Right - rect2.Left) <= 100 ||
+                Math.Abs(rect1.Left - rect2.Right) <= 100 ||
+                Math.Abs(rect1.Bottom - rect2.Top) <= 100 ||
+                Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
                (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
                 rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
     }
 
-     public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
+    public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
     {
         lock (windowLock)
         {
@@ -525,50 +554,19 @@ public class WindowManager : IWindowObserver
         }
         await Task.Run(() => window.BringToFront());
     }
-
-    public Region CalculateMovableRegion(GameWindow currentWindow)
-    {
-        Region movableRegion = new Region(currentWindow.AdjustedBounds);
-
-        lock (windowLock)
-        {
-            foreach (var window in windows)
-            {
-                if (window == currentWindow) continue;
-
-                if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
-                    IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
-                {
-                    movableRegion.Union(window.AdjustedBounds);
-                }
-            }
-        }
-
-        return movableRegion;
-    }
     public void HandleWindowActivation(GameWindow window)
     {
         lock (windowLock)
         {
-            // 親子関係が存在するかチェック
-            bool hasParentChildRelation = parentChildRelations.ContainsKey(window) ||
-                                        parentChildRelations.Any(kvp => kvp.Value == window);
-
-            if (hasParentChildRelation)
-            {
-                // 親子関係が存在する場合、相対的なZ-orderを維持
-                // すなわち、特に何もしない
-                Console.WriteLine($"Maintaining Z-order for window {window.Id} due to parent-child relationship");
-            }
-            else
-            {
-                // 親子関係がない場合は最前面に移動
-                var currentIndex = windows.IndexOf(window);
-                windows.RemoveAt(currentIndex);
-                windows.Add(window);
-                window.BringToFront();
-                Console.WriteLine($"Window {window.Id} brought to front");
-            }
+            // 親がある場合はZ-orderを維持
+            if (window.Parent != null) return;
+            if (window.Children.Any(child => child is GameWindow)) return;
+            // 親子関係がない場合は最前面に移動
+            var currentIndex = windows.IndexOf(window);
+            windows.RemoveAt(currentIndex);
+            windows.Add(window);
+            window.BringToFront();
+            Console.WriteLine($"Window {window.Id} brought to front");
         }
     }
 
@@ -581,75 +579,6 @@ public class WindowManager : IWindowObserver
             {
                 windows.Remove(window);
             }
-        }
-
-        // キャッシュを無効化
-        InvalidateCache();
-
-        // 移動可能領域を更新
-        UpdatePlayerMovableRegion();
-
-        // 含まれているターゲットの更新
-        UpdateContainedTargets(window);
-    }
-    private void UpdateContainedTargets(GameWindow changedWindow)
-    {
-        if (player == null) return;
-
-        lock (windowLock)
-        {
-            // プレイヤーが変更されたウィンドウに完全に含まれているかチェック
-            if (player.IsCompletelyContained(changedWindow))
-            {
-                var containedTargets = GetContainedTargets(changedWindow);
-                if (!containedTargets.Contains(player))
-                {
-                    containedTargets.Add(player);
-                }
-            }
-
-            // 他のウィンドウとの関係も更新
-            foreach (var window in windows)
-            {
-                var targets = GetContainedTargets(window);
-                var effects = window.Strategy switch
-                {
-                    MovableWindowStrategy moveStrategy => new[] { moveStrategy.MovementEffect },
-                    ResizableWindowStrategy resizeStrategy => new[] { resizeStrategy.ResizeEffect },
-                    _ => Array.Empty<IWindowEffect>()
-                };
-
-                foreach (var effect in effects)
-                {
-                    foreach (var target in targets)
-                    {
-                        if (target.CanReceiveEffect(effect))
-                        {
-                            target.ApplyEffect(effect);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    //public void OnWindowChanged(GameWindow window, WindowChangeType changeType)
-    //{
-    //    if (changeType == WindowChangeType.Deleted)
-    //    {
-    //        lock (windowLock)
-    //        {
-    //            windows.Remove(window);
-    //        }
-    //    }
-    //    // すべてのウィンドウの変更で移動可能領域を更新
-    //    UpdatePlayerMovableRegion();
-    //}
-    private void UpdatePlayerMovableRegion()
-    {
-        if (player != null && player.GetCurrentWindow() != null)
-        {
-            Region newMovableRegion = CalculateMovableRegion(player.GetCurrentWindow());
-            player.UpdateMovableRegion(newMovableRegion);
         }
     }
 }

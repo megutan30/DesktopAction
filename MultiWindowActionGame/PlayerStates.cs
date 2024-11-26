@@ -38,13 +38,10 @@ namespace MultiWindowActionGame
 
         public void Update(Player player, float deltaTime)
         {
-            jumpTime += deltaTime;
-            if (jumpTime >= MaxJumpTime || player.verticalVelocity > 0)
+            if (player.IsGrounded)
             {
-                player.SetState(new FallingState());
+                player.SetState(new NormalState());
             }
-            player.Move(deltaTime);
-            player.ApplyGravity(deltaTime);
         }
 
         public void Draw(Player player, Graphics g)

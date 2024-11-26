@@ -90,7 +90,6 @@ namespace MultiWindowActionGame
             if (IsDebugMode) // デバッグモードフラグを追加
             {
                 windowManager.DrawDebugInfo(g, player.Bounds);
-                player.DrawDebugInfo(g);
                 DrawDebugInfo(g);
             }
 
@@ -100,13 +99,6 @@ namespace MultiWindowActionGame
         {
             // プレイヤーの位置情報を描画
             g.DrawString($"Player Position: {player.Bounds.Location}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 10));
-
-            // 現在のウィンドウ情報を描画
-            GameWindow? currentWindow = player.GetCurrentWindow();
-            if (currentWindow != null)
-            {
-                g.DrawString($"Current Window: {currentWindow.Id}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 30));
-            }
         }
 
     }

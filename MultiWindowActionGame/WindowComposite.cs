@@ -4,26 +4,23 @@ using System.Numerics;
 
 namespace MultiWindowActionGame
 {
-    public interface IWindowComponent : IDrawable, IUpdatable
-    {
-        void AddChild(IWindowComponent child);
-        void RemoveChild(IWindowComponent child);
-        IWindowComponent? GetChild(int index);
-        int ChildCount { get; }
-    }
-    public interface IEffectTarget
+    public interface IEffectTarget : IDrawable, IUpdatable
     {
         Rectangle Bounds { get; }
-        bool CanReceiveEffect(IWindowEffect effect);
+        GameWindow? Parent { get; }
+        ICollection<IEffectTarget> Children { get; }
         void ApplyEffect(IWindowEffect effect);
-        bool IsCompletelyContained(GameWindow container);
+        bool CanReceiveEffect(IWindowEffect effect);
+        void AddChild(IEffectTarget child);
+        void RemoveChild(IEffectTarget child);
     }
 
     public interface IWindowEffect
     {
         EffectType Type { get; }
-        void Apply(IEffectTarget target);
         bool IsActive { get; }
+        void Apply(IEffectTarget target);
+        //void PropagateToChildren(IEffectTarget target);
     }
 
     public enum EffectType
@@ -36,6 +33,9 @@ namespace MultiWindowActionGame
     public class MovementEffect : IWindowEffect
     {
         private Vector2 movement;
+        private Point sourceWindowLocation;
+        private Dictionary<IEffectTarget, Point> initialRelativePositions = new Dictionary<IEffectTarget, Point>();
+        public Vector2 CurrentMovement => movement;
         public EffectType Type => EffectType.Movement;
         public bool IsActive { get; private set; }
 
@@ -47,24 +47,31 @@ namespace MultiWindowActionGame
 
         public void Apply(IEffectTarget target)
         {
-            if (!IsActive) return;
+            if (!IsActive || !target.CanReceiveEffect(this)) return;
 
-            // 移動量に基づいて対象を移動
+            // 対象自身に効果を適用
+            ApplyMovementToTarget(target);
+            foreach (var child in target.Children)
+            {
+                ApplyMovementToTarget(child);
+            }
+        }
+
+        private void ApplyMovementToTarget(IEffectTarget target)
+        {
             if (target is GameWindow window)
             {
-                Point newLocation = new Point(
+                window.Location = new Point(
                     window.Location.X + (int)movement.X,
                     window.Location.Y + (int)movement.Y
                 );
-                window.Location = newLocation;
             }
             else if (target is Player player)
             {
-                player.ApplyExternalMovement(movement);
-                //player.UpdatePosition(new Point(
-                //    player.Bounds.X + (int)movement.X,
-                //    player.Bounds.Y + (int)movement.Y
-                //));
+                player.UpdatePosition(new Point(
+                    player.Bounds.X + (int)movement.X,
+                    player.Bounds.Y + (int)movement.Y
+                ));
             }
         }
     }
@@ -72,6 +79,7 @@ namespace MultiWindowActionGame
     public class ResizeEffect : IWindowEffect
     {
         private SizeF scale;
+        public SizeF CurrentScale => scale;
         public EffectType Type => EffectType.Resize;
         public bool IsActive { get; private set; }
 
@@ -83,8 +91,20 @@ namespace MultiWindowActionGame
 
         public void Apply(IEffectTarget target)
         {
-            if (!IsActive) return;
+            if (!IsActive || !target.CanReceiveEffect(this)) return;
 
+            // 対象自身に効果を適用
+            ApplyResizeToTarget(target);
+            foreach (var child in target.Children)
+            {
+                ApplyResizeToTarget(child);
+            }
+            // 子要素に効果を伝播
+            //PropagateToChildren(target);
+        }
+
+        private void ApplyResizeToTarget(IEffectTarget target)
+        {
             if (target is GameWindow window)
             {
                 Size newSize = new Size(
@@ -95,50 +115,11 @@ namespace MultiWindowActionGame
             }
             else if (target is Player player)
             {
-                player.ApplyScale(scale);
-            //    Size newSize = new Size(
-            //        (int)(player.OriginalSize.Width * scale.Width),
-            //        (int)(player.OriginalSize.Height * scale.Height)
-            //    );
-
-            //    player.UpdateSize(newSize);
-            }
-        }
-    }
-    public class WindowComposite : IWindowComponent
-    {
-        private List<IWindowComponent> children = new List<IWindowComponent>();
-
-        public int ChildCount => children.Count;
-
-        public void AddChild(IWindowComponent child)
-        {
-            children.Add(child);
-        }
-
-        public void RemoveChild(IWindowComponent child)
-        {
-            children.Remove(child);
-        }
-
-        public IWindowComponent? GetChild(int index)
-        {
-            return index >= 0 && index < children.Count ? children[index] : null;
-        }
-
-        public async Task UpdateAsync(float deltaTime)
-        {
-            foreach (var child in children.ToArray()) // ToArray() to avoid collection modified exception
-            {
-                await child.UpdateAsync(deltaTime);
-            }
-        }
-
-        public void Draw(Graphics g)
-        {
-            foreach (var child in children.ToArray()) // ToArray() to avoid collection modified exception
-            {
-                child.Draw(g);
+                Size newSize = new Size(
+                    (int)(player.OriginalSize.Width * scale.Width),
+                    (int)(player.OriginalSize.Height * scale.Height)
+                );
+                player.UpdateSize(newSize);
             }
         }
     }

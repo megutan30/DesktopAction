@@ -1,158 +1,200 @@
 ﻿using System.Drawing;
-using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.Numerics;
-using static MultiWindowActionGame.GameWindow;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MultiWindowActionGame
 {
-    public class Player : IDrawable, IUpdatable,IEffectTarget
+    public class Player : IEffectTarget
     {
         private Rectangle bounds;
         public Rectangle Bounds => bounds;
         private float speed = 400.0f;
         private float gravity = 1000.0f;
-        private float jampForce = 500;
-        public float verticalVelocity = 0;
-        private Size currentSize;
-        private Size enterPlayerSize;
-        private Size enterWindowSize;
-        private SizeF currentScale = new SizeF(1.0f, 1.0f);
-        public Size OriginalSize { get; private set; }
-        private GameWindow? currentWindow;
-        public Region MovableRegion { get; private set; }
-
+        private float jumpForce = 500;
+        private float verticalVelocity = 0;
+        public Size OriginalSize { get; }
+        private IPlayerState currentState;
+        public GameWindow? Parent { get; private set; }
+        public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
         public bool IsGrounded { get; private set; }
 
-        private bool isResizing = false;
-        private bool isWindowMoving = false;
-        private bool isWindowResizing = false;
-        private Vector2 lastMovement = Vector2.Zero;
+        public Region MovableRegion { get; private set; }
 
-        private IPlayerState currentState;
-
-        private Vector2 externalMovement = Vector2.Zero;
         public Player()
-        {   
+        {
             OriginalSize = new Size(40, 40);
             bounds = new Rectangle(150, 150, OriginalSize.Width, OriginalSize.Height);
-            enterPlayerSize = OriginalSize;
-            currentSize = OriginalSize;
             currentState = new NormalState();
             MovableRegion = new Region();
         }
 
-        public GameWindow? GetCurrentWindow()
-        {
-            return currentWindow;
-        }
-        // 位置を更新するための公開メソッド
         public void UpdatePosition(Point newPosition)
         {
             bounds.Location = newPosition;
         }
 
-        // サイズを更新するための公開メソッド
         public void UpdateSize(Size newSize)
         {
             bounds.Size = newSize;
+            ConstrainToCurrentWindow();
+        }
+        public void UpdateMovableRegion(Region newRegion)
+        {
+            MovableRegion.Dispose();
+            MovableRegion = newRegion;
+        }
+        private bool IsCompletelyInside(Rectangle bounds, Region region, Graphics g)
+        {
+            return region.IsVisible(bounds.Left, bounds.Top, g) &&
+                   region.IsVisible(bounds.Right - 1, bounds.Top, g) &&
+                   region.IsVisible(bounds.Left, bounds.Bottom - 1, g) &&
+                   region.IsVisible(bounds.Right - 1, bounds.Bottom - 1, g);
+        }
+        private bool IsWithinMainForm(Rectangle bounds)
+        {
+            if (Program.mainForm != null)
+            {
+                return bounds.Left >= 0 && bounds.Right <= Program.mainForm.ClientSize.Width &&
+                       bounds.Top >= 0 && bounds.Bottom <= Program.mainForm.ClientSize.Height;
+            }
+            return false;
         }
 
-        // バウンドを直接更新するための内部メソッド
-        protected void SetBounds(Rectangle newBounds)
+        private bool IsValidMove(Rectangle bounds, Graphics g)
         {
+            if (!MovableRegion.IsEmpty(g))
+            {
+                return IsCompletelyInside(bounds, MovableRegion, g);
+            }
+            else
+            {
+                return IsWithinMainForm(bounds);
+            }
+        }
+        public void AddChild(IEffectTarget child)
+        {
+            Children.Add(child);
+        }
+
+        public void RemoveChild(IEffectTarget child)
+        {
+            Children.Remove(child);
+        }
+
+        public bool CanReceiveEffect(IWindowEffect effect)
+        {
+            //if (isBeingOperated) return false;
+
+            // 親がない場合は効果を受けない
+            if (Parent == null) return false;
+
+            // 効果の送信元が現在の親でない場合は受け付けない
+            // これは将来的に効果に送信元の情報を追加する必要があります
+            return true;
+        }
+
+        public void SetParent(GameWindow? newParent)
+        {
+            if (Parent == newParent) return;
+
+            Parent?.RemoveChild(this);
+            Parent = newParent;
+            Parent?.AddChild(this);
+
+            // 親が変更されたときの移動可能領域を更新
+            if (Parent != null)
+            {
+                UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(Parent));
+            }
+            else
+            {
+                MovableRegion.Dispose();
+                MovableRegion = new Region();
+            }
+
+            OnParentChanged();
+        }
+
+        private void OnParentChanged()
+        {
+            // 新しい親のウィンドウ内に収める
+            ConstrainToCurrentWindow();
+            // 接地状態のチェックは維持するが、速度は保持
+            CheckGrounded();
+        }
+
+        // 効果の適用を拡張
+        public void ApplyEffect(IWindowEffect effect)
+        {
+            if (!CanReceiveEffect(effect)) return;
+
+            switch (effect)
+            {
+                case MovementEffect moveEffect:
+                    HandleMovementEffect(moveEffect);
+                    break;
+                case ResizeEffect resizeEffect:
+                    HandleResizeEffect(resizeEffect);
+                    break;
+            }
+        }
+        private void HandleMovementEffect(MovementEffect effect)
+        {
+            Rectangle newBounds = new Rectangle(
+                bounds.Location,
+                bounds.Size
+            );
+            newBounds = ValidateNewPosition(newBounds);
             bounds = newBounds;
+
+            ConstrainToCurrentWindow();
         }
 
-        public void SetState(IPlayerState newState)
+        private void HandleResizeEffect(ResizeEffect effect)
         {
-            currentState = newState;
-        }
+            // 元のサイズを基準にスケーリング
+            Size newSize = new Size(
+                (int)(OriginalSize.Width * effect.CurrentScale.Width),
+                (int)(OriginalSize.Height * effect.CurrentScale.Height)
+            );
 
-        public void SetCurrentWindow(GameWindow? window)
-        {
-            if (currentWindow != null)
-            {
-                currentWindow.WindowMoved -= OnWindowMoved;
-                currentWindow.WindowResized -= OnWindowResized;
-                currentWindow.MoveStarted -= OnMoveStarted;
-                currentWindow.MoveEnded -= OnMoveEnded;
-                currentWindow.ResizeStarted -= OnResizeStarted;
-                currentWindow.ResizeEnded -= OnResizeEnded;
-            }
+            // 中心位置を保持したままサイズを変更
+            Point center = new Point(
+                bounds.X + bounds.Width / 2,
+                bounds.Y + bounds.Height / 2
+            );
 
-            currentWindow = window;
+            bounds = new Rectangle(
+                center.X - newSize.Width / 2,
+                center.Y - newSize.Height / 2,
+                newSize.Width,
+                newSize.Height
+            );
 
-            if (currentWindow != null)
-            {
-                currentWindow.WindowMoved += OnWindowMoved;
-                currentWindow.WindowResized += OnWindowResized;
-                currentWindow.MoveStarted += OnMoveStarted;
-                currentWindow.MoveEnded += OnMoveEnded;
-                currentWindow.ResizeStarted += OnResizeStarted;
-                currentWindow.ResizeEnded += OnResizeEnded;
-
-                EnterWindow(currentWindow);
-            }
+            ConstrainToCurrentWindow();
         }
 
         private Vector2 CalculateMovement(float deltaTime)
         {
             Vector2 movement = Vector2.Zero;
-            if (Input.IsKeyDown(Keys.A)) movement.X -= speed * deltaTime;
-            if (Input.IsKeyDown(Keys.D)) movement.X += speed * deltaTime;
-            movement.Y += verticalVelocity * deltaTime;
-            return movement;
-        }
 
-        public bool CanReceiveEffect(IWindowEffect effect)
-        {
-            // プレイヤーが効果を受けられる状態かチェック
-            if (IsInBetweenWindows()) return false;
-
-            // 現在のウィンドウがある場合、そのウィンドウの効果のみ受け付ける
-            if (currentWindow != null && !currentWindow.AdjustedBounds.Contains(Bounds))
+            if (Input.IsKeyDown(Keys.A))
             {
-                return false;
+                movement.X -= speed * deltaTime;
+            }
+            if (Input.IsKeyDown(Keys.D))
+            {
+                movement.X += speed * deltaTime;
             }
 
-            return true;
-        }
+            if (Input.IsKeyDown(Keys.Space) && IsGrounded)
+            {
+                Jump();
+            }
 
-        public void ApplyEffect(IWindowEffect effect)
-        {
-            if (!CanReceiveEffect(effect)) return;
-            effect.Apply(this);
-        }
+            movement.Y += verticalVelocity * deltaTime;
 
-        public bool IsCompletelyContained(GameWindow container)
-        {
-            return container.AdjustedBounds.Contains(Bounds);
-        }
-        private bool IsInBetweenWindows()
-        {
-            var intersectingWindows = WindowManager.Instance.GetIntersectingWindows(Bounds);
-            return intersectingWindows.Count > 1;
-        }
-        public void ApplyExternalMovement(Vector2 movement)
-        {
-            externalMovement = movement;
-        }
-
-        public void ApplyScale(SizeF scale)
-        {
-            currentScale = scale;
-            UpdatePlayerSize();
-        }
-
-        private bool IsCompletelyInside(Rectangle bounds, Region region, Graphics g)
-        {
-            // プレイヤーの四隅がすべて領域内にあるかチェック
-            return region.IsVisible(bounds.Left, bounds.Top, g) &&
-                   region.IsVisible(bounds.Right - 1, bounds.Top, g) &&
-                   region.IsVisible(bounds.Left, bounds.Bottom - 1, g) &&
-                   region.IsVisible(bounds.Right - 1, bounds.Bottom - 1, g);
+            return movement;
         }
 
         public async Task UpdateAsync(float deltaTime)
@@ -161,49 +203,44 @@ namespace MultiWindowActionGame
             currentState.Update(this, deltaTime);
 
             Vector2 movement = CalculateMovement(deltaTime);
-            movement += externalMovement;
-            externalMovement = Vector2.Zero;
+
+            var preGravityPosition = bounds.Location;
+
             ApplyGravity(deltaTime);
 
             Rectangle newBounds = new Rectangle(
-                (int)(Bounds.X + movement.X),
-                (int)(Bounds.Y + movement.Y),
-                Bounds.Width,
-                Bounds.Height
+                (int)(bounds.X + movement.X),
+                (int)(bounds.Y + movement.Y),
+                bounds.Width,
+                bounds.Height
             );
 
             using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
             {
                 if (!IsValidMove(newBounds, g))
                 {
-                    // 移動が無効な場合、X軸とY軸で個別に調整
-                    newBounds = AdjustMovement(Bounds, newBounds, g);
+                    newBounds = AdjustMovement(bounds, newBounds, g);
                 }
             }
 
-            if (true)
+            // 移動前に新しい位置でのウィンドウをチェック
+            GameWindow? newWindow = WindowManager.Instance.GetTopWindowAt(newBounds, Parent);
+            if (newWindow != Parent)
             {
-                GameWindow? topWindow = WindowManager.Instance.GetTopWindowAt(Bounds,currentWindow);
-                if (topWindow != currentWindow)
+                if (newWindow != null)
                 {
-                    if (topWindow != null && topWindow.CanEnter)
-                    {
-                        ExitWindow(currentWindow);
-                        SetCurrentWindow(topWindow);
-                    }
-                    else if (currentWindow != null)
-                    {
-                        newBounds = ConstrainToWindow(newBounds, currentWindow);
-                        SetBounds(newBounds);
-                    }
+                    float previousVelocity = verticalVelocity;
+                    SetParent(newWindow);
+                    verticalVelocity = previousVelocity;
+
+                    // 新しいウィンドウに対する移動可能領域を更新
+
+                    UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
                 }
             }
-
-            SetBounds(newBounds);
+            bounds = newBounds;
             CheckGrounded();
-            Console.WriteLine($"Player position updated: {Bounds}");
         }
-
         private Rectangle AdjustMovement(Rectangle oldBounds, Rectangle newBounds, Graphics g)
         {
             Rectangle adjustedBounds = oldBounds;
@@ -257,181 +294,50 @@ namespace MultiWindowActionGame
             return adjustedBounds;
         }
 
-        private bool IsValidMove(Rectangle bounds, Graphics g)
+        private Rectangle ValidateNewPosition(Rectangle newBounds)
         {
-            if (!MovableRegion.IsEmpty(g))
+            if (Parent != null)
             {
-                return IsCompletelyInside(bounds, MovableRegion, g);
+                return ConstrainToWindow(newBounds, Parent);
             }
-            else
+            else if (Program.mainForm != null)
             {
-                // 移動可能領域が空の場合（例：デスクトップ上）、メインフォームに制限
-                return IsWithinMainForm(bounds);
+                return ConstrainToMainForm(newBounds);
             }
+            return newBounds;
         }
 
-        private bool IsWithinMainForm(Rectangle bounds)
-        {
-            if (Program.mainForm != null)
-            {
-                return bounds.Left >= 0 && bounds.Right <= Program.mainForm.ClientSize.Width &&
-                       bounds.Top >= 0 && bounds.Bottom <= Program.mainForm.ClientSize.Height;
-            }
-            return false;
-        }
-
-        private Rectangle ConstrainToRegion(Rectangle bounds, Region region)
-        {
-            using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
-            {
-                if (!region.IsVisible(bounds, g))
-                {
-                    // 領域内の最も近い位置を見つける
-                    Point center = new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
-                    RectangleF[] scans = region.GetRegionScans(new Matrix());
-
-                    float minDistance = float.MaxValue;
-                    Point nearestPoint = center;
-
-                    foreach (RectangleF rect in scans)
-                    {
-                        Point testPoint = new Point(
-                            (int)Math.Max(rect.Left, Math.Min(center.X, rect.Right)),
-                            (int)Math.Max(rect.Top, Math.Min(center.Y, rect.Bottom))
-                        );
-
-                        float distance = (float)Math.Sqrt(Math.Pow(testPoint.X - center.X, 2) + Math.Pow(testPoint.Y - center.Y, 2));
-                        if (distance < minDistance)
-                        {
-                            minDistance = distance;
-                            nearestPoint = testPoint;
-                        }
-                    }
-
-                    bounds.X = nearestPoint.X - bounds.Width / 2;
-                    bounds.Y = nearestPoint.Y - bounds.Height / 2;
-                }
-            }
-
-            return bounds;
-        }
-
-
-        public void UpdateMovableRegion(Region newRegion)
-        {
-            MovableRegion.Dispose();
-            MovableRegion = newRegion;
-        }
-
-        private void UpdatePlayerSize()
-        {
-            try
-            {
-                int newWidth = (int)(enterPlayerSize.Width * currentScale.Width);
-                int newHeight = (int)(enterPlayerSize.Height * currentScale.Height);
-                Size newSize = new Size(newWidth, newHeight);
-
-                // プレイヤーの中心位置を維持
-                Point center = new Point(Bounds.X + Bounds.Width / 2, Bounds.Y + Bounds.Height / 2);
-                Rectangle newBounds = new Rectangle(
-                    center.X - newWidth / 2,
-                    center.Y - newHeight / 2,
-                    newWidth,
-                    newHeight
-                );
-
-                // 新しい位置とサイズを設定
-                SetBounds(newBounds);
-                currentSize = newSize;
-
-                // ウィンドウ内に収める
-                ConstrainToCurrentWindow();
-            }
-            catch (OverflowException ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in UpdatePlayerSize: {ex.Message}");
-                // エラーが発生した場合、サイズを変更せずに現在のサイズを維持
-            }
-        }
-        private void OnMoveStarted(object? sender, EventArgs e)
-        {
-            isWindowMoving = true;
-        }
-
-        private void OnMoveEnded(object? sender, EventArgs e)
-        {
-            isWindowMoving = false;
-        }
-        private void OnResizeStarted(object? sender, EventArgs e)
-        {
-            isResizing = true;
-        }
-
-        private void OnResizeEnded(object? sender, EventArgs e)
-        {
-            isResizing = false;
-        }
-        private void OnWindowMoved(object? sender, EventArgs e)
-        {
-            if (currentWindow != null)
-            {
-                // ウィンドウ内での相対位置を維持
-                float relativeX = (Bounds.X - currentWindow.AdjustedBounds.X) / (float)currentWindow.AdjustedBounds.Width;
-                float relativeY = (Bounds.Y - currentWindow.AdjustedBounds.Y) / (float)currentWindow.AdjustedBounds.Height;
-
-                SetBounds(new Rectangle(
-                    (int)(currentWindow.AdjustedBounds.X + relativeX * currentWindow.AdjustedBounds.Width),
-                    (int)(currentWindow.AdjustedBounds.Y + relativeY * currentWindow.AdjustedBounds.Height),
-                    Bounds.Width,
-                    Bounds.Height
-                ));
-
-                IsGrounded = false; // ウィンドウが移動したので、接地状態をリセット
-            }
-        }
-
-        private void OnWindowResized(object? sender, SizeChangedEventArgs e)
-        {
-            if (currentWindow != null && currentWindow.IsResizable())
-            {
-                float scaleX = (float)e.NewSize.Width / enterWindowSize.Width;
-                float scaleY = (float)e.NewSize.Height / enterWindowSize.Height;
-
-                if (!float.IsInfinity(scaleX) && !float.IsInfinity(scaleY))
-                {
-                    currentScale = new SizeF(scaleX, scaleY);
-                    UpdatePlayerSize();
-                }
-            }
-        }
-        public void SetPosition(Point newPosition)
-        {
-            SetBounds(new Rectangle(
-                newPosition,
-                Bounds.Size
-            ));
-        }
         public void Draw(Graphics g)
         {
-            // プレイヤーを描画
-            g.FillRectangle(Brushes.Blue, Bounds);
+            currentState.Draw(this, g);
+
+            if (MainGame.IsDebugMode)
+            {
+                DrawDebugInfo(g);
+            }
         }
 
-        public void Move(float deltaTime)
+        private void DrawDebugInfo(Graphics g)
         {
-            //float moveX = 0;
-            //if (Input.IsKeyDown(Keys.A)) moveX -= speed * deltaTime;
-            //if (Input.IsKeyDown(Keys.D)) moveX += speed * deltaTime;
-
-            //Bounds = new Rectangle(
-            //    (int)(Bounds.X + moveX),
-            //    (int)(Bounds.Y + verticalVelocity * deltaTime),
-            //    Bounds.Width,
-            //    Bounds.Height
-            //);
+            g.DrawRectangle(new Pen(Color.Yellow, 2), bounds);
+            if (Parent != null)
+            {
+                g.DrawString($"Parent: {Parent.Id}", SystemFonts.DefaultFont, Brushes.Yellow, 
+                    bounds.X, bounds.Y - 20);
+            }
         }
 
-        public void ApplyGravity(float deltaTime)
+        public void Jump()
+        {
+            if (IsGrounded)
+            {
+                verticalVelocity = -jumpForce;
+                IsGrounded = false;
+                SetState(new JumpingState());
+            }
+        }
+
+        private void ApplyGravity(float deltaTime)
         {
             if (!IsGrounded)
             {
@@ -443,129 +349,91 @@ namespace MultiWindowActionGame
             }
         }
 
-        public void DrawDebugInfo(Graphics g)
+        private void CheckGrounded()
         {
-            // プレイヤーの矩形を黄色で描画
-            g.DrawRectangle(new Pen(Color.Yellow, 2), Bounds);
-            using (Pen pen = new Pen(Color.Green, 2))
-            {
-                //g.DrawRectangle(pen, Bounds);  // プレイヤーの境界線を描画
+            bool wasGrounded = IsGrounded;
 
-                // 移動可能領域を描画
-                using (Matrix matrix = new Matrix())
+            if (Parent != null)
+            {
+                IsGrounded = bounds.Bottom >= Parent.AdjustedBounds.Bottom;
+                if (IsGrounded)
                 {
-                    RectangleF[] scans = MovableRegion.GetRegionScans(matrix);
-                    foreach (RectangleF rect in scans)
+                    bounds = new Rectangle(
+                        bounds.X,
+                        Parent.AdjustedBounds.Bottom - bounds.Height,
+                        bounds.Width,
+                        bounds.Height
+                    );
+                    if (!wasGrounded)
                     {
-                        g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
+                        // 着地時の処理
+                        verticalVelocity = 0;
+                        SetState(new NormalState());
+                        Console.WriteLine("Landed in window"); // デバッグ用
+                    }
+                }
+            }
+            else if (Program.mainForm != null)
+            {
+                IsGrounded = bounds.Bottom >= Program.mainForm.ClientSize.Height;
+                if (IsGrounded)
+                {
+                    bounds = new Rectangle(
+                        bounds.X,
+                        Program.mainForm.ClientSize.Height - bounds.Height,
+                        bounds.Width,
+                        bounds.Height
+                    );
+                    if (!wasGrounded)
+                    {
+                        // 着地時の処理
+                        verticalVelocity = 0;
+                        SetState(new NormalState());
+                        Console.WriteLine("Landed on desktop"); // デバッグ用
                     }
                 }
             }
         }
 
-        public void Jump()
-        {
-            if (IsGrounded)
-            {
-                verticalVelocity = -jampForce;
-                IsGrounded = false;
-            }
-        }
-
-        private void CheckGrounded()
-        {
-            if (currentWindow != null)
-            {
-                IsGrounded = Bounds.Bottom >= currentWindow.AdjustedBounds.Bottom;
-                if (IsGrounded)
-                {
-                    SetBounds(new Rectangle(Bounds.X, currentWindow.AdjustedBounds.Bottom - Bounds.Height, Bounds.Width, Bounds.Height));
-                    verticalVelocity = 0;
-                }
-            }
-            else if (Program.mainForm != null)
-            {
-                IsGrounded = Bounds.Bottom >= Program.mainForm.ClientSize.Height;
-                if (IsGrounded)
-                {
-                    SetBounds(new Rectangle(Bounds.X, Program.mainForm.ClientSize.Height - Bounds.Height, Bounds.Width, Bounds.Height));
-                    verticalVelocity = 0;
-                }
-            }
-        }
-        private void EnterWindow(GameWindow window)
-        {
-            enterPlayerSize = Bounds.Size;
-            enterWindowSize = window.Size;
-
-            UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(currentWindow));
-            System.Diagnostics.Debug.WriteLine($"Player entered window {window.Id}");
-        }
-
-        private void ExitWindow(GameWindow window)
-        {
-            if(currentWindow == null)return;
-            System.Diagnostics.Debug.WriteLine($"Player Exit window {window.Id}");
-            currentWindow = null;
-            IsGrounded = false;
-        }
         private void ConstrainToCurrentWindow()
         {
-            if (currentWindow != null)
+            if (Parent != null)
             {
-                Rectangle adjustedBounds = currentWindow.AdjustedBounds;
-                SetBounds(new Rectangle(
-                    Math.Max(adjustedBounds.Left, Math.Min(Bounds.X, adjustedBounds.Right - Bounds.Width)),
-                    Math.Max(adjustedBounds.Top, Math.Min(Bounds.Y, adjustedBounds.Bottom - Bounds.Height)),
-                    Bounds.Width,
-                    Bounds.Height
-                )); 
+                bounds = ConstrainToWindow(bounds, Parent);
             }
             else if (Program.mainForm != null)
             {
-                SetBounds(new Rectangle(
-                    Math.Max(0, Math.Min(Bounds.X, Program.mainForm.ClientSize.Width - Bounds.Width)),
-                    Math.Max(0, Math.Min(Bounds.Y, Program.mainForm.ClientSize.Height - Bounds.Height)),
-                    Bounds.Width,
-                    Bounds.Height
-                ));
-            }
-        }
-        public void ConstrainToWindow(GameWindow window)
-        {
-            Rectangle newBounds = Bounds;
-            newBounds.X = Math.Max(window.AdjustedBounds.Left, Math.Min(newBounds.X, window.AdjustedBounds.Right - newBounds.Width));
-            newBounds.Y = Math.Max(window.AdjustedBounds.Top, Math.Min(newBounds.Y, window.AdjustedBounds.Bottom - newBounds.Height));
-            SetBounds(newBounds);
-
-            if (Bounds.Bottom >= window.AdjustedBounds.Bottom)
-            {
-                IsGrounded = true;
+                bounds = ConstrainToMainForm(bounds);
             }
         }
 
         private Rectangle ConstrainToWindow(Rectangle bounds, GameWindow window)
         {
-            Rectangle adjustedBounds = window.AdjustedBounds;
-            bounds.X = Math.Max(adjustedBounds.Left, Math.Min(bounds.X, adjustedBounds.Right - bounds.Width));
-            bounds.Y = Math.Max(adjustedBounds.Top, Math.Min(bounds.Y, adjustedBounds.Bottom - bounds.Height));
-            return bounds;
+            return new Rectangle(
+                Math.Max(window.AdjustedBounds.Left, 
+                    Math.Min(bounds.X, window.AdjustedBounds.Right - bounds.Width)),
+                Math.Max(window.AdjustedBounds.Top, 
+                    Math.Min(bounds.Y, window.AdjustedBounds.Bottom - bounds.Height)),
+                bounds.Width,
+                bounds.Height
+            );
         }
 
-        private void ConstrainToMainForm(ref Rectangle bounds)
+        private Rectangle ConstrainToMainForm(Rectangle bounds)
         {
-            if (Program.mainForm != null)
-            {
-                bounds.X = Math.Max(0, Math.Min(bounds.X, Program.mainForm.ClientSize.Width - bounds.Width));
-                bounds.Y = Math.Max(0, Math.Min(bounds.Y, Program.mainForm.ClientSize.Height - bounds.Height));
+            if (Program.mainForm == null) return bounds;
 
-                if (bounds.Bottom >= Program.mainForm.ClientSize.Height)
-                {
-                    bounds.Y = Program.mainForm.ClientSize.Height - bounds.Height;
-                    verticalVelocity = 0;
-                    IsGrounded = true;
-                }
-            }
+            return new Rectangle(
+                Math.Max(0, Math.Min(bounds.X, Program.mainForm.ClientSize.Width - bounds.Width)),
+                Math.Max(0, Math.Min(bounds.Y, Program.mainForm.ClientSize.Height - bounds.Height)),
+                bounds.Width,
+                bounds.Height
+            );
+        }
+
+        public void SetState(IPlayerState newState)
+        {
+            currentState = newState;
         }
     }
 }
