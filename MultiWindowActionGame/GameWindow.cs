@@ -321,7 +321,6 @@ namespace MultiWindowActionGame
                         if (child is Player player)
                         {
                             player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(this));
-                            System.Diagnostics.Debug.WriteLine($"Error in UpdatePlayerSize:");
                         }
                     }
                     break;

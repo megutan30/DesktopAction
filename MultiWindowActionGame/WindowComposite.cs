@@ -78,15 +78,23 @@ namespace MultiWindowActionGame
 
     public class ResizeEffect : IWindowEffect
     {
-        private SizeF scale;
-        public SizeF CurrentScale => scale;
+        private Dictionary<IEffectTarget, SizeF> targetScales = new Dictionary<IEffectTarget, SizeF>();
+        private Dictionary<IEffectTarget, Size> referenceSize = new Dictionary<IEffectTarget, Size>();
+
         public EffectType Type => EffectType.Resize;
         public bool IsActive { get; private set; }
 
-        public void UpdateScale(SizeF newScale)
+        public void UpdateScale(IEffectTarget target, SizeF newScale)
         {
-            scale = newScale;
-            IsActive = scale != new SizeF(1.0f, 1.0f);
+            if (!targetScales.ContainsKey(target))
+            {
+                // 初期参照サイズを保存
+                referenceSize[target] = target is GameWindow window ? window.Size :
+                                      target is Player player ? player.Bounds.Size :
+                                      Size.Empty;
+            }
+            targetScales[target] = newScale;
+            IsActive = true;
         }
 
         public void Apply(IEffectTarget target)
@@ -99,28 +107,49 @@ namespace MultiWindowActionGame
             {
                 ApplyResizeToTarget(child);
             }
-            // 子要素に効果を伝播
-            //PropagateToChildren(target);
         }
 
         private void ApplyResizeToTarget(IEffectTarget target)
         {
+            if (!referenceSize.ContainsKey(target)) return;
+
+            var baseSize = referenceSize[target];
+            var scale = targetScales.GetValueOrDefault(target, new SizeF(1.0f, 1.0f));
+
             if (target is GameWindow window)
             {
                 Size newSize = new Size(
-                    (int)(window.OriginalSize.Width * scale.Width),
-                    (int)(window.OriginalSize.Height * scale.Height)
+                    (int)(baseSize.Width * scale.Width),
+                    (int)(baseSize.Height * scale.Height)
                 );
                 window.Size = newSize;
             }
             else if (target is Player player)
             {
                 Size newSize = new Size(
-                    (int)(player.OriginalSize.Width * scale.Width),
-                    (int)(player.OriginalSize.Height * scale.Height)
+                    (int)(baseSize.Width * scale.Width),
+                    (int)(baseSize.Height * scale.Height)
                 );
                 player.UpdateSize(newSize);
             }
+        }
+        public SizeF GetCurrentScale(IEffectTarget target)
+        {
+            return targetScales.GetValueOrDefault(target, new SizeF(1.0f, 1.0f));
+        }
+        public void ResetAll()
+        {
+            targetScales.Clear();
+            referenceSize.Clear();
+            IsActive = false;
+        }
+        public void Reset(IEffectTarget target)
+        {
+            if (target == null) return; // null チェックを追加
+
+            targetScales.Remove(target);
+            referenceSize.Remove(target);
+            IsActive = targetScales.Count > 0;
         }
     }
 }

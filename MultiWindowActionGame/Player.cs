@@ -13,6 +13,7 @@ namespace MultiWindowActionGame
         private float jumpForce = 500;
         private float verticalVelocity = 0;
         public Size OriginalSize { get; }
+        private Size referenceSize;
         private IPlayerState currentState;
         public GameWindow? Parent { get; private set; }
         public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
@@ -23,6 +24,7 @@ namespace MultiWindowActionGame
         public Player()
         {
             OriginalSize = new Size(40, 40);
+            referenceSize = OriginalSize;
             bounds = new Rectangle(150, 150, OriginalSize.Width, OriginalSize.Height);
             currentState = new NormalState();
             MovableRegion = new Region();
@@ -92,7 +94,10 @@ namespace MultiWindowActionGame
             // これは将来的に効果に送信元の情報を追加する必要があります
             return true;
         }
-
+        public void SetReferenceSize(Size size)
+        {
+            referenceSize = size;
+        }
         public void SetParent(GameWindow? newParent)
         {
             if (Parent == newParent) return;
@@ -104,6 +109,7 @@ namespace MultiWindowActionGame
             // 親が変更されたときの移動可能領域を更新
             if (Parent != null)
             {
+                OnEnterWindow(Parent);
                 UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(Parent));
             }
             else
@@ -122,7 +128,11 @@ namespace MultiWindowActionGame
             // 接地状態のチェックは維持するが、速度は保持
             CheckGrounded();
         }
-
+        public void OnEnterWindow(GameWindow window)
+        {
+            // 新しいウィンドウに入った時に現在のサイズを基準サイズとして設定
+            referenceSize = bounds.Size;
+        }
         // 効果の適用を拡張
         public void ApplyEffect(IWindowEffect effect)
         {
@@ -152,12 +162,11 @@ namespace MultiWindowActionGame
 
         private void HandleResizeEffect(ResizeEffect effect)
         {
-            // 元のサイズを基準にスケーリング
+            var currentScale = effect.GetCurrentScale(this);
             Size newSize = new Size(
-                (int)(OriginalSize.Width * effect.CurrentScale.Width),
-                (int)(OriginalSize.Height * effect.CurrentScale.Height)
+                (int)(referenceSize.Width * currentScale.Width),
+                (int)(referenceSize.Height * currentScale.Height)
             );
-
             // 中心位置を保持したままサイズを変更
             Point center = new Point(
                 bounds.X + bounds.Width / 2,

@@ -33,11 +33,6 @@ namespace MultiWindowActionGame
         private bool isResizing = false;
         private Point lastMousePos;
         private Size originalSize;
-
-        // リサイズ効果を公開するプロパティを追加
-        public ResizeEffect ResizeEffect => resizeEffect;
-        // 移動開始時の各ターゲットとの相対位置を保存
-        private Dictionary<IEffectTarget, Point> initialRelativePositions = new Dictionary<IEffectTarget, Point>();
         public void Update(GameWindow window, float deltaTime)
         {
             if (isResizing)
@@ -76,7 +71,7 @@ namespace MultiWindowActionGame
         private void StopResizing()
         {
             isResizing = false;
-            resizeEffect.UpdateScale(new SizeF(1.0f, 1.0f));
+            resizeEffect.ResetAll();
         }
         private void ApplyResizeEffect(GameWindow window)
         {
@@ -85,13 +80,19 @@ namespace MultiWindowActionGame
 
             // 新しいスケールを計算
             SizeF scale = new SizeF(
-                (float)newSize.Width / window.OriginalSize.Width,
-                (float)newSize.Height / window.OriginalSize.Height
+                  (float)newSize.Width / originalSize.Width,
+                  (float)newSize.Height / originalSize.Height
             );
 
+            System.Diagnostics.Debug.WriteLine(window.Size);
+            System.Diagnostics.Debug.WriteLine(window.Id);
             // 効果を更新
-            resizeEffect.UpdateScale(scale);
-
+            resizeEffect.UpdateScale(window, scale);
+            //ウィンドウの子要素それぞれに対してスケールを計算して設定
+            foreach (var child in window.Children)
+            {
+                resizeEffect.UpdateScale(child, scale);
+            }
             // ウィンドウに効果を適用
             window.ApplyEffect(resizeEffect);
         }
