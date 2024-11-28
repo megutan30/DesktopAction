@@ -561,29 +561,57 @@ public class WindowManager : IWindowObserver
             // すでに最前面の場合は何もしない
             if (windows.IndexOf(window) == windows.Count - 1) return;
 
-            // 親がある場合は何もしない（親の操作に従う）
-            if (window.Parent != null) return;
-
-            // 子孫ウィンドウを含むすべての関連ウィンドウを収集
-            var relatedWindows = CollectRelatedWindows(window);
-
-            // 関連ウィンドウを現在のリストから削除
-            foreach (var relatedWindow in relatedWindows)
+            if (window.Parent != null)
             {
-                windows.Remove(relatedWindow);
+                // 同じ親を持つ子ウィンドウの中での順序変更
+                ReorderSiblingWindows(window);
             }
-
-            // 関連ウィンドウを順番を保ったまま最後に追加
-            windows.AddRange(relatedWindows);
-
-            // 物理的なウィンドウの重なり順も更新
-            foreach (var relatedWindow in relatedWindows)
+            else
             {
-                relatedWindow.BringToFront();
-            }
+                // 親ウィンドウとその子孫全体を最前面に移動
+                var relatedWindows = CollectRelatedWindows(window);
 
-            Console.WriteLine($"Window {window.Id} and its related windows brought to front");
+                // 関連ウィンドウを現在のリストから削除
+                foreach (var relatedWindow in relatedWindows)
+                {
+                    windows.Remove(relatedWindow);
+                }
+
+                // 関連ウィンドウを順番を保ったまま最後に追加
+                windows.AddRange(relatedWindows);
+
+                // 物理的なウィンドウの重なり順も更新
+                foreach (var relatedWindow in relatedWindows)
+                {
+                    relatedWindow.BringToFront();
+                }
+            }
         }
+    }
+
+    private void ReorderSiblingWindows(GameWindow window)
+    {
+        // 同じ親を持つ子ウィンドウを取得
+        var siblings = window.Parent.Children
+            .OfType<GameWindow>()
+            .OrderBy(w => windows.IndexOf(w))
+            .ToList();
+
+        if (!siblings.Contains(window)) return;
+
+        // クリックされたウィンドウを一時的に削除
+        windows.Remove(window);
+
+        // 同じ親を持つ子ウィンドウの後ろに配置
+        int lastSiblingIndex = siblings
+            .Where(w => w != window)
+            .Select(w => windows.IndexOf(w))
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        // クリックされたウィンドウを適切な位置に挿入
+        windows.Insert(lastSiblingIndex + 1, window);
+        window.BringToFront();
     }
     private List<GameWindow> CollectRelatedWindows(GameWindow root)
     {
