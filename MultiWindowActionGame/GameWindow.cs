@@ -145,6 +145,14 @@ namespace MultiWindowActionGame
                 }
             }
         }
+        public void UpdateTargetSize(Size newSize)
+        {
+            this.Size = newSize;
+        }
+        public void UpdateTargetPosition(Point newPosition)
+        {
+            this.Location = newPosition;
+        }
 
         public bool CanReceiveEffect(IWindowEffect effect)
         {

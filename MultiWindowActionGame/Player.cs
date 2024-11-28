@@ -45,6 +45,15 @@ namespace MultiWindowActionGame
             MovableRegion.Dispose();
             MovableRegion = newRegion;
         }
+        public void UpdateTargetSize(Size newSize)
+        {
+            this.UpdateSize(newSize);
+            ConstrainToCurrentWindow();
+        }
+        public void UpdateTargetPosition(Point newPosition)
+        {
+            this.UpdatePosition(newPosition);
+        }
         private bool IsCompletelyInside(Rectangle bounds, Region region, Graphics g)
         {
             return region.IsVisible(bounds.Left, bounds.Top, g) &&

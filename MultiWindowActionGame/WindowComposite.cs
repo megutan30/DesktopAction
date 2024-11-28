@@ -13,6 +13,8 @@ namespace MultiWindowActionGame
         bool CanReceiveEffect(IWindowEffect effect);
         void AddChild(IEffectTarget child);
         void RemoveChild(IEffectTarget child);
+        void UpdateTargetSize(Size newSize);
+        void UpdateTargetPosition(Point newPositon);
     }
 
     public interface IWindowEffect
@@ -59,20 +61,17 @@ namespace MultiWindowActionGame
 
         private void ApplyMovementToTarget(IEffectTarget target)
         {
-            if (target is GameWindow window)
-            {
-                window.Location = new Point(
+            if (!target.CanReceiveEffect(this)) return;
+
+            var newPosition = target is GameWindow window
+                ? new Point(
                     window.Location.X + (int)movement.X,
-                    window.Location.Y + (int)movement.Y
-                );
-            }
-            else if (target is Player player)
-            {
-                player.UpdatePosition(new Point(
-                    player.Bounds.X + (int)movement.X,
-                    player.Bounds.Y + (int)movement.Y
-                ));
-            }
+                    window.Location.Y + (int)movement.Y)
+                : new Point(
+                    target.Bounds.X + (int)movement.X,
+                    target.Bounds.Y + (int)movement.Y);
+
+            target.UpdateTargetPosition(newPosition);
         }
     }
 
@@ -116,22 +115,12 @@ namespace MultiWindowActionGame
             var baseSize = referenceSize[target];
             var scale = targetScales.GetValueOrDefault(target, new SizeF(1.0f, 1.0f));
 
-            if (target is GameWindow window)
-            {
-                Size newSize = new Size(
-                    (int)(baseSize.Width * scale.Width),
-                    (int)(baseSize.Height * scale.Height)
-                );
-                window.Size = newSize;
-            }
-            else if (target is Player player)
-            {
-                Size newSize = new Size(
-                    (int)(baseSize.Width * scale.Width),
-                    (int)(baseSize.Height * scale.Height)
-                );
-                player.UpdateSize(newSize);
-            }
+            Size newSize = new Size(
+                (int)(baseSize.Width * scale.Width),
+                (int)(baseSize.Height * scale.Height)
+            );
+
+            target.UpdateTargetSize(newSize);
         }
         public SizeF GetCurrentScale(IEffectTarget target)
         {
