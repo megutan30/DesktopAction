@@ -166,6 +166,28 @@ namespace MultiWindowActionGame
             if (!CanReceiveEffect(effect)) return;
             effect.Apply(this);
         }
+        public bool IsChildOf(GameWindow potentialParent)
+        {
+            var current = this.Parent;
+            while (current != null)
+            {
+                if (current == potentialParent) return true;
+                current = current.Parent;
+            }
+            return false;
+        }
+
+        // すべての子孫を取得するメソッド
+        public IEnumerable<GameWindow> GetAllDescendants()
+        {
+            var descendants = new List<GameWindow>();
+            foreach (var child in Children.OfType<GameWindow>())
+            {
+                descendants.Add(child);
+                descendants.AddRange(child.GetAllDescendants());
+            }
+            return descendants;
+        }
         #endregion
 
         #region IUpdatable and IDrawable Implementation

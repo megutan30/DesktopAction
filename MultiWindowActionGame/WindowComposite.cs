@@ -53,12 +53,25 @@ namespace MultiWindowActionGame
 
             // 対象自身に効果を適用
             ApplyMovementToTarget(target);
-            foreach (var child in target.Children)
+
+            // 直接の子のみに効果を適用（孫は親から効果を受け取る）
+            foreach (var directChild in GetDirectChildren(target))
             {
-                ApplyMovementToTarget(child);
+                Apply(directChild);
             }
         }
-
+        private IEnumerable<IEffectTarget> GetDirectChildren(IEffectTarget parent)
+        {
+            // 子の中で、自身が親であるもののみを返す（孫は除外）
+            return parent.Children.Where(child =>
+            {
+                if (child is GameWindow childWindow)
+                {
+                    return childWindow.Parent == parent;
+                }
+                return true; // Player等の非ウィンドウ要素は常に直接の子として扱う
+            });
+        }
         private void ApplyMovementToTarget(IEffectTarget target)
         {
             if (!target.CanReceiveEffect(this)) return;
@@ -100,14 +113,24 @@ namespace MultiWindowActionGame
         {
             if (!IsActive || !target.CanReceiveEffect(this)) return;
 
-            // 対象自身に効果を適用
             ApplyResizeToTarget(target);
-            foreach (var child in target.Children)
+
+            foreach (var directChild in GetDirectChildren(target))
             {
-                ApplyResizeToTarget(child);
+                Apply(directChild);
             }
         }
-
+        private IEnumerable<IEffectTarget> GetDirectChildren(IEffectTarget parent)
+        {
+            return parent.Children.Where(child =>
+            {
+                if (child is GameWindow childWindow)
+                {
+                    return childWindow.Parent == parent;
+                }
+                return true;
+            });
+        }
         private void ApplyResizeToTarget(IEffectTarget target)
         {
             if (!referenceSize.ContainsKey(target)) return;

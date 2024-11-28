@@ -78,24 +78,37 @@ namespace MultiWindowActionGame
             Point currentMousePos = window.PointToClient(Cursor.Position);
             Size newSize = CalculateNewSize(window, currentMousePos);
 
-            // 新しいスケールを計算
+            // このウィンドウのスケールを計算
             SizeF scale = new SizeF(
-                  (float)newSize.Width / originalSize.Width,
-                  (float)newSize.Height / originalSize.Height
+                (float)newSize.Width / originalSize.Width,
+                (float)newSize.Height / originalSize.Height
             );
 
-            System.Diagnostics.Debug.WriteLine(window.Size);
-            System.Diagnostics.Debug.WriteLine(window.Id);
-            // 効果を更新
+            // 最上位のウィンドウから子孫すべてにスケールを設定
+            ApplyScaleToWindowAndDescendants(window, scale);
+
+            // 効果を適用
+            window.ApplyEffect(resizeEffect);
+        }
+
+        private void ApplyScaleToWindowAndDescendants(GameWindow window, SizeF scale)
+        {
+            // まず現在のウィンドウにスケールを設定
             resizeEffect.UpdateScale(window, scale);
-            //ウィンドウの子要素それぞれに対してスケールを計算して設定
+
+            // 直接の子に対してスケールを設定
             foreach (var child in window.Children)
             {
                 resizeEffect.UpdateScale(child, scale);
+
+                // 子がウィンドウの場合、その子孫にも再帰的にスケールを設定
+                if (child is GameWindow childWindow)
+                {
+                    ApplyScaleToWindowAndDescendants(childWindow, scale);
+                }
             }
-            // ウィンドウに効果を適用
-            window.ApplyEffect(resizeEffect);
         }
+
 
         private Size CalculateNewSize(GameWindow window, Point currentMousePos)
         {
