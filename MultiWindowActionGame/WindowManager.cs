@@ -558,15 +558,52 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
-            // 親がある場合はZ-orderを維持
+            // すでに最前面の場合は何もしない
+            if (windows.IndexOf(window) == windows.Count - 1) return;
+
+            // 親がある場合は何もしない（親の操作に従う）
             if (window.Parent != null) return;
-            if (window.Children.Any(child => child is GameWindow)) return;
-            // 親子関係がない場合は最前面に移動
-            var currentIndex = windows.IndexOf(window);
-            windows.RemoveAt(currentIndex);
-            windows.Add(window);
-            window.BringToFront();
-            Console.WriteLine($"Window {window.Id} brought to front");
+
+            // 子孫ウィンドウを含むすべての関連ウィンドウを収集
+            var relatedWindows = CollectRelatedWindows(window);
+
+            // 関連ウィンドウを現在のリストから削除
+            foreach (var relatedWindow in relatedWindows)
+            {
+                windows.Remove(relatedWindow);
+            }
+
+            // 関連ウィンドウを順番を保ったまま最後に追加
+            windows.AddRange(relatedWindows);
+
+            // 物理的なウィンドウの重なり順も更新
+            foreach (var relatedWindow in relatedWindows)
+            {
+                relatedWindow.BringToFront();
+            }
+
+            Console.WriteLine($"Window {window.Id} and its related windows brought to front");
+        }
+    }
+    private List<GameWindow> CollectRelatedWindows(GameWindow root)
+    {
+        var result = new List<GameWindow>();
+        CollectRelatedWindowsRecursive(root, result);
+        return result;
+    }
+
+    private void CollectRelatedWindowsRecursive(GameWindow window, List<GameWindow> collection)
+    {
+        // 自身を追加
+        collection.Add(window);
+
+        // 子ウィンドウを追加（Z-orderを維持するため、現在の順序で追加）
+        var childWindows = window.Children.OfType<GameWindow>()
+            .OrderBy(w => windows.IndexOf(w));
+
+        foreach (var child in childWindows)
+        {
+            CollectRelatedWindowsRecursive(child, collection);
         }
     }
 
