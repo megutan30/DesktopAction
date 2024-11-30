@@ -8,7 +8,6 @@ public class WindowManager : IWindowObserver
          new Lazy<WindowManager>(() => new WindowManager());
 
     public static WindowManager Instance { get { return lazy.Value; } }
-
     private List<GameWindow> windows = new List<GameWindow>();
     private object windowLock = new object();
     private Player? player;
@@ -203,7 +202,13 @@ public class WindowManager : IWindowObserver
             return components;
         }
     }
-
+    public int GetWindowZIndex(GameWindow window)
+    {
+        lock (windowLock)
+        {
+            return windows.IndexOf(window);
+        }
+    }
     public List<GameWindow> GetIntersectingWindows(Rectangle bounds)
     {
         lock (windowLock)

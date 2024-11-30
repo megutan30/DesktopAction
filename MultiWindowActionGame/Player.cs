@@ -344,7 +344,7 @@ namespace MultiWindowActionGame
                 g.DrawString($"Parent: {Parent.Id}", SystemFonts.DefaultFont, Brushes.Yellow, 
                     bounds.X, bounds.Y - 20);
 
-                System.Diagnostics.Debug.WriteLine($"Parent: {Parent.Id}");
+                //System.Diagnostics.Debug.WriteLine($"Parent: {Parent.Id}");
             }
         }
 
@@ -373,46 +373,71 @@ namespace MultiWindowActionGame
         private void CheckGrounded()
         {
             bool wasGrounded = IsGrounded;
+            IsGrounded = false;
 
-            if (Parent != null)
+            if (Parent != null && bounds.Bottom >= Parent.AdjustedBounds.Bottom)
             {
-                IsGrounded = bounds.Bottom >= Parent.AdjustedBounds.Bottom;
-                if (IsGrounded)
+                HandleGrounding(Parent.AdjustedBounds.Bottom, wasGrounded);
+                return;
+            }
+
+            var windowManager = WindowManager.Instance;
+            var intersectingWindows = windowManager.GetIntersectingWindows(bounds)
+                .OrderByDescending(w => windowManager.GetWindowZIndex(w));
+
+            foreach (var window in intersectingWindows)
+            {
+                if (window != Parent &&
+                    bounds.Bottom >= window.AdjustedBounds.Bottom &&
+                    bounds.Bottom <= window.AdjustedBounds.Bottom + 5)
                 {
-                    bounds = new Rectangle(
+                    Rectangle feetBounds = new Rectangle(
                         bounds.X,
-                        Parent.AdjustedBounds.Bottom - bounds.Height,
+                        bounds.Bottom - 5,
                         bounds.Width,
-                        bounds.Height
+                        10
                     );
-                    if (!wasGrounded)
+
+                    bool isGroundValid = true;
+                    foreach (var otherWindow in intersectingWindows)
                     {
-                        // 着地時の処理
-                        verticalVelocity = 0;
-                        SetState(new NormalState());
-                        Console.WriteLine("Landed in window"); // デバッグ用
+                        if (windowManager.GetWindowZIndex(otherWindow) >
+                            windowManager.GetWindowZIndex(window) &&
+                            otherWindow.AdjustedBounds.IntersectsWith(feetBounds))
+                        {
+                            isGroundValid = false;
+                            break;
+                        }
+                    }
+
+                    if (isGroundValid)
+                    {
+                        HandleGrounding(window.AdjustedBounds.Bottom, wasGrounded);
+                        return;
                     }
                 }
             }
-            else if (Program.mainForm != null)
+
+            if (Program.mainForm != null && bounds.Bottom >= Program.mainForm.ClientSize.Height)
             {
-                IsGrounded = bounds.Bottom >= Program.mainForm.ClientSize.Height;
-                if (IsGrounded)
-                {
-                    bounds = new Rectangle(
-                        bounds.X,
-                        Program.mainForm.ClientSize.Height - bounds.Height,
-                        bounds.Width,
-                        bounds.Height
-                    );
-                    if (!wasGrounded)
-                    {
-                        // 着地時の処理
-                        verticalVelocity = 0;
-                        SetState(new NormalState());
-                        Console.WriteLine("Landed on desktop"); // デバッグ用
-                    }
-                }
+                HandleGrounding(Program.mainForm.ClientSize.Height, wasGrounded);
+            }
+        }
+
+        private void HandleGrounding(int groundY, bool wasGrounded)
+        {
+            IsGrounded = true;
+            bounds = new Rectangle(
+                bounds.X,
+                groundY - bounds.Height,
+                bounds.Width,
+                bounds.Height
+            );
+
+            if (!wasGrounded)
+            {
+                verticalVelocity = 0;
+                SetState(new NormalState());
             }
         }
 
