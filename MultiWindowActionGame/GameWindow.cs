@@ -346,13 +346,7 @@ namespace MultiWindowActionGame
                 case 0x0200: // WM_MOUSEMOVE
                     Strategy.UpdateCursor(this, PointToClient(Cursor.Position));
                     if (!isDragging) return;
-                    foreach (var child in Children)
-                    {
-                        if (child is Player player)
-                        {
-                            player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(this));
-                        }
-                    }
+                    UpdateMovableRegionForDescendants(this);
                     break;
             }
 
@@ -367,7 +361,24 @@ namespace MultiWindowActionGame
                 movableStrategy.HandleWindowMessage(this, m);
             }
         }
-
+        private void UpdateMovableRegionForDescendants(GameWindow window)
+        {
+            // 現在のウィンドウの直接の子をチェック
+            foreach (var child in window.Children)
+            {
+                // Playerの場合
+                if (child is Player player)
+                {
+                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(window));
+                    return;
+                }
+                // 子ウィンドウの場合、その子孫も処理
+                else if (child is GameWindow childWindow)
+                {
+                    UpdateMovableRegionForDescendants(childWindow);
+                }
+            }
+        }
         public new void BringToFront()
         {
             if (this.InvokeRequired)
