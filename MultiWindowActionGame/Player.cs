@@ -1,6 +1,7 @@
 ﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Numerics;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MultiWindowActionGame
 {
@@ -342,6 +343,8 @@ namespace MultiWindowActionGame
             {
                 g.DrawString($"Parent: {Parent.Id}", SystemFonts.DefaultFont, Brushes.Yellow, 
                     bounds.X, bounds.Y - 20);
+
+                System.Diagnostics.Debug.WriteLine($"Parent: {Parent.Id}");
             }
         }
 

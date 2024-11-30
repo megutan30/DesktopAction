@@ -49,7 +49,7 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
-            // まず、現在の親子関係が有効かチェック
+            // 現在の親子関係が有効かチェック（変更なし）
             if (operatedWindow.Parent != null)
             {
                 if (!operatedWindow.Parent.AdjustedBounds.Contains(operatedWindow.AdjustedBounds))
@@ -58,13 +58,9 @@ public class WindowManager : IWindowObserver
                     oldParent.RemoveChild(operatedWindow);
                     Console.WriteLine($"Window {operatedWindow.Id} detached from parent {oldParent.Id}");
                 }
-                else
-                {
-                    return;
-                }
             }
 
-            // 子ウィンドウとの関係をチェック
+            // 子ウィンドウとの関係をチェック（変更なし）
             foreach (var child in operatedWindow.Children.OfType<GameWindow>().ToList())
             {
                 if (!operatedWindow.AdjustedBounds.Contains(child.AdjustedBounds))
@@ -74,7 +70,7 @@ public class WindowManager : IWindowObserver
                 }
             }
 
-            // 既存の親子グループを取得
+            // 既存の親子グループを取得（ただし、親子関係の変更を許可するため、制限を緩和）
             var existingGroup = new HashSet<GameWindow>();
             if (operatedWindow.Children.Any())
             {
@@ -82,13 +78,13 @@ public class WindowManager : IWindowObserver
                 existingGroup.UnionWith(operatedWindow.GetAllDescendants());
             }
 
-            // 親候補を探す（既存グループのメンバーは除外）
+            // 親候補を探す
             var allPotentialParents = windows
                 .Where(w => !existingGroup.Contains(w) && w != operatedWindow &&
                        windows.IndexOf(w) < windows.IndexOf(operatedWindow))
                 .OrderByDescending(w => windows.IndexOf(w));
 
-            // 完全に含んでいるウィンドウの中から最も手前にあるものを選ぶ
+            // 完全に含んでいる最も手前のウィンドウを探す
             GameWindow? bestParent = null;
             int bestParentIndex = -1;
 
@@ -99,24 +95,35 @@ public class WindowManager : IWindowObserver
                     int currentIndex = windows.IndexOf(potentialParent);
                     if (bestParentIndex < currentIndex)
                     {
-                        bestParent = potentialParent;
-                        bestParentIndex = currentIndex;
+                        // 現在の親より良い候補が見つかった場合
+                        if (operatedWindow.Parent == null ||
+                            currentIndex > windows.IndexOf(operatedWindow.Parent))
+                        {
+                            bestParent = potentialParent;
+                            bestParentIndex = currentIndex;
+                        }
                     }
                 }
             }
 
-            // 最適な親が見つかった場合、親子関係を設定
-            if (bestParent != null)
+            // より適切な親が見つかった場合は親子関係を変更
+            if (bestParent != null && bestParent != operatedWindow.Parent)
             {
+                // 既存の親子関係を解除
                 if (operatedWindow.Parent != null)
                 {
                     var oldParent = operatedWindow.Parent;
                     oldParent.RemoveChild(operatedWindow);
+                    Console.WriteLine($"Window {operatedWindow.Id} detached from old parent {oldParent.Id}");
                 }
+
+                // 新しい親子関係を設定
                 bestParent.AddChild(operatedWindow);
-                Console.WriteLine($"Window {operatedWindow.Id} became child of {bestParent.Id}");
+                Console.WriteLine($"Window {operatedWindow.Id} became child of new parent {bestParent.Id}");
                 return;
             }
+
+            // 子ウィンドウを探す処理（より前面のウィンドウも対象に）
             var potentialChildren = windows
                 .Where(w => !existingGroup.Contains(w) && w != operatedWindow &&
                        windows.IndexOf(w) > windows.IndexOf(operatedWindow))
@@ -124,16 +131,23 @@ public class WindowManager : IWindowObserver
 
             foreach (var potentialChild in potentialChildren)
             {
-                if (operatedWindow.AdjustedBounds.Contains(potentialChild.AdjustedBounds) &&
-                    potentialChild.Parent == null)
+                if (operatedWindow.AdjustedBounds.Contains(potentialChild.AdjustedBounds))
                 {
-                    operatedWindow.AddChild(potentialChild);
-                    Console.WriteLine($"Window {operatedWindow.Id} became parent of {potentialChild.Id}");
+                    // 既存の親子関係があっても、より適切な親となれる場合は変更
+                    if (potentialChild.Parent == null ||
+                        windows.IndexOf(operatedWindow) > windows.IndexOf(potentialChild.Parent))
+                    {
+                        if (potentialChild.Parent != null)
+                        {
+                            potentialChild.Parent.RemoveChild(potentialChild);
+                        }
+                        operatedWindow.AddChild(potentialChild);
+                        Console.WriteLine($"Window {operatedWindow.Id} became parent of {potentialChild.Id}");
+                    }
                 }
             }
         }
     }
-
     public void CheckChildRelationBreak(IEffectTarget child)
     {
         if (!parentChildRelations.ContainsKey(child)) return;
@@ -610,51 +624,80 @@ public class WindowManager : IWindowObserver
         }
         await Task.Run(() => window.BringToFront());
     }
+
     public void HandleWindowActivation(GameWindow window)
     {
         lock (windowLock)
         {
-            // 親がある場合は処理をスキップ（親の操作に従う）
-            if (window.Parent != null) return;
+            // 直接の子ウィンドウの場合は兄弟間での順序変更のみ行う
+            if (window.Parent != null)
+            {
+                ReorderSiblingWindows(window);
+                return;
+            }
 
-            // このウィンドウとその子孫を含むすべての関連ウィンドウを収集
-            var relatedWindows = new List<GameWindow> { window };
-            relatedWindows.AddRange(window.GetAllDescendants());
+            // 以下は親を持たないウィンドウの場合の処理
+            var relatedWindows = CollectRelatedWindows(window);
 
-            // 関連ウィンドウを順番を保ったまま最前面に移動
-            foreach (var relatedWindow in relatedWindows.OrderBy(w => windows.IndexOf(w)))
+            foreach (var relatedWindow in relatedWindows)
             {
                 windows.Remove(relatedWindow);
-                windows.Add(relatedWindow);
+            }
+
+            windows.AddRange(relatedWindows);
+
+            foreach (var relatedWindow in relatedWindows)
+            {
                 relatedWindow.BringToFront();
             }
+
+            Console.WriteLine($"Window {window.Id} and its related windows brought to front");
         }
     }
 
-    private void ReorderSiblingWindows(GameWindow window)
+    private void ReorderSiblingWindows(GameWindow clickedWindow)
     {
-        // 同じ親を持つ子ウィンドウを取得
-        var siblings = window.Parent.Children
-            .OfType<GameWindow>()
-            .OrderBy(w => windows.IndexOf(w))
-            .ToList();
+        if (clickedWindow.Parent == null) return;
 
-        if (!siblings.Contains(window)) return;
+        lock (windowLock)
+        {
+            // 同じ親を持つ直接の子ウィンドウを取得
+            var siblings = clickedWindow.Parent.Children
+                .OfType<GameWindow>()
+                .OrderBy(w => windows.IndexOf(w))
+                .ToList();
 
-        // クリックされたウィンドウを一時的に削除
-        windows.Remove(window);
+            if (!siblings.Contains(clickedWindow)) return;
 
-        // 同じ親を持つ子ウィンドウの後ろに配置
-        int lastSiblingIndex = siblings
-            .Where(w => w != window)
-            .Select(w => windows.IndexOf(w))
-            .DefaultIfEmpty(-1)
-            .Max();
+            // クリックされたウィンドウとその子孫をすべて取得
+            var clickedWindowGroup = new List<GameWindow> { clickedWindow };
+            clickedWindowGroup.AddRange(clickedWindow.GetAllDescendants());
 
-        // クリックされたウィンドウを適切な位置に挿入
-        windows.Insert(lastSiblingIndex + 1, window);
-        window.BringToFront();
+            // 現在のウィンドウグループを一時的にリストから削除
+            foreach (var window in clickedWindowGroup)
+            {
+                windows.Remove(window);
+            }
+
+            // 他の兄弟ウィンドウの直後に挿入
+            int insertIndex = siblings
+                .Where(w => w != clickedWindow)
+                .Select(w => windows.IndexOf(w))
+                .DefaultIfEmpty(-1)
+                .Max() + 1;
+
+            // クリックされたウィンドウとその子孫を順序を保ったまま挿入
+            foreach (var window in clickedWindowGroup.OrderBy(w => windows.IndexOf(w)))
+            {
+                windows.Insert(Math.Min(insertIndex, windows.Count), window);
+                insertIndex++;
+                window.BringToFront();
+            }
+
+            Console.WriteLine($"Reordered window {clickedWindow.Id} within siblings under parent {clickedWindow.Parent.Id}");
+        }
     }
+
     private List<GameWindow> CollectRelatedWindows(GameWindow root)
     {
         var result = new List<GameWindow>();
