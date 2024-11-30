@@ -39,7 +39,7 @@ namespace MultiWindowActionGame
         public void UpdateSize(Size newSize)
         {
             bounds.Size = newSize;
-            ConstrainToCurrentWindow();
+            AdjustPositionAfterResize(newSize);
         }
         public void UpdateMovableRegion(Region newRegion)
         {
@@ -48,8 +48,8 @@ namespace MultiWindowActionGame
         }
         public void UpdateTargetSize(Size newSize)
         {
-            this.UpdateSize(newSize);
-            ConstrainToCurrentWindow();
+            this.UpdateSize(newSize); 
+            AdjustPositionAfterResize(newSize);
         }
         public void UpdateTargetPosition(Point newPosition)
         {
@@ -325,7 +325,54 @@ namespace MultiWindowActionGame
             }
             return newBounds;
         }
+        private Region GetValidRegion()
+        {
+            if (Parent != null)
+            {
+                // 親ウィンドウと重なっているウィンドウすべての領域を取得
+                return WindowManager.Instance.CalculateMovableRegion(Parent);
+            }
+            else if (Program.mainForm != null)
+            {
+                // メインフォームの領域を返す
+                return new Region(new Rectangle(0, 0,
+                    Program.mainForm.ClientSize.Width,
+                    Program.mainForm.ClientSize.Height));
+            }
+            return new Region();
+        }
+        private void AdjustPositionAfterResize(Size newSize)
+        {
+            using (var validRegion = GetValidRegion())
+            {
+                Rectangle newBounds = new Rectangle(
+                    bounds.X,
+                    bounds.Y,
+                    newSize.Width,
+                    newSize.Height
+                );
 
+                // 現在位置で収まらない場合、有効な位置を探す
+                using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
+                {
+                    if (!IsCompletelyInside(newBounds, validRegion, g))
+                    {
+                        // まず現在の位置で調整を試みる
+                        newBounds = new Rectangle(
+                            Math.Max(Parent?.AdjustedBounds.Left ?? 0,
+                                Math.Min(bounds.X, (Parent?.AdjustedBounds.Right ?? Program.mainForm.ClientSize.Width) - newSize.Width)),
+                            Math.Max(Parent?.AdjustedBounds.Top ?? 0,
+                                Math.Min(bounds.Y, (Parent?.AdjustedBounds.Bottom ?? Program.mainForm.ClientSize.Height) - newSize.Height)),
+                            newSize.Width,
+                            newSize.Height
+                        );
+                    }
+                }
+
+                bounds = newBounds;
+                UpdateMovableRegion(validRegion.Clone());
+            }
+        }
         public void Draw(Graphics g)
         {
             currentState.Draw(this, g);
