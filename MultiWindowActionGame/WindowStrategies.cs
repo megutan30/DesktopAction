@@ -238,32 +238,12 @@ namespace MultiWindowActionGame
 
         public void HandleMinimize(GameWindow window)
         {
-            if (window.Parent != null)
-            {
-                window.Parent.RemoveChild(window);
-            }
-
-            // 最小化前に子との関係を記録
-            var children = window.Children.ToList();
-            foreach (var child in children)
-            {
-                window.RemoveChild(child);
-                if (child is GameWindow childWindow)
-                {
-                    childWindow.Minimize();
-                }
-                else if (child is Player player)
-                {
-                    player.Minimize();
-                }
-            }
-            window.Minimize();
+            window.OnMinimize();
         }
 
         public void HandleRestore(GameWindow window)
         {
-            window.Restore();
-            WindowManager.Instance.CheckPotentialParentWindow(window);
+            window.OnRestore();
         }
 
         // IWindowStrategy の他のメソッドは基本的な実装

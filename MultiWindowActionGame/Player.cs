@@ -24,8 +24,7 @@ namespace MultiWindowActionGame
         private float jumpForce = 500;
         private float verticalVelocity = 0;
         public float VerticalVelocity => verticalVelocity;
-        private bool isMinimized = false;
-        public bool IsMinimized => isMinimized;
+        public bool IsMinimized { get; private set; }
 
         public Size OriginalSize { get; }
         private Size referenceSize;
@@ -112,20 +111,26 @@ namespace MultiWindowActionGame
         {
             isVisible = true;
         }
-        public void Minimize()
+        public void OnMinimize()
         {
-            isMinimized = true;
-            // プレイヤーの状態を保存
+            IsMinimized = true;
+            Hide();
             SaveState();
+
+            // 親との関係を解除
+            if (Parent != null)
+            {
+                Parent.RemoveChild(this);
+            }
         }
 
-        public void Restore()
+        public void OnRestore()
         {
-            isMinimized = false;
-            // プレイヤーの状態を復元
+            IsMinimized = false;
             Show();
             RestoreState();
-            // 親ウィンドウをチェック
+
+            // 親子関係のチェック
             var newParent = WindowManager.Instance.GetTopWindowAt(bounds, null);
             SetParent(newParent);
         }
@@ -283,7 +288,7 @@ namespace MultiWindowActionGame
 
         public async Task UpdateAsync(float deltaTime)
         {
-            if (isMinimized) return;
+            if (IsMinimized) return;
             currentState.HandleInput(this);
             currentState.Update(this, deltaTime);
 
@@ -441,7 +446,7 @@ namespace MultiWindowActionGame
         }
         public void Draw(Graphics g)
         {
-            if(isMinimized)return;
+            if(IsMinimized)return;
             currentState.Draw(this, g);
 
             if (MainGame.IsDebugMode)

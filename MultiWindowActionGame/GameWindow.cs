@@ -30,8 +30,7 @@ namespace MultiWindowActionGame
         private bool isResizing = false;
         private bool isDragging = false;
         private bool shouldBringToFront = false;
-        private bool isMinimized = false;
-        public bool IsMinimized => isMinimized;
+        public bool IsMinimized {  get; private set; }
 
         #region Win32 API Constants and Imports
         private const int WM_SYSCOMMAND = 0x0112;
@@ -91,31 +90,36 @@ namespace MultiWindowActionGame
             public int Y;
         }
         #endregion
-        public void Minimize()
+        public void OnMinimize()
         {
-            isMinimized = true;
-            this.WindowState = FormWindowState.Minimized;
-            // 子要素に効果を伝播
+            IsMinimized = true;
+            WindowState = FormWindowState.Minimized;
+
+            // 親との関係を解除
+            if (Parent != null)
+            {
+                Parent.RemoveChild(this);
+            }
+
+            // 子要素の最小化
             foreach (var child in Children.ToList())
             {
-                if (child is GameWindow childWindow)
-                {
-                    childWindow.Minimize();
-                }
-                else if (child is Player player)
-                {
-                    player.Minimize();
-                }
+                child.OnMinimize();
+                RemoveChild(child);
             }
         }
 
-        public void Restore()
+        public void OnRestore()
         {
-            isMinimized = false;
-            this.WindowState = FormWindowState.Normal;
-            this.Show();
+            IsMinimized = false;
+            WindowState = FormWindowState.Normal;
+            Show();
+
+            // 親子関係のチェック
             WindowManager.Instance.CheckPotentialParentWindow(this);
         }
+
+
 
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
@@ -342,17 +346,11 @@ namespace MultiWindowActionGame
                     if (command == SC_CLOSE) return;
                     if (command == SC_MINIMIZE)
                     {
-                        if (Strategy is MinimizableWindowStrategy strategy)
-                        {
-                            strategy.HandleMinimize(this);
-                        }
+                        OnMinimize();
                     }
                     else if (command == SC_RESTORE)
                     {
-                        if (Strategy is MinimizableWindowStrategy strategy)
-                        {
-                            strategy.HandleRestore(this);
-                        }
+                        OnRestore();
                     }
                     break;
                 case 0x0201: // WM_LBUTTONDOWN

@@ -15,7 +15,8 @@ namespace MultiWindowActionGame
         void RemoveChild(IEffectTarget child);
         void UpdateTargetSize(Size newSize);
         void UpdateTargetPosition(Point newPositon);
-        void Restore();
+        void OnMinimize();
+        void OnRestore();
         bool IsMinimized { get; }
     }
 
@@ -175,15 +176,7 @@ namespace MultiWindowActionGame
         public void Apply(IEffectTarget target)
         {
             if (!target.CanReceiveEffect(this)) return;
-
-            if (target is GameWindow window)
-            {
-                window.WindowState = FormWindowState.Minimized;
-            }
-            else if (target is Player player)
-            {
-                player.Hide();
-            }
+            target.OnMinimize();
         }
     }
 }
