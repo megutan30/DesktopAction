@@ -2,17 +2,31 @@
 using System.Drawing.Drawing2D;
 using System.Numerics;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Window;
 
 namespace MultiWindowActionGame
 {
-    public class Player : IEffectTarget
+    public class Player :IEffectTarget
     {
+        private class PlayerSavedState
+        {
+            public Rectangle Bounds { get; set; }
+            public float VerticalVelocity { get; set; }
+            public GameWindow? Parent { get; set; }
+            public IPlayerState State { get; set; }
+        }
+
+        private PlayerSavedState? savedState = null;
         private Rectangle bounds;
         public Rectangle Bounds => bounds;
         private float speed = 400.0f;
         private float gravity = 1000.0f;
         private float jumpForce = 500;
         private float verticalVelocity = 0;
+        public float VerticalVelocity => verticalVelocity;
+        private bool isMinimized = false;
+        public bool IsMinimized => isMinimized;
+
         public Size OriginalSize { get; }
         private Size referenceSize;
         private IPlayerState currentState;
@@ -30,7 +44,27 @@ namespace MultiWindowActionGame
             currentState = new NormalState();
             MovableRegion = new Region();
         }
-
+        private void SaveState()
+        {
+            savedState = new PlayerSavedState
+            {
+                Bounds = this.bounds,
+                VerticalVelocity = this.verticalVelocity,
+                Parent = this.Parent,
+                State = this.currentState
+            };
+        }
+        private void RestoreState()
+        {
+            if (savedState != null)
+            {
+                this.bounds = savedState.Bounds;
+                this.verticalVelocity = savedState.VerticalVelocity;
+                this.Parent = savedState.Parent;
+                this.currentState = savedState.State;
+                savedState = null;
+            }
+        }
         public void UpdatePosition(Point newPosition)
         {
             bounds.Location = newPosition;
@@ -61,6 +95,39 @@ namespace MultiWindowActionGame
                    region.IsVisible(bounds.Right - 1, bounds.Top, g) &&
                    region.IsVisible(bounds.Left, bounds.Bottom - 1, g) &&
                    region.IsVisible(bounds.Right - 1, bounds.Bottom - 1, g);
+        }
+        private bool isVisible = true;
+        public bool IsVisible
+        {
+            get => isVisible;
+            private set => isVisible = value;
+        }
+
+        public void Hide()
+        {
+            isVisible = false;
+        }
+
+        public void Show()
+        {
+            isVisible = true;
+        }
+        public void Minimize()
+        {
+            isMinimized = true;
+            // プレイヤーの状態を保存
+            SaveState();
+        }
+
+        public void Restore()
+        {
+            isMinimized = false;
+            // プレイヤーの状態を復元
+            Show();
+            RestoreState();
+            // 親ウィンドウをチェック
+            var newParent = WindowManager.Instance.GetTopWindowAt(bounds, null);
+            SetParent(newParent);
         }
         private bool IsWithinMainForm(Rectangle bounds)
         {
@@ -95,8 +162,6 @@ namespace MultiWindowActionGame
 
         public bool CanReceiveEffect(IWindowEffect effect)
         {
-            //if (isBeingOperated) return false;
-
             // 親がない場合は効果を受けない
             if (Parent == null) return false;
 
@@ -218,13 +283,12 @@ namespace MultiWindowActionGame
 
         public async Task UpdateAsync(float deltaTime)
         {
+            if (isMinimized) return;
             currentState.HandleInput(this);
             currentState.Update(this, deltaTime);
 
             Vector2 movement = CalculateMovement(deltaTime);
-
             var preGravityPosition = bounds.Location;
-
             ApplyGravity(deltaTime);
 
             Rectangle newBounds = new Rectangle(
@@ -252,13 +316,15 @@ namespace MultiWindowActionGame
                     SetParent(newWindow);
                     verticalVelocity = previousVelocity;
 
-                    // 新しいウィンドウに対する移動可能領域を更新
-
                     UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
                 }
             }
             bounds = newBounds;
-            CheckGrounded();
+
+            if (currentState.ShouldCheckGround)
+            {
+                CheckGrounded();
+            }
         }
         private Rectangle AdjustMovement(Rectangle oldBounds, Rectangle newBounds, Graphics g)
         {
@@ -375,6 +441,7 @@ namespace MultiWindowActionGame
         }
         public void Draw(Graphics g)
         {
+            if(isMinimized)return;
             currentState.Draw(this, g);
 
             if (MainGame.IsDebugMode)

@@ -178,7 +178,8 @@ public class WindowManager : IWindowObserver
                     WindowFactory.CreateWindow(WindowType.Normal, new Point(100, 100), new Size(300, 200)),
                     WindowFactory.CreateWindow(WindowType.Resizable, new Point(450, 100), new Size(300, 200)),
                     WindowFactory.CreateWindow(WindowType.Movable, new Point(100, 350), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Deletable, new Point(460, 350), new Size(300, 200))
+                    WindowFactory.CreateWindow(WindowType.Deletable, new Point(460, 350), new Size(300, 200)),
+                    WindowFactory.CreateWindow(WindowType.Minimizable, new Point(660, 350), new Size(300, 200))
                 };
 
                 foreach (var window in newWindows)

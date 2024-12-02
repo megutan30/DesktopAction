@@ -232,4 +232,48 @@ namespace MultiWindowActionGame
             window.Cursor = Cursors.Default;
         }
     }
+    public class MinimizableWindowStrategy : IWindowStrategy
+    {
+        private readonly MinimizeEffect minimizeEffect = new MinimizeEffect();
+
+        public void HandleMinimize(GameWindow window)
+        {
+            if (window.Parent != null)
+            {
+                window.Parent.RemoveChild(window);
+            }
+
+            // 最小化前に子との関係を記録
+            var children = window.Children.ToList();
+            foreach (var child in children)
+            {
+                window.RemoveChild(child);
+                if (child is GameWindow childWindow)
+                {
+                    childWindow.Minimize();
+                }
+                else if (child is Player player)
+                {
+                    player.Minimize();
+                }
+            }
+            window.Minimize();
+        }
+
+        public void HandleRestore(GameWindow window)
+        {
+            window.Restore();
+            WindowManager.Instance.CheckPotentialParentWindow(window);
+        }
+
+        // IWindowStrategy の他のメソッドは基本的な実装
+        public void Update(GameWindow window, float deltaTime) { }
+        public void HandleInput(GameWindow window) { }
+        public void HandleResize(GameWindow window) { }
+        public void HandleWindowMessage(GameWindow window, Message m) { }
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            window.Cursor = Cursors.Default;
+        }
+    }
 }

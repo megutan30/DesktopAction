@@ -15,6 +15,8 @@ namespace MultiWindowActionGame
         void RemoveChild(IEffectTarget child);
         void UpdateTargetSize(Size newSize);
         void UpdateTargetPosition(Point newPositon);
+        void Restore();
+        bool IsMinimized { get; }
     }
 
     public interface IWindowEffect
@@ -29,7 +31,8 @@ namespace MultiWindowActionGame
     {
         Movement,
         Resize,
-        Delete
+        Delete,
+        Minimize
     }
 
     public class MovementEffect : IWindowEffect
@@ -162,6 +165,25 @@ namespace MultiWindowActionGame
             targetScales.Remove(target);
             referenceSize.Remove(target);
             IsActive = targetScales.Count > 0;
+        }
+    }
+    public class MinimizeEffect : IWindowEffect
+    {
+        public EffectType Type => EffectType.Minimize;
+        public bool IsActive { get; private set; }
+
+        public void Apply(IEffectTarget target)
+        {
+            if (!target.CanReceiveEffect(this)) return;
+
+            if (target is GameWindow window)
+            {
+                window.WindowState = FormWindowState.Minimized;
+            }
+            else if (target is Player player)
+            {
+                player.Hide();
+            }
         }
     }
 }

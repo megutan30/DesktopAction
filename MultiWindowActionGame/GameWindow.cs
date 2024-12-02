@@ -30,6 +30,8 @@ namespace MultiWindowActionGame
         private bool isResizing = false;
         private bool isDragging = false;
         private bool shouldBringToFront = false;
+        private bool isMinimized = false;
+        public bool IsMinimized => isMinimized;
 
         #region Win32 API Constants and Imports
         private const int WM_SYSCOMMAND = 0x0112;
@@ -89,6 +91,31 @@ namespace MultiWindowActionGame
             public int Y;
         }
         #endregion
+        public void Minimize()
+        {
+            isMinimized = true;
+            this.WindowState = FormWindowState.Minimized;
+            // 子要素に効果を伝播
+            foreach (var child in Children.ToList())
+            {
+                if (child is GameWindow childWindow)
+                {
+                    childWindow.Minimize();
+                }
+                else if (child is Player player)
+                {
+                    player.Minimize();
+                }
+            }
+        }
+
+        public void Restore()
+        {
+            isMinimized = false;
+            this.WindowState = FormWindowState.Normal;
+            this.Show();
+            WindowManager.Instance.CheckPotentialParentWindow(this);
+        }
 
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
@@ -314,9 +341,19 @@ namespace MultiWindowActionGame
                     int command = m.WParam.ToInt32() & 0xFFF0;
                     if (command == SC_CLOSE) return;
                     if (command == SC_MINIMIZE)
-                        (Strategy as DeletableWindowStrategy)?.HandleMinimize(this);
+                    {
+                        if (Strategy is MinimizableWindowStrategy strategy)
+                        {
+                            strategy.HandleMinimize(this);
+                        }
+                    }
                     else if (command == SC_RESTORE)
-                        (Strategy as DeletableWindowStrategy)?.HandleRestore(this);
+                    {
+                        if (Strategy is MinimizableWindowStrategy strategy)
+                        {
+                            strategy.HandleRestore(this);
+                        }
+                    }
                     break;
                 case 0x0201: // WM_LBUTTONDOWN
                     shouldBringToFront = true;
