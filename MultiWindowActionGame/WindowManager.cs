@@ -179,7 +179,7 @@ public class WindowManager : IWindowObserver
                     WindowFactory.CreateWindow(WindowType.Resizable, new Point(450, 100), new Size(300, 200)),
                     WindowFactory.CreateWindow(WindowType.Movable, new Point(100, 350), new Size(300, 200)),
                     WindowFactory.CreateWindow(WindowType.Deletable, new Point(460, 350), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Minimizable, new Point(660, 350), new Size(300, 200))
+                    WindowFactory.CreateWindow(WindowType.Minimizable, new Point(960, 350), new Size(300, 200))
                 };
 
                 foreach (var window in newWindows)
@@ -635,6 +635,8 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
+            if (windows.IndexOf(window) == windows.Count - 1) return;
+
             // 直接の子ウィンドウの場合は兄弟間での順序変更のみ行う
             if (window.Parent != null)
             {
@@ -642,22 +644,34 @@ public class WindowManager : IWindowObserver
                 return;
             }
 
-            // 以下は親を持たないウィンドウの場合の処理
-            var relatedWindows = CollectRelatedWindows(window);
+            // 親ウィンドウの場合の処理
+            // 現在のウィンドウとその子孫の相対的なZ順序を保持
+            var currentOrder = CollectRelatedWindows(window)
+                .OrderBy(w => windows.IndexOf(w))
+                .ToList();
 
-            foreach (var relatedWindow in relatedWindows)
+            // 現在の相対的な順序の差分を計算
+            var orderDiffs = new Dictionary<GameWindow, int>();
+            for (int i = 0; i < currentOrder.Count; i++)
+            {
+                orderDiffs[currentOrder[i]] = i;
+            }
+
+            // すべてのウィンドウを一時的に削除
+            foreach (var relatedWindow in currentOrder)
             {
                 windows.Remove(relatedWindow);
             }
 
-            windows.AddRange(relatedWindows);
-
-            foreach (var relatedWindow in relatedWindows)
+            // 相対的な順序を保ちながら最前面に追加
+            int baseIndex = windows.Count;
+            foreach (var relatedWindow in currentOrder)
             {
+                int newIndex = baseIndex + orderDiffs[relatedWindow];
+                windows.Insert(Math.Min(newIndex, windows.Count), relatedWindow);
                 relatedWindow.BringToFront();
             }
 
-            Console.WriteLine($"Window {window.Id} and its related windows brought to front");
         }
     }
 
@@ -667,14 +681,6 @@ public class WindowManager : IWindowObserver
 
         lock (windowLock)
         {
-            // 同じ親を持つ直接の子ウィンドウを取得
-            var siblings = clickedWindow.Parent.Children
-                .OfType<GameWindow>()
-                .OrderBy(w => windows.IndexOf(w))
-                .ToList();
-
-            if (!siblings.Contains(clickedWindow)) return;
-
             // クリックされたウィンドウとその子孫をすべて取得
             var clickedWindowGroup = new List<GameWindow> { clickedWindow };
             clickedWindowGroup.AddRange(clickedWindow.GetAllDescendants());
@@ -685,22 +691,17 @@ public class WindowManager : IWindowObserver
                 windows.Remove(window);
             }
 
-            // 他の兄弟ウィンドウの直後に挿入
-            int insertIndex = siblings
-                .Where(w => w != clickedWindow)
-                .Select(w => windows.IndexOf(w))
-                .DefaultIfEmpty(-1)
-                .Max() + 1;
+            // 最前面のウィンドウのインデックスを取得
+            int maxZIndex = windows.Count;
 
-            // クリックされたウィンドウとその子孫を順序を保ったまま挿入
+            // クリックされたウィンドウグループを最前面に配置
             foreach (var window in clickedWindowGroup.OrderBy(w => windows.IndexOf(w)))
             {
-                windows.Insert(Math.Min(insertIndex, windows.Count), window);
-                insertIndex++;
+                windows.Insert(maxZIndex, window);
                 window.BringToFront();
             }
 
-            Console.WriteLine($"Reordered window {clickedWindow.Id} within siblings under parent {clickedWindow.Parent.Id}");
+            Console.WriteLine($"Reordered window {clickedWindow.Id} within siblings. New Z-index: {windows.IndexOf(clickedWindow)}");
         }
     }
 
