@@ -1,6 +1,7 @@
 ﻿using MultiWindowActionGame;
 using System;
 using System.Drawing;
+using System.Numerics;
 using System.Windows.Forms;
 
 namespace MultiWindowActionGame
@@ -10,21 +11,16 @@ namespace MultiWindowActionGame
         void Update(GameWindow window, float deltaTime);
         void HandleInput(GameWindow window);
         void HandleResize(GameWindow window);
+        void HandleWindowMessage(GameWindow window, Message m);
         void UpdateCursor(GameWindow window, Point clientMousePos);
     }
 
     public class NormalWindowStrategy : IWindowStrategy
     {
-        public void Update(GameWindow window, float deltaTime)
-        {
-            // 通常ウィンドウの更新ロジック（必要に応じて）
-        }
-
-        public void HandleInput(GameWindow window)
-        {
-            // 通常ウィンドウの入力処理（必要に応じて）
-        }
+        public void Update(GameWindow window, float deltaTime) { }
+        public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }
+        public void HandleWindowMessage(GameWindow window, Message m) { }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;
@@ -33,24 +29,23 @@ namespace MultiWindowActionGame
 
     public class ResizableWindowStrategy : IWindowStrategy
     {
+        private readonly ResizeEffect resizeEffect = new ResizeEffect();
         private bool isResizing = false;
         private Point lastMousePos;
         private Size originalSize;
-
         public void Update(GameWindow window, float deltaTime)
         {
-            // 通常の更新ロジック（必要に応じて）
+            if (isResizing)
+            {
+                ApplyResizeEffect(window);
+            }
         }
-
-        public void HandleInput(GameWindow window)
-        {
-            // キーボード入力の処理（必要に応じて）
-        }
+        public void HandleInput(GameWindow window) { }
 
         public void HandleResize(GameWindow window)
         {
             // リサイズ後の処理が必要な場合はここに実装します
-            window.OnWindowResized();
+            //window.OnWindowResized()
         }
 
         public void HandleWindowMessage(GameWindow window, Message m)
@@ -58,33 +53,73 @@ namespace MultiWindowActionGame
             switch (m.Msg)
             {
                 case 0x0201: // WM_LBUTTONDOWN
-                    isResizing = true;
-                    lastMousePos = window.PointToClient(Cursor.Position);
-                    originalSize = window.Size;
+                    StartResizing(window);
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
-                    isResizing = false;
-                    break;
-
-                case 0x0200: // WM_MOUSEMOVE
-                    if (isResizing)
-                    {
-                        Point currentMousePos = window.PointToClient(Cursor.Position);
-                        int dx = currentMousePos.X - lastMousePos.X;
-                        int dy = currentMousePos.Y - lastMousePos.Y;
-
-                        Size newSize = new Size(originalSize.Width + dx, originalSize.Height + dy);
-                        newSize.Width = Math.Max(newSize.Width, window.MinimumSize.Width);
-                        newSize.Height = Math.Max(newSize.Height, window.MinimumSize.Height);
-
-                        window.Size = newSize;
-                        window.OnWindowResized();
-                    }
+                    StopResizing();
                     break;
             }
         }
+        private void StartResizing(GameWindow window)
+        {
+            isResizing = true;
+            lastMousePos = window.PointToClient(Cursor.Position);
+            originalSize = window.Size;
+        }
 
+        private void StopResizing()
+        {
+            isResizing = false;
+            resizeEffect.ResetAll();
+        }
+        private void ApplyResizeEffect(GameWindow window)
+        {
+            Point currentMousePos = window.PointToClient(Cursor.Position);
+            Size newSize = CalculateNewSize(window, currentMousePos);
+
+            // このウィンドウのスケールを計算
+            SizeF scale = new SizeF(
+                (float)newSize.Width / originalSize.Width,
+                (float)newSize.Height / originalSize.Height
+            );
+
+            // 最上位のウィンドウから子孫すべてにスケールを設定
+            ApplyScaleToWindowAndDescendants(window, scale);
+
+            // 効果を適用
+            window.ApplyEffect(resizeEffect);
+        }
+
+        private void ApplyScaleToWindowAndDescendants(GameWindow window, SizeF scale)
+        {
+            // まず現在のウィンドウにスケールを設定
+            resizeEffect.UpdateScale(window, scale);
+
+            // 直接の子に対してスケールを設定
+            foreach (var child in window.Children)
+            {
+                resizeEffect.UpdateScale(child, scale);
+
+                // 子がウィンドウの場合、その子孫にも再帰的にスケールを設定
+                if (child is GameWindow childWindow)
+                {
+                    ApplyScaleToWindowAndDescendants(childWindow, scale);
+                }
+            }
+        }
+
+
+        private Size CalculateNewSize(GameWindow window, Point currentMousePos)
+        {
+            int dx = currentMousePos.X - lastMousePos.X;
+            int dy = currentMousePos.Y - lastMousePos.Y;
+
+            return new Size(
+                Math.Max(originalSize.Width + dx, window.MinimumSize.Width),
+                Math.Max(originalSize.Height + dy, window.MinimumSize.Height)
+            );
+        }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.SizeNWSE;
@@ -93,20 +128,22 @@ namespace MultiWindowActionGame
 
     public class MovableWindowStrategy : IWindowStrategy
     {
+        private readonly MovementEffect movementEffect = new MovementEffect();
         private bool isDragging = false;
         private Point lastMousePos;
         private const int WM_NCHITTEST = 0x84;
         private const int HTCAPTION = 2;
+        public MovementEffect MovementEffect => movementEffect;
         public void Update(GameWindow window, float deltaTime)
         {
-            // 更新ロジック（必要に応じて）
+            if (isDragging)
+            {
+                ApplyMovementEffect(window);
+            }
         }
 
-        public void HandleInput(GameWindow window)
-        {
-            // キーボード入力の処理（必要に応じて）
-        }
-
+        public void HandleInput(GameWindow window) { }
+        public void HandleResize(GameWindow window) { }
         public void HandleWindowMessage(GameWindow window, Message m)
         {
             switch (m.Msg)
@@ -116,72 +153,104 @@ namespace MultiWindowActionGame
                     break;
 
                 case 0x0201: // WM_LBUTTONDOWN
-                    isDragging = true;
-                    lastMousePos = window.PointToClient(Cursor.Position);
+                    StartDragging(window);
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
-                    isDragging = false;
-                    break;
-
-                case 0x0200: // WM_MOUSEMOVE
-                    if (isDragging)
-                    {
-                        Point currentMousePos = window.PointToClient(Cursor.Position);
-                        int dx = currentMousePos.X - lastMousePos.X;
-                        int dy = currentMousePos.Y - lastMousePos.Y;
-                        window.Location = new Point(window.Location.X + dx, window.Location.Y + dy);
-                        window.OnWindowMoved();
-
-                        // プレイヤーの位置を更新
-                        Player? player = WindowManager.Instance.GetPlayerInWindow(window);
-                        if (player != null)
-                        {
-                            player.ConstrainToWindow(window);
-                        }
-                    }
+                    StopDragging();
                     break;
             }
         }
+        private void StartDragging(GameWindow window)
+        {
+            isDragging = true;
+            lastMousePos = window.PointToClient(Cursor.Position);
+        }
+
+        private void StopDragging()
+        {
+            isDragging = false;
+            movementEffect.UpdateMovement(Vector2.Zero);
+        }
+        private void ApplyMovementEffect(GameWindow window)
+        {
+            Point currentMousePos = window.PointToClient(Cursor.Position);
+            Vector2 movement = new Vector2(
+                currentMousePos.X - lastMousePos.X,
+                currentMousePos.Y - lastMousePos.Y
+            );
+
+            movementEffect.UpdateMovement(movement);
+            window.ApplyEffect(movementEffect);
+        }
+
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
-            // ウィンドウ全体で移動カーソルを表示
             window.Cursor = Cursors.SizeAll;
         }
-        public void HandleResize(GameWindow window) { }
     }
 
     public class DeletableWindowStrategy : IWindowStrategy
     {
         public bool IsMinimized { get; private set; }
 
-        public void Update(GameWindow window, float deltaTime)
-        {
-            // 既存の更新ロジック
-        }
+        public void Update(GameWindow window, float deltaTime) { }
 
         public void HandleInput(GameWindow window)
         {
             if (Input.IsKeyDown(Keys.Delete))
             {
+                // 削除前に子要素をすべて解放
+                foreach (var child in window.Children.ToList())
+                {
+                    window.RemoveChild(child);
+                }
+
+                // 親からも削除
+                window.Parent?.RemoveChild(window);
+
                 window.Close();
                 window.NotifyObservers(WindowChangeType.Deleted);
             }
         }
 
         public void HandleResize(GameWindow window) { }
+        public void HandleWindowMessage(GameWindow window, Message m) { }
 
         public void HandleMinimize(GameWindow window)
         {
             IsMinimized = true;
-            // ここで最小化に関する追加の処理を行うことができます
         }
 
         public void HandleRestore(GameWindow window)
         {
             IsMinimized = false;
-            // ここで復元に関する追加の処理を行うことができます
         }
+
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            window.Cursor = Cursors.Default;
+        }
+    }
+    public class MinimizableWindowStrategy : IWindowStrategy
+    {
+        private readonly MinimizeEffect minimizeEffect = new MinimizeEffect();
+
+        public void HandleMinimize(GameWindow window)
+        {
+            window.OnMinimize();
+        }
+
+        public void HandleRestore(GameWindow window)
+        {
+            window.OnRestore();
+        }
+
+        // IWindowStrategy の他のメソッドは基本的な実装
+        public void Update(GameWindow window, float deltaTime) { }
+        public void HandleInput(GameWindow window) { }
+        public void HandleResize(GameWindow window) { }
+        public void HandleWindowMessage(GameWindow window, Message m) { }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;

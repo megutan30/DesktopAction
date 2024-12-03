@@ -7,13 +7,18 @@ namespace MultiWindowActionGame
         void Update(Player player, float deltaTime);
         void Draw(Player player, Graphics g);
         void HandleInput(Player player);
+        bool ShouldCheckGround { get; }
     }
 
     public class NormalState : IPlayerState
     {
+        public bool ShouldCheckGround => true;
         public void Update(Player player, float deltaTime)
         {
-
+            if (!player.IsGrounded)
+            {
+                player.SetState(new FallingState());
+            }
         }
 
         public void Draw(Player player, Graphics g)
@@ -33,18 +38,20 @@ namespace MultiWindowActionGame
 
     public class JumpingState : IPlayerState
     {
+        public bool ShouldCheckGround => false;
         private float jumpTime = 0;
         private const float MaxJumpTime = 0.5f;
 
         public void Update(Player player, float deltaTime)
         {
-            jumpTime += deltaTime;
-            if (jumpTime >= MaxJumpTime || player.verticalVelocity > 0)
+            if (player.VerticalVelocity > 0)
             {
                 player.SetState(new FallingState());
             }
-            player.Move(deltaTime);
-            player.ApplyGravity(deltaTime);
+            else if (player.IsGrounded)
+            {
+                player.SetState(new NormalState());
+            }
         }
 
         public void Draw(Player player, Graphics g)
@@ -60,6 +67,7 @@ namespace MultiWindowActionGame
 
     public class FallingState : IPlayerState
     {
+        public bool ShouldCheckGround => true;
         public void Update(Player player, float deltaTime)
         {
             if (player.IsGrounded)

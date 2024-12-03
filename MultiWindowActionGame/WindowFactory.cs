@@ -13,6 +13,7 @@ namespace MultiWindowActionGame
                 WindowType.Resizable => new ResizableWindowStrategy(),
                 WindowType.Movable => new MovableWindowStrategy(),
                 WindowType.Deletable => new DeletableWindowStrategy(),
+                WindowType.Minimizable => new MinimizableWindowStrategy(),
                 _ => throw new ArgumentException("Invalid window type", nameof(type))
             };
 
@@ -32,6 +33,7 @@ namespace MultiWindowActionGame
             }
 
             window.MinimizeBox = (type == WindowType.Deletable);
+            window.MinimizeBox = (type == WindowType.Minimizable);
 
             window.BackColor = type switch
             {
@@ -51,6 +53,7 @@ namespace MultiWindowActionGame
         Normal,
         Resizable,
         Movable,
-        Deletable
+        Deletable,
+        Minimizable
     }
 }
