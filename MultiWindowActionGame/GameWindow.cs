@@ -93,13 +93,6 @@ namespace MultiWindowActionGame
         public void OnMinimize()
         {
             IsMinimized = true;
-            WindowState = FormWindowState.Minimized;
-
-            // 親との関係を解除
-            if (Parent != null)
-            {
-                Parent.RemoveChild(this);
-            }
 
             // 子要素の最小化
             foreach (var child in Children.ToList())
@@ -107,6 +100,14 @@ namespace MultiWindowActionGame
                 child.OnMinimize();
                 RemoveChild(child);
             }
+
+            // 親との関係を解除
+            if (Parent != null)
+            {
+                Parent.RemoveChild(this);
+            }
+
+            WindowState = FormWindowState.Minimized;
         }
 
         public void OnRestore()
@@ -117,9 +118,9 @@ namespace MultiWindowActionGame
 
             // 親子関係のチェック
             WindowManager.Instance.CheckPotentialParentWindow(this);
+            WindowManager.Instance.HandleWindowActivation(this);
+            WindowManager.Instance.CheckPotentialParentWindow(this);
         }
-
-
 
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
@@ -133,6 +134,7 @@ namespace MultiWindowActionGame
 
             Console.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
+            this.Activated += GameWindow_Activated;
         }
 
         private void InitializeWindow(Point location, Size size)
@@ -272,7 +274,15 @@ namespace MultiWindowActionGame
             WindowMoved?.Invoke(this, EventArgs.Empty);
             NotifyObservers(WindowChangeType.Moved);
         }
-
+        private void GameWindow_Activated(object? sender, EventArgs e)
+        {
+            // 最小化状態からの復元ではない通常のアクティブ化の場合
+            if (!IsMinimized && WindowState != FormWindowState.Minimized)
+            {
+                WindowManager.Instance.HandleWindowActivation(this);
+                WindowManager.Instance.CheckPotentialParentWindow(this);
+            }
+        }
         private void GameWindow_Resize(object? sender, EventArgs e)
         {
             UpdateBounds();
