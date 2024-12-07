@@ -6,12 +6,14 @@ namespace MultiWindowActionGame
 {
     public class MainGame
     {
+        private static MainGame? instance;
         private Player player = new Player();
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
         public static bool IsDebugMode { get; private set; } = true;
         public void Initialize()
         {
+            instance = this;
             WindowManager.Instance.Initialize();
             player = new Player();
             windowManager = WindowManager.Instance;
@@ -24,6 +26,10 @@ namespace MultiWindowActionGame
             }
 
             GameTime.Start();
+        }
+        public static Player? GetPlayer()
+        {
+            return instance?.player;
         }
 
         private void InitializeGraphicsBuffer()

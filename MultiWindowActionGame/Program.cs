@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 
@@ -40,6 +40,8 @@ namespace MultiWindowActionGame
                 TransparencyKey = System.Drawing.Color.Black
             };
 
+            mainForm.Activated += MainForm_Activated;
+
             SetWindowProperties(mainForm);
 
             MainGame game = new MainGame();
@@ -49,9 +51,33 @@ namespace MultiWindowActionGame
 
             Application.Run(mainForm);
 
-            await gameLoopTask; // ���C���t�H�[��������ꂽ��A�Q�[�����[�v�̏I����҂�
+            await gameLoopTask; 
         }
+        private static void MainForm_Activated(object? sender, EventArgs e)
+        {
+            var player = MainGame.GetPlayer();
+            if (player == null) return;
 
+            // プレイヤーの親ウィンドウが最小化中の場合は復帰させない
+            var parentWindow = WindowManager.Instance.GetParentWindow(player);
+            if (parentWindow != null && parentWindow.IsMinimized) return;
+
+            // プレイヤーが最小化されてから一定時間経過していない場合は復帰させない
+            if (player.IsMinimized && player.TimeSinceMinimized < TimeSpan.FromMilliseconds(500))
+            {
+                return;
+            }
+
+            // 元の位置に他のウィンドウがないか確認
+            var windowAtOriginalPosition = WindowManager.Instance.GetWindowAt(player.Bounds);
+            if (windowAtOriginalPosition == null)
+            {
+                // ウィンドウがない場合はデスクトップ上で復帰
+                player.SetParent(null);
+            }
+
+            player.OnRestore();
+        }
         private static void SetWindowProperties(Form form)
         {
             int exStyle = GetWindowLong(form.Handle, GWL_EXSTYLE);
@@ -64,6 +90,17 @@ namespace MultiWindowActionGame
 
         public static void EnsureTopMost()
         {
+            var player = MainGame.GetPlayer();
+            if (player == null) return;
+
+            // プレイヤーが最小化中、または最小化からの復帰処理中は
+            // メインフォームのTopMostを制御しない
+            if (player.IsMinimized ||
+                player.TimeSinceMinimized < TimeSpan.FromMilliseconds(500))
+            {
+                return;
+            }
+
             if (mainForm != null && !mainForm.IsDisposed)
             {
                 if (mainForm.InvokeRequired)
@@ -74,7 +111,8 @@ namespace MultiWindowActionGame
                 {
                     if (mainForm.Handle != IntPtr.Zero)
                     {
-                        SetWindowPos(mainForm.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                        SetWindowPos(mainForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE);
                     }
                 }
             }

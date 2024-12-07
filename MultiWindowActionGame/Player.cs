@@ -34,6 +34,9 @@ namespace MultiWindowActionGame
         public bool IsGrounded { get; private set; }
 
         public Region MovableRegion { get; private set; }
+        private DateTime? minimizedTime;
+        public TimeSpan TimeSinceMinimized =>
+            minimizedTime.HasValue ? DateTime.Now - minimizedTime.Value : TimeSpan.MaxValue;
 
         public Player()
         {
@@ -114,6 +117,7 @@ namespace MultiWindowActionGame
         public void OnMinimize()
         {
             IsMinimized = true;
+            minimizedTime = DateTime.Now;
             Hide();
             SaveState();
 
@@ -130,9 +134,23 @@ namespace MultiWindowActionGame
             Show();
             RestoreState();
 
-            // 親子関係のチェック
-            var newParent = WindowManager.Instance.GetTopWindowAt(bounds, null);
-            SetParent(newParent);
+            UpdateParentOnRestore();
+        }
+        private void UpdateParentOnRestore()
+        {
+            var potentialParent = WindowManager.Instance.GetWindowAt(bounds);
+            if (potentialParent != null && !potentialParent.IsMinimized)
+            {
+                SetParent(potentialParent);
+            }
+            else
+            {
+                // デスクトップ上での移動を可能にする
+                SetParent(null);
+                MovableRegion = new Region(new Rectangle(0, 0,
+                    Program.mainForm?.ClientSize.Width ?? 0,
+                    Program.mainForm?.ClientSize.Height ?? 0));
+            }
         }
         private bool IsWithinMainForm(Rectangle bounds)
         {
