@@ -164,15 +164,22 @@ namespace MultiWindowActionGame
 
         private bool IsValidMove(Rectangle bounds, Graphics g)
         {
-            if (!MovableRegion.IsEmpty(g))
+            if (Parent == null)
             {
-                return IsCompletelyInside(bounds, MovableRegion, g);
+                // ウィンドウの外にいる場合はメインフォームの境界のみをチェック
+                return IsWithinMainForm(bounds);
             }
             else
             {
+                // ウィンドウ内にいる場合は、完全に内部に入っているときのみMovableRegionをチェック
+                if (!MovableRegion.IsEmpty(g))
+                {
+                    return IsCompletelyInside(bounds, MovableRegion, g);
+                }
                 return IsWithinMainForm(bounds);
             }
         }
+
         public void AddChild(IEffectTarget child)
         {
             Children.Add(child);
@@ -321,6 +328,7 @@ namespace MultiWindowActionGame
                 bounds.Height
             );
 
+
             using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
             {
                 if (!IsValidMove(newBounds, g))
@@ -331,17 +339,40 @@ namespace MultiWindowActionGame
 
             // 移動前に新しい位置でのウィンドウをチェック
             GameWindow? newWindow = WindowManager.Instance.GetTopWindowAt(newBounds, Parent);
+
+            bool isCompletelyInsideNewWindow = newWindow != null &&
+                newWindow.AdjustedBounds.Contains(newBounds);
+
             if (newWindow != Parent)
             {
-                if (newWindow != null)
+                if (Parent == null)
                 {
+                    // 外からウィンドウに入る場合
+                    if (isCompletelyInsideNewWindow)
+                    {
+                        // 完全に中に入った場合のみ親子関係を設定
+                        float previousVelocity = verticalVelocity;
+                        SetParent(newWindow);
+                        verticalVelocity = previousVelocity;
+                        UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
+                    }
+                }
+                else
+                {
+                    // ウィンドウから出る場合
                     float previousVelocity = verticalVelocity;
-                    SetParent(newWindow);
+                    SetParent(null);
                     verticalVelocity = previousVelocity;
-
-                    UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
+                    // デスクトップ全体を移動可能領域として設定
+                    if (Program.mainForm != null)
+                    {
+                        UpdateMovableRegion(new Region(new Rectangle(0, 0,
+                            Program.mainForm.ClientSize.Width,
+                            Program.mainForm.ClientSize.Height)));
+                    }
                 }
             }
+
             bounds = newBounds;
 
             if (currentState.ShouldCheckGround)

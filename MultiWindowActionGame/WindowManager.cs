@@ -341,6 +341,15 @@ public class WindowManager : IWindowObserver
             new Point(playerBounds.Right, playerBounds.Top), // 右上
             new Point(playerBounds.X + playerBounds.Width / 2, playerBounds.Y + playerBounds.Height / 2) // 中心
         };
+        // 現在ウィンドウの外にいる場合
+        if (currentWindow == null)
+        {
+            // プレイヤーが完全にウィンドウ内に入っているものだけを対象とする
+            return windows
+                .Where(w => w.AdjustedBounds.Contains(playerBounds))
+                .OrderByDescending(w => windows.IndexOf(w))
+                .FirstOrDefault();
+        }
 
         Dictionary<GameWindow, HashSet<Point>> windowPoints = new Dictionary<GameWindow, HashSet<Point>>();
 
