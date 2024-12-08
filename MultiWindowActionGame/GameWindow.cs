@@ -378,6 +378,20 @@ namespace MultiWindowActionGame
                     }
 
                     isDragging = false;
+
+                    var player = MainGame.GetPlayer();
+                    if (player != null)
+                    {
+                        // プレイヤーの現在の親ウィンドウを取得
+                        var playerParent = player.Parent;
+                        if (playerParent != null)
+                        {
+                            // 親ウィンドウの新しいMovableRegionを計算して更新
+                            player.UpdateMovableRegion(
+                                WindowManager.Instance.CalculateMovableRegion(playerParent)
+                            );
+                        }
+                    }
                     break;
 
                 case 0x0231: // WM_ENTERSIZEMOVE

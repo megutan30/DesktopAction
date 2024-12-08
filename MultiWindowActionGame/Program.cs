@@ -37,7 +37,8 @@ namespace MultiWindowActionGame
                 WindowState = FormWindowState.Maximized,
                 TopMost = true,
                 BackColor = System.Drawing.Color.Black,
-                TransparencyKey = System.Drawing.Color.Black
+                TransparencyKey = System.Drawing.Color.Black,
+                Text ="Player"
             };
 
             mainForm.Activated += MainForm_Activated;
