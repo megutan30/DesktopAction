@@ -341,7 +341,7 @@ namespace MultiWindowActionGame
             GameWindow? newWindow = WindowManager.Instance.GetTopWindowAt(newBounds, Parent);
 
             bool isCompletelyInsideNewWindow = newWindow != null &&
-                newWindow.AdjustedBounds.Contains(newBounds);
+     newWindow.AdjustedBounds.Contains(newBounds);
 
             if (newWindow != Parent)
             {
@@ -350,7 +350,6 @@ namespace MultiWindowActionGame
                     // 外からウィンドウに入る場合
                     if (isCompletelyInsideNewWindow)
                     {
-                        // 完全に中に入った場合のみ親子関係を設定
                         float previousVelocity = verticalVelocity;
                         SetParent(newWindow);
                         verticalVelocity = previousVelocity;
@@ -359,16 +358,27 @@ namespace MultiWindowActionGame
                 }
                 else
                 {
-                    // ウィンドウから出る場合
-                    float previousVelocity = verticalVelocity;
-                    SetParent(null);
-                    verticalVelocity = previousVelocity;
-                    // デスクトップ全体を移動可能領域として設定
-                    if (Program.mainForm != null)
+                    // 現在のウィンドウから別のウィンドウに移動するケース
+                    if (isCompletelyInsideNewWindow)
                     {
-                        UpdateMovableRegion(new Region(new Rectangle(0, 0,
-                            Program.mainForm.ClientSize.Width,
-                            Program.mainForm.ClientSize.Height)));
+                        // 新しいウィンドウに完全に入っている場合は親を変更
+                        float previousVelocity = verticalVelocity;
+                        SetParent(newWindow);
+                        verticalVelocity = previousVelocity;
+                        UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
+                    }
+                    else if (!Parent.AdjustedBounds.Contains(newBounds))
+                    {
+                        // 現在の親ウィンドウからも出ている場合のみ外に出る
+                        float previousVelocity = verticalVelocity;
+                        SetParent(null);
+                        verticalVelocity = previousVelocity;
+                        if (Program.mainForm != null)
+                        {
+                            UpdateMovableRegion(new Region(new Rectangle(0, 0,
+                                Program.mainForm.ClientSize.Width,
+                                Program.mainForm.ClientSize.Height)));
+                        }
                     }
                 }
             }
