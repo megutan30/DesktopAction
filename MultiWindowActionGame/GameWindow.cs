@@ -15,6 +15,7 @@ namespace MultiWindowActionGame
         public Size OriginalSize { get; private set; }
         public IWindowStrategy Strategy { get; private set; }
         public Rectangle Bounds => AdjustedBounds;
+        public Rectangle FullBounds => new Rectangle(Location, Size);
         public GameWindow? Parent { get; private set; }
         public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
 
@@ -88,6 +89,20 @@ namespace MultiWindowActionGame
         {
             public int X;
             public int Y;
+        }
+        public Rectangle CollisionBounds
+        {
+            get
+            {
+                // タイトルバーの高さを含める
+                int titleBarHeight = RectangleToScreen(ClientRectangle).Y - Location.Y;
+                return new Rectangle(
+                    AdjustedBounds.X,
+                    Location.Y,
+                    AdjustedBounds.Size.Width,
+                    AdjustedBounds.Size.Height + titleBarHeight
+                );
+            }
         }
         #endregion
         public void OnMinimize()
@@ -251,6 +266,7 @@ namespace MultiWindowActionGame
             g.DrawString($"Children: {Children.Count}", this.Font, Brushes.Red, 10, 50);
             g.DrawString($"Parent: {Parent?.Id.ToString() ?? "None"}", this.Font, Brushes.Red, 10, 70);
 
+            g.DrawRectangle(new Pen(Color.Red, 1), CollisionBounds);
             int y = 90;
             foreach (var effect in effects)
             {

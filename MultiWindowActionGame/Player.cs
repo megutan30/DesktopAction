@@ -337,47 +337,67 @@ namespace MultiWindowActionGame
                 }
             }
 
-            // 移動前に新しい位置でのウィンドウをチェック
-            GameWindow? newWindow = WindowManager.Instance.GetTopWindowAt(newBounds, Parent);
-
-            bool isCompletelyInsideNewWindow = newWindow != null &&
-     newWindow.AdjustedBounds.Contains(newBounds);
-
-            if (newWindow != Parent)
+            // プレイヤーが外にいる場合の処理
+            if (Parent == null)
             {
-                if (Parent == null)
+                // ウィンドウとの衝突判定と位置調整
+                newBounds = HandleWindowCollisions(newBounds);
+
+                // プレイヤーが完全にウィンドウ内に包含されているかチェック
+                GameWindow? coveringWindow = WindowManager.Instance.GetWindowFullyContaining(newBounds);
+                if (coveringWindow != null)
                 {
-                    // 外からウィンドウに入る場合
-                    if (isCompletelyInsideNewWindow)
-                    {
-                        float previousVelocity = verticalVelocity;
-                        SetParent(newWindow);
-                        verticalVelocity = previousVelocity;
-                        UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
-                    }
+                    // プレイヤーがウィンドウに完全に覆われた場合、そのウィンドウの子になる
+                    float previousVelocity = verticalVelocity;
+                    SetParent(coveringWindow);
+                    verticalVelocity = previousVelocity;
+                    UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(coveringWindow));
                 }
-                else
+            }
+            else
+            {      
+                // 移動前に新しい位置でのウィンドウをチェック
+                GameWindow? newWindow = WindowManager.Instance.GetTopWindowAt(newBounds, Parent);
+
+                bool isCompletelyInsideNewWindow = newWindow != null &&
+                newWindow.AdjustedBounds.Contains(newBounds);
+
+                if (newWindow != Parent)
                 {
-                    // 現在のウィンドウから別のウィンドウに移動するケース
-                    if (isCompletelyInsideNewWindow)
+                    if (Parent == null)
                     {
-                        // 新しいウィンドウに完全に入っている場合は親を変更
-                        float previousVelocity = verticalVelocity;
-                        SetParent(newWindow);
-                        verticalVelocity = previousVelocity;
-                        UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
-                    }
-                    else if (!Parent.AdjustedBounds.Contains(newBounds))
-                    {
-                        // 現在の親ウィンドウからも出ている場合のみ外に出る
-                        float previousVelocity = verticalVelocity;
-                        SetParent(null);
-                        verticalVelocity = previousVelocity;
-                        if (Program.mainForm != null)
+                        // 外からウィンドウに入る場合
+                        if (isCompletelyInsideNewWindow)
                         {
-                            UpdateMovableRegion(new Region(new Rectangle(0, 0,
-                                Program.mainForm.ClientSize.Width,
-                                Program.mainForm.ClientSize.Height)));
+                            float previousVelocity = verticalVelocity;
+                            SetParent(newWindow);
+                            verticalVelocity = previousVelocity;
+                            UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
+                        }
+                    }
+                    else
+                    {
+                        // 現在のウィンドウから別のウィンドウに移動するケース
+                        if (isCompletelyInsideNewWindow)
+                        {
+                            // 新しいウィンドウに完全に入っている場合は親を変更
+                            float previousVelocity = verticalVelocity;
+                            SetParent(newWindow);
+                            verticalVelocity = previousVelocity;
+                            UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
+                        }
+                        else if (!Parent.AdjustedBounds.Contains(newBounds))
+                        {
+                            // 現在の親ウィンドウからも出ている場合のみ外に出る
+                            float previousVelocity = verticalVelocity;
+                            SetParent(null);
+                            verticalVelocity = previousVelocity;
+                            if (Program.mainForm != null)
+                            {
+                                UpdateMovableRegion(new Region(new Rectangle(0, 0,
+                                    Program.mainForm.ClientSize.Width,
+                                    Program.mainForm.ClientSize.Height)));
+                            }
                         }
                     }
                 }
@@ -389,6 +409,43 @@ namespace MultiWindowActionGame
             {
                 CheckGrounded();
             }
+        }
+        private Rectangle HandleWindowCollisions(Rectangle newBounds)
+        {
+            var intersectingWindows = WindowManager.Instance.GetIntersectingWindows(newBounds);
+            Rectangle adjustedBounds = newBounds;
+
+            foreach (var window in intersectingWindows)
+            {
+                // タイトルバーを含むウィンドウの境界を使用
+                Rectangle windowBounds = window.CollisionBounds;
+
+                // 上からの衝突（タイトルバーを含む）
+                if (bounds.Bottom <= windowBounds.Top && adjustedBounds.Bottom > windowBounds.Top)
+                {
+                    adjustedBounds.Y = windowBounds.Top - adjustedBounds.Height;
+                    verticalVelocity = 0;
+                    IsGrounded = true;
+                }
+                // 下からの衝突
+                else if (bounds.Top >= windowBounds.Bottom && adjustedBounds.Top < windowBounds.Bottom)
+                {
+                    adjustedBounds.Y = windowBounds.Bottom;
+                    verticalVelocity = 0;
+                }
+                // 左からの衝突
+                else if (bounds.Right <= windowBounds.Left && adjustedBounds.Right > windowBounds.Left)
+                {
+                    adjustedBounds.X = windowBounds.Left - adjustedBounds.Width;
+                }
+                // 右からの衝突
+                else if (bounds.Left >= windowBounds.Right && adjustedBounds.Left < windowBounds.Right)
+                {
+                    adjustedBounds.X = windowBounds.Right;
+                }
+            }
+
+            return adjustedBounds;
         }
         private Rectangle AdjustMovement(Rectangle oldBounds, Rectangle newBounds, Graphics g)
         {
@@ -553,45 +610,94 @@ namespace MultiWindowActionGame
             bool wasGrounded = IsGrounded;
             IsGrounded = false;
 
-            if (Parent != null && bounds.Bottom >= Parent.AdjustedBounds.Bottom)
-            {
-                HandleGrounding(Parent.AdjustedBounds.Bottom, wasGrounded);
-                return;
-            }
-
             var windowManager = WindowManager.Instance;
-            var intersectingWindows = windowManager.GetIntersectingWindows(bounds)
+
+            // プレイヤーの足元の現在の範囲を作成
+            Rectangle currentFeetBounds = new Rectangle(
+                bounds.X,
+                bounds.Bottom - 5,
+                bounds.Width,
+                10
+            );
+
+            // 移動量に基づいて拡張された判定領域を作成
+            Rectangle sweepBounds = new Rectangle(
+                currentFeetBounds.X,
+                Math.Min(currentFeetBounds.Y, currentFeetBounds.Y + (int)(verticalVelocity * GameTime.DeltaTime)),
+                currentFeetBounds.Width,
+                Math.Abs((int)(verticalVelocity * GameTime.DeltaTime)) + currentFeetBounds.Height
+            );
+            // 足元の範囲で交差判定を行う
+            var intersectingWindows = windowManager.GetIntersectingWindows(sweepBounds)
                 .OrderByDescending(w => windowManager.GetWindowZIndex(w));
 
-            foreach (var window in intersectingWindows)
+            if (Parent == null)
             {
-                if (window != Parent &&
-                    bounds.Bottom >= window.AdjustedBounds.Bottom &&
-                    bounds.Bottom <= window.AdjustedBounds.Bottom + 5)
+                // 外にいる場合の処理
+                foreach (var window in intersectingWindows)
                 {
-                    Rectangle feetBounds = new Rectangle(
-                        bounds.X,
-                        bounds.Bottom - 5,
-                        bounds.Width,
-                        10
-                    );
-
-                    bool isGroundValid = true;
-                    foreach (var otherWindow in intersectingWindows)
+                    if (bounds.Bottom >= window.CollisionBounds.Top &&
+                        bounds.Bottom <= window.CollisionBounds.Top + 5)
                     {
-                        if (windowManager.GetWindowZIndex(otherWindow) >
-                            windowManager.GetWindowZIndex(window) &&
-                            otherWindow.AdjustedBounds.IntersectsWith(feetBounds))
+                        bool isGroundValid = true;
+                        foreach (var otherWindow in intersectingWindows)
                         {
-                            isGroundValid = false;
-                            break;
+                            if (windowManager.GetWindowZIndex(otherWindow) >
+                                windowManager.GetWindowZIndex(window) &&
+                                otherWindow.CollisionBounds.IntersectsWith(currentFeetBounds))
+                            {
+                                isGroundValid = false;
+                                break;
+                            }
+                        }
+
+                        if (isGroundValid)
+                        {
+                            HandleGrounding(window.CollisionBounds.Top, wasGrounded);
+                            return;
                         }
                     }
+                }
+            }
+            else
+            {
+                // ウィンドウ内にいる場合の処理
+                foreach (var window in intersectingWindows)
+                {
+                    // ウィンドウの接地判定領域
+                    Rectangle windowGroundArea = new Rectangle(
+                        window.AdjustedBounds.Left,
+                        window.AdjustedBounds.Bottom - 2,
+                        window.AdjustedBounds.Width,
+                        7
+                    );
 
-                    if (isGroundValid)
+                    // スイープ領域とウィンドウが交差するかチェック
+                    if (sweepBounds.IntersectsWith(windowGroundArea))
                     {
-                        HandleGrounding(window.AdjustedBounds.Bottom, wasGrounded);
-                        return;
+                        // Z-indexの高いウィンドウとの交差をチェック
+                        bool isGroundValid = true;
+                        foreach (var otherWindow in intersectingWindows)
+                        {
+                            if (windowManager.GetWindowZIndex(otherWindow) >
+                                windowManager.GetWindowZIndex(window))
+                            {
+                                Rectangle otherWindowArea = otherWindow.AdjustedBounds;
+
+                                // 接地判定位置で交差があるかチェック
+                                if (windowGroundArea.IntersectsWith(otherWindowArea))
+                                {
+                                    isGroundValid = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (isGroundValid)
+                        {
+                            HandleGrounding(window.AdjustedBounds.Bottom, wasGrounded);
+                            return;
+                        }
                     }
                 }
             }
@@ -601,7 +707,6 @@ namespace MultiWindowActionGame
                 HandleGrounding(Program.mainForm.ClientSize.Height, wasGrounded);
             }
         }
-
         private void HandleGrounding(int groundY, bool wasGrounded)
         {
             IsGrounded = true;

@@ -215,7 +215,7 @@ public class WindowManager : IWindowObserver
         lock (windowLock)
         {
             return windows
-                .Where(w => w.AdjustedBounds.IntersectsWith(bounds))
+                .Where(w => w.CollisionBounds.IntersectsWith(bounds))
                 .OrderByDescending(w => windows.IndexOf(w))
                 .ToList();
         }
@@ -477,7 +477,16 @@ public class WindowManager : IWindowObserver
             return currentWindow;
         }
     }
-
+    public GameWindow? GetWindowFullyContaining(Rectangle bounds)
+    {
+        lock (windowLock)
+        {
+            return windows
+                .Where(w => w.Bounds.Contains(bounds))
+                .OrderByDescending(w => windows.IndexOf(w))
+                .FirstOrDefault();
+        }
+    }
     public void BringWindowToFront(GameWindow window)
     {
 
