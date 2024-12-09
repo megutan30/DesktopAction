@@ -77,6 +77,7 @@ namespace MultiWindowActionGame
             bounds.Size = newSize;
             AdjustPositionAfterResize(newSize);
         }
+
         public void UpdateMovableRegion(Region newRegion)
         {
             MovableRegion.Dispose();
@@ -364,18 +365,7 @@ namespace MultiWindowActionGame
 
                 if (newWindow != Parent)
                 {
-                    if (Parent == null)
-                    {
-                        // 外からウィンドウに入る場合
-                        if (isCompletelyInsideNewWindow)
-                        {
-                            float previousVelocity = verticalVelocity;
-                            SetParent(newWindow);
-                            verticalVelocity = previousVelocity;
-                            UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
-                        }
-                    }
-                    else
+                    if(Parent != null)
                     {
                         // 現在のウィンドウから別のウィンドウに移動するケース
                         if (isCompletelyInsideNewWindow)
@@ -385,19 +375,6 @@ namespace MultiWindowActionGame
                             SetParent(newWindow);
                             verticalVelocity = previousVelocity;
                             UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(newWindow));
-                        }
-                        else if (!Parent.AdjustedBounds.Contains(newBounds))
-                        {
-                            // 現在の親ウィンドウからも出ている場合のみ外に出る
-                            float previousVelocity = verticalVelocity;
-                            SetParent(null);
-                            verticalVelocity = previousVelocity;
-                            if (Program.mainForm != null)
-                            {
-                                UpdateMovableRegion(new Region(new Rectangle(0, 0,
-                                    Program.mainForm.ClientSize.Width,
-                                    Program.mainForm.ClientSize.Height)));
-                            }
                         }
                     }
                 }
@@ -607,6 +584,7 @@ namespace MultiWindowActionGame
 
         private void CheckGrounded()
         {
+            if(currentState is JumpingState)return;
             bool wasGrounded = IsGrounded;
             IsGrounded = false;
 
@@ -619,14 +597,15 @@ namespace MultiWindowActionGame
                 bounds.Width,
                 10
             );
-
-            // 移動量に基づいて拡張された判定領域を作成
+            // 移動量に基づいて拡張された判定領域を作成（より大きな範囲をカバー）
+            float maxVerticalStep = Math.Max(Math.Abs(verticalVelocity * GameTime.DeltaTime), 20f); // 最小20ピクセルの判定範囲を確保
             Rectangle sweepBounds = new Rectangle(
                 currentFeetBounds.X,
-                Math.Min(currentFeetBounds.Y, currentFeetBounds.Y + (int)(verticalVelocity * GameTime.DeltaTime)),
+                Math.Min(currentFeetBounds.Y, currentFeetBounds.Y + (int)(verticalVelocity * GameTime.DeltaTime)) - 5, // 上側にも少し余裕を持たせる
                 currentFeetBounds.Width,
-                Math.Abs((int)(verticalVelocity * GameTime.DeltaTime)) + currentFeetBounds.Height
+                (int)maxVerticalStep + currentFeetBounds.Height + 10 // 下側にも余裕を持たせる
             );
+
             // 足元の範囲で交差判定を行う
             var intersectingWindows = windowManager.GetIntersectingWindows(sweepBounds)
                 .OrderByDescending(w => windowManager.GetWindowZIndex(w));
@@ -662,43 +641,65 @@ namespace MultiWindowActionGame
             else
             {
                 // ウィンドウ内にいる場合の処理
-                foreach (var window in intersectingWindows)
+                // プレイヤーの足元の領域を分割して各部分をチェック
+                int segmentWidth = currentFeetBounds.Width / 4; // 足元を4分割
+                int highestGroundY = int.MinValue;
+                GameWindow? groundWindow = null;
+
+                // 足元の各セグメントでチェック
+                for (int i = 0; i < 4; i++)
                 {
-                    // ウィンドウの接地判定領域
-                    Rectangle windowGroundArea = new Rectangle(
-                        window.AdjustedBounds.Left,
-                        window.AdjustedBounds.Bottom - 2,
-                        window.AdjustedBounds.Width,
-                        7
+                    Rectangle segmentBounds = new Rectangle(
+                        currentFeetBounds.X + (i * segmentWidth),
+                        currentFeetBounds.Y,
+                        segmentWidth,
+                        currentFeetBounds.Height
                     );
 
-                    // スイープ領域とウィンドウが交差するかチェック
-                    if (sweepBounds.IntersectsWith(windowGroundArea))
+                    foreach (var window in intersectingWindows)
                     {
-                        // Z-indexの高いウィンドウとの交差をチェック
-                        bool isGroundValid = true;
-                        foreach (var otherWindow in intersectingWindows)
-                        {
-                            if (windowManager.GetWindowZIndex(otherWindow) >
-                                windowManager.GetWindowZIndex(window))
-                            {
-                                Rectangle otherWindowArea = otherWindow.AdjustedBounds;
+                        Rectangle windowGroundArea = new Rectangle(
+                            window.AdjustedBounds.Left,
+                            window.AdjustedBounds.Bottom - 5,
+                            window.AdjustedBounds.Width,
+                            10
+                        );
 
-                                // 接地判定位置で交差があるかチェック
-                                if (windowGroundArea.IntersectsWith(otherWindowArea))
+                        if (segmentBounds.IntersectsWith(windowGroundArea))
+                        {
+                            // より高い位置の地面を見つけた場合、更新
+                            if (window.AdjustedBounds.Bottom > highestGroundY)
+                            {
+                                bool isValidGround = true;
+                                foreach (var otherWindow in intersectingWindows)
                                 {
-                                    isGroundValid = false;
-                                    break;
+                                    if (windowManager.GetWindowZIndex(otherWindow) > windowManager.GetWindowZIndex(window))
+                                    {
+                                        Rectangle otherArea = otherWindow.AdjustedBounds;
+                                        // セグメントが完全に覆われているかチェック
+                                        if (otherArea.Contains(segmentBounds))
+                                        {
+                                            isValidGround = false;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (isValidGround)
+                                {
+                                    highestGroundY = window.AdjustedBounds.Bottom;
+                                    groundWindow = window;
                                 }
                             }
                         }
-
-                        if (isGroundValid)
-                        {
-                            HandleGrounding(window.AdjustedBounds.Bottom, wasGrounded);
-                            return;
-                        }
                     }
+                }
+
+                // 有効な地面が見つかった場合
+                if (groundWindow != null && highestGroundY > int.MinValue)
+                {
+                    HandleGrounding(highestGroundY, wasGrounded);
+                    return;
                 }
             }
 
