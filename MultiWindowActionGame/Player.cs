@@ -32,7 +32,8 @@ namespace MultiWindowActionGame
         public GameWindow? Parent { get; private set; }
         public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
         public bool IsGrounded { get; private set; }
-
+        private GameWindow? lastValidParent;
+        public GameWindow? LastValidParent => lastValidParent;
         public Region MovableRegion { get; private set; }
         private DateTime? minimizedTime;
         public TimeSpan TimeSinceMinimized =>
@@ -206,13 +207,30 @@ namespace MultiWindowActionGame
         }
         public void SetParent(GameWindow? newParent)
         {
-            if (Parent == newParent) return;
+            // はざまにいる場合は現在の親を維持
+            if (newParent == null && Parent != null)
+            {
+                // 現在位置が完全にデスクトップ上にある場合のみ親をnullに
+                var intersectingWindows = WindowManager.Instance
+                    .GetIntersectingWindows(bounds)
+                    .Where(w => w.AdjustedBounds.IntersectsWith(bounds));
+
+                if (intersectingWindows.Any())
+                {
+                    // ウィンドウと交差している場合は現在の親を維持
+                    return;
+                }
+            }
+
+            if (Parent != null)
+            {
+                lastValidParent = Parent;
+            }
 
             Parent?.RemoveChild(this);
             Parent = newParent;
             Parent?.AddChild(this);
 
-            // 親が変更されたときの移動可能領域を更新
             if (Parent != null)
             {
                 OnEnterWindow(Parent);

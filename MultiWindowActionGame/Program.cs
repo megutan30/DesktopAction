@@ -37,8 +37,7 @@ namespace MultiWindowActionGame
                 WindowState = FormWindowState.Maximized,
                 TopMost = true,
                 BackColor = System.Drawing.Color.Black,
-                TransparencyKey = System.Drawing.Color.Black,
-                Text ="Player"
+                TransparencyKey = System.Drawing.Color.Black
             };
 
             mainForm.Activated += MainForm_Activated;
@@ -57,21 +56,33 @@ namespace MultiWindowActionGame
         private static void MainForm_Activated(object? sender, EventArgs e)
         {
             var player = MainGame.GetPlayer();
-            if (player == null) return;
+            if (player == null || !player.IsMinimized) return;  // 最小化されていない場合は何もしない
 
             // プレイヤーの親ウィンドウが最小化中の場合は復帰させない
             var parentWindow = WindowManager.Instance.GetParentWindow(player);
             if (parentWindow != null && parentWindow.IsMinimized) return;
 
             // プレイヤーが最小化されてから一定時間経過していない場合は復帰させない
-            if (player.IsMinimized && player.TimeSinceMinimized < TimeSpan.FromMilliseconds(500))
+            if (player.TimeSinceMinimized < TimeSpan.FromMilliseconds(500))
             {
                 return;
             }
 
             // 元の位置に他のウィンドウがないか確認
             var windowAtOriginalPosition = WindowManager.Instance.GetWindowAt(player.Bounds);
-            if (windowAtOriginalPosition == null)
+
+            // 復帰時の親の決定
+            if (player.LastValidParent != null &&
+                player.LastValidParent.AdjustedBounds.IntersectsWith(player.Bounds))
+            {
+                // 前回の有効な親がある場合、その親を維持
+                player.SetParent(player.LastValidParent);
+            }
+            else if (windowAtOriginalPosition != null)
+            {
+                player.SetParent(windowAtOriginalPosition);
+            }
+            else
             {
                 // ウィンドウがない場合はデスクトップ上で復帰
                 player.SetParent(null);
