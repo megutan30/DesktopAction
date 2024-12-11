@@ -256,4 +256,32 @@ namespace MultiWindowActionGame
             window.Cursor = Cursors.Default;
         }
     }
+    public class TextDisplayWindowStrategy : IWindowStrategy
+    {
+        private string displayText;
+        private float fontSizeRatio = 0.2f;
+
+        public TextDisplayWindowStrategy(string text)
+        {
+            displayText = text;
+        }
+
+        public void Update(GameWindow window, float deltaTime) { }
+
+        public void HandleInput(GameWindow window) { }
+
+        public void HandleResize(GameWindow window) { window.Invalidate(); }
+
+        public void HandleWindowMessage(GameWindow window, Message m) { }
+
+        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        {
+            window.Cursor = Cursors.Default;
+        }
+
+        public string GetDisplayText()
+        {
+            return displayText;
+        }
+    }
 }

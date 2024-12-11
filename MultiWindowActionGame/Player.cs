@@ -39,11 +39,11 @@ namespace MultiWindowActionGame
         public TimeSpan TimeSinceMinimized =>
             minimizedTime.HasValue ? DateTime.Now - minimizedTime.Value : TimeSpan.MaxValue;
 
-        public Player()
+        public Player(Point startPosition)
         {
             OriginalSize = new Size(40, 40);
             referenceSize = OriginalSize;
-            bounds = new Rectangle(150, 150, OriginalSize.Width, OriginalSize.Height);
+            bounds = new Rectangle(startPosition, OriginalSize);
             currentState = new NormalState();
             MovableRegion = new Region();
         }
@@ -56,6 +56,13 @@ namespace MultiWindowActionGame
                 Parent = this.Parent,
                 State = this.currentState
             };
+        }
+        public void ResetPosition(Point position)
+        {
+            bounds.Location = position;
+            verticalVelocity = 0;
+            SetState(new NormalState());
+            IsGrounded = false;
         }
         private void RestoreState()
         {
@@ -566,7 +573,7 @@ namespace MultiWindowActionGame
             }
         }
 
-        private void DrawDebugInfo(Graphics g)
+        public void DrawDebugInfo(Graphics g)
         {
             g.DrawRectangle(new Pen(Color.Yellow, 2), bounds);
             if (Parent != null)

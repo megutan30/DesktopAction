@@ -28,7 +28,8 @@ public class WindowManager : IWindowObserver
     {
         if (isInitialized) return;
 
-        CreateInitialWindows();
+        // ステージ1から開始
+        StageManager.Instance.StartStage(0);
         isInitialized = true;
     }
     public void InvalidateCache()
@@ -39,7 +40,6 @@ public class WindowManager : IWindowObserver
     {
         this.player = player;
     }
-    // 親を取得するメソッド
     public GameWindow? GetParentWindow(IEffectTarget child)
     {
         return parentChildRelations.TryGetValue(child, out var parent) ? parent : null;
@@ -147,17 +147,32 @@ public class WindowManager : IWindowObserver
             }
         }
     }
-    public void CheckChildRelationBreak(IEffectTarget child)
+    public void RegisterWindow(GameWindow window)
     {
-        if (!parentChildRelations.ContainsKey(child)) return;
-
-        var parent = parentChildRelations[child];
-        if (!parent.AdjustedBounds.Contains(child.Bounds))
+        lock (windowLock)
         {
-            parentChildRelations.Remove(child);
-            Console.WriteLine($"Broke parent-child relation: Parent={parent.Id}, Child={child}");
+            window.AddObserver(this);
+            windows.Add(window);
+
+            // 親子関係のチェックと更新
+            CheckPotentialParentWindow(window);
         }
     }
+
+    public void ClearWindows()
+    {
+        lock (windowLock)
+        {
+            // すべてのウィンドウを閉じる
+            foreach (var window in windows.ToList())
+            {
+                window.RemoveObserver(this);  // オブザーバーの解除を追加
+                window.Close();
+            }
+            windows.Clear();
+        }
+    }
+
 
     public HashSet<IEffectTarget> GetContainedTargets(GameWindow window)
     {
@@ -166,29 +181,6 @@ public class WindowManager : IWindowObserver
                 .Where(kv => kv.Value == window)
                 .Select(kv => kv.Key)
         );
-    }
-    public void CreateInitialWindows()
-    {
-        lock (windowLock)
-        {
-            if (windows.Count == 0)
-            {
-                var newWindows = new List<GameWindow>
-                {
-                    WindowFactory.CreateWindow(WindowType.Normal, new Point(100, 100), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Resizable, new Point(450, 100), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Movable, new Point(100, 350), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Deletable, new Point(460, 350), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Minimizable, new Point(960, 350), new Size(300, 200))
-                };
-
-                foreach (var window in newWindows)
-                {
-                    window.AddObserver(this);
-                    windows.Add(window);
-                }
-            }
-        }
     }
 
     public IEnumerable<IEffectTarget> GetAllComponents()

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -7,7 +8,7 @@ namespace MultiWindowActionGame
     public class MainGame
     {
         private static MainGame? instance;
-        private Player player = new Player();
+        private Player? player;
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
         public static bool IsDebugMode { get; private set; } = true;
@@ -15,9 +16,9 @@ namespace MultiWindowActionGame
         {
             instance = this;
             WindowManager.Instance.Initialize();
-            player = new Player();
+
+            // プレイヤーの生成を StageManager の初期化後に移動
             windowManager = WindowManager.Instance;
-            windowManager.SetPlayer(player);
 
             InitializeGraphicsBuffer();
             if (Program.mainForm != null)
@@ -26,6 +27,14 @@ namespace MultiWindowActionGame
             }
 
             GameTime.Start();
+
+            // プレイヤーの生成（初期ステージの開始位置を取得）
+            var initialStage = StageManager.Instance.GetStage(0);
+            player = new Player(initialStage.PlayerStartPosition);
+            windowManager.SetPlayer(player);
+
+            // ステージ1から開始
+            StageManager.Instance.StartStage(0);
         }
         public static Player? GetPlayer()
         {
@@ -80,6 +89,13 @@ namespace MultiWindowActionGame
             await player.UpdateAsync(GameTime.DeltaTime);
             await windowManager.UpdateAsync(GameTime.DeltaTime);
             GameWindow? currentWindow = windowManager.GetWindowAt(player.Bounds);
+            StageManager.Instance.CurrentGoal?.EnsureZOrder();
+            // ゴールチェック
+            if (StageManager.Instance.CheckGoal(player))
+            {
+                // ゴール時の演出などを追加
+                System.Diagnostics.Debug.WriteLine("Goal!");
+            }
         }
 
         private void Render()
@@ -91,12 +107,13 @@ namespace MultiWindowActionGame
 
             windowManager.Draw(g);
             player.Draw(g);
-
+            StageManager.Instance.CurrentGoal?.Draw(g);
             // デバッグ情報の描画
             if (IsDebugMode) // デバッグモードフラグを追加
             {
                 windowManager.DrawDebugInfo(g, player.Bounds);
                 DrawDebugInfo(g);
+                player.DrawDebugInfo(g);
             }
 
             graphicsBuffer.Render();
