@@ -182,29 +182,6 @@ public class WindowManager : IWindowObserver
                 .Select(kv => kv.Key)
         );
     }
-    public void CreateInitialWindows()
-    {
-        lock (windowLock)
-        {
-            if (windows.Count == 0)
-            {
-                var newWindows = new List<GameWindow>
-                {
-                    WindowFactory.CreateWindow(WindowType.Normal, new Point(100, 100), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Resizable, new Point(450, 100), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Movable, new Point(100, 350), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Deletable, new Point(460, 350), new Size(300, 200)),
-                    WindowFactory.CreateWindow(WindowType.Minimizable, new Point(960, 350), new Size(300, 200))
-                };
-
-                foreach (var window in newWindows)
-                {
-                    window.AddObserver(this);
-                    windows.Add(window);
-                }
-            }
-        }
-    }
 
     public IEnumerable<IEffectTarget> GetAllComponents()
     {

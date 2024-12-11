@@ -573,7 +573,7 @@ namespace MultiWindowActionGame
             }
         }
 
-        private void DrawDebugInfo(Graphics g)
+        public void DrawDebugInfo(Graphics g)
         {
             g.DrawRectangle(new Pen(Color.Yellow, 2), bounds);
             if (Parent != null)

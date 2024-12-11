@@ -113,6 +113,7 @@ namespace MultiWindowActionGame
             {
                 windowManager.DrawDebugInfo(g, player.Bounds);
                 DrawDebugInfo(g);
+                player.DrawDebugInfo(g);
             }
 
             graphicsBuffer.Render();

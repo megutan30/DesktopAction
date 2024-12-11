@@ -22,9 +22,10 @@ public class StageManager
         // ステージデータの初期化
         stages.Add(new StageData
         {
-            Windows = new List<(WindowType type, Point location, Size size)>
+            Windows = new List<(WindowType type, Point location, Size size,string? text)>
             {
-                (WindowType.Normal, new Point(100, 600), new Size(1000, 200)),
+                (WindowType.Normal, new Point(100, 600), new Size(1000, 200),null),
+                (WindowType.TextDisplay, new Point(450, 100), new Size(300, 100), "Stage 1"),
             },
             GoalPosition = new Point(1000, 700),
             GoalInFront = true,
@@ -34,10 +35,10 @@ public class StageManager
         // 他のステージも追加
         stages.Add(new StageData
         {
-            Windows = new List<(WindowType type, Point location, Size size)>
+            Windows = new List<(WindowType type, Point location, Size size,string? text)>
             {
-                (WindowType.Resizable, new Point(100, 100), new Size(300, 200)),
-                (WindowType.Movable, new Point(450, 100), new Size(300, 200))
+                (WindowType.Resizable, new Point(100, 100), new Size(300, 200),null),
+                (WindowType.Movable, new Point(450, 100), new Size(300, 200),null)
             },
             GoalPosition = new Point(700, 300),
             GoalInFront = false,
@@ -66,7 +67,7 @@ public class StageManager
             // ウィンドウを生成
             foreach (var windowData in stageData.Windows)
             {
-                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size);
+                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size,windowData.text);
             }
         }
         else
@@ -78,7 +79,7 @@ public class StageManager
             // ウィンドウを生成
             foreach (var windowData in stageData.Windows)
             {
-                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size);
+                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size,windowData.text);
             }
         }
 
@@ -147,8 +148,8 @@ public class StageManager
 
 public class StageData
 {
-    public List<(WindowType type, Point location, Size size)> Windows { get; set; }
+    public List<(WindowType type, Point location, Size size,string? text)> Windows { get; set; }
     public Point GoalPosition { get; set; }
     public bool GoalInFront { get; set; }
-    public Point PlayerStartPosition { get; set; }  // プレイヤーの開始位置を追加
+    public Point PlayerStartPosition { get; set; }
 }

@@ -261,8 +261,8 @@ namespace MultiWindowActionGame
 
         private void DrawDebugInfo(Graphics g)
         {
-            g.DrawString($"Window ID: {Id}", this.Font, Brushes.Black, 10, 10);
-            g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Black, 10, 30);
+            g.DrawString($"Window ID: {Id}", this.Font, Brushes.Green, 10, 10);
+            g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Green, 10, 30);
             g.DrawString($"Children: {Children.Count}", this.Font, Brushes.Red, 10, 50);
             g.DrawString($"Parent: {Parent?.Id.ToString() ?? "None"}", this.Font, Brushes.Red, 10, 70);
 
