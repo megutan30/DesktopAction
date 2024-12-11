@@ -660,8 +660,8 @@ namespace MultiWindowActionGame
             {
                 // ウィンドウ内にいる場合の処理
                 // プレイヤーの足元の領域を分割して各部分をチェック
-                int segmentWidth = currentFeetBounds.Width / 4; // 足元を4分割
-                int highestGroundY = int.MinValue;
+                int segmentWidth = currentFeetBounds.Width / 4;
+                int highestGroundY = int.MaxValue;
                 GameWindow? groundWindow = null;
 
                 // 足元の各セグメントでチェック
@@ -674,6 +674,8 @@ namespace MultiWindowActionGame
                         currentFeetBounds.Height
                     );
 
+                    // 各セグメントで最前面のウィンドウのみを検出
+                    GameWindow? topWindow = null;
                     foreach (var window in intersectingWindows)
                     {
                         Rectangle windowGroundArea = new Rectangle(
@@ -685,36 +687,43 @@ namespace MultiWindowActionGame
 
                         if (segmentBounds.IntersectsWith(windowGroundArea))
                         {
-                            // より高い位置の地面を見つけた場合、更新
-                            if (window.AdjustedBounds.Bottom > highestGroundY)
+                            // このセグメントでより手前のウィンドウが見つかった場合、そちらを優先
+                            bool isTopWindow = true;
+                            foreach (var otherWindow in intersectingWindows)
                             {
-                                bool isValidGround = true;
-                                foreach (var otherWindow in intersectingWindows)
+                                if (windowManager.GetWindowZIndex(otherWindow) > windowManager.GetWindowZIndex(window))
                                 {
-                                    if (windowManager.GetWindowZIndex(otherWindow) > windowManager.GetWindowZIndex(window))
+                                    Rectangle otherArea = otherWindow.AdjustedBounds;
+                                    if (otherArea.IntersectsWith(segmentBounds))
                                     {
-                                        Rectangle otherArea = otherWindow.AdjustedBounds;
-                                        // セグメントが完全に覆われているかチェック
-                                        if (otherArea.Contains(segmentBounds))
-                                        {
-                                            isValidGround = false;
-                                            break;
-                                        }
+                                        isTopWindow = false;
+                                        break;
                                     }
                                 }
-
-                                if (isValidGround)
-                                {
-                                    highestGroundY = window.AdjustedBounds.Bottom;
-                                    groundWindow = window;
-                                }
                             }
+
+                            if (isTopWindow)
+                            {
+                                topWindow = window;
+                                break; // 最前面のウィンドウが見つかったら、このセグメントの探索を終了
+                            }
+                        }
+                    }
+
+                    // このセグメントで見つかった最前面のウィンドウの地面を候補として追加
+                    if (topWindow != null)
+                    {
+                        int groundY = topWindow.AdjustedBounds.Bottom;
+                        if (groundY < highestGroundY)
+                        {
+                            highestGroundY = groundY;
+                            groundWindow = topWindow;
                         }
                     }
                 }
 
                 // 有効な地面が見つかった場合
-                if (groundWindow != null && highestGroundY > int.MinValue)
+                if (groundWindow != null && highestGroundY < int.MaxValue)
                 {
                     HandleGrounding(highestGroundY, wasGrounded);
                     return;
