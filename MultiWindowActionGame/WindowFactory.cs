@@ -19,6 +19,8 @@ namespace MultiWindowActionGame
 
             var window = new GameWindow(location, size, strategy);
 
+            WindowManager.Instance.RegisterWindow(window);
+
             if (type == WindowType.Movable)
             {
                 window.FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -37,10 +39,11 @@ namespace MultiWindowActionGame
 
             window.BackColor = type switch
             {
-                WindowType.Normal => Color.White,
+                WindowType.Normal => Color.Black,
                 WindowType.Resizable => Color.LightGreen,
                 WindowType.Movable => Color.LightBlue,
                 WindowType.Deletable => Color.LightPink,
+                WindowType.Minimizable => Color.AliceBlue,
                 _ => Color.White
             };
 
