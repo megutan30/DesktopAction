@@ -26,10 +26,18 @@ public class StageManager
             {
                 (WindowType.Normal, new Point(100, 600), new Size(1000, 200),null),
                 (WindowType.TextDisplay, new Point(450, 100), new Size(300, 100), "Stage 1"),
+                (WindowType.Movable, new Point(100, 550), new Size(300, 200), null),
+                (WindowType.Resizable, new Point(100, 150), new Size(300, 200), null),
+                (WindowType.Minimizable, new Point(900, 150), new Size(300, 200), null),
             },
             GoalPosition = new Point(1000, 700),
             GoalInFront = true,
-            PlayerStartPosition = new Point(150, 650)
+            PlayerStartPosition = new Point(150, 650),
+            NoEntryZones = new List<(Point, Size)>
+            {
+                //(new Point(400, 400), new Size(100, 100)),
+                (new Point(400, 500), new Size(300, 50)),
+            }
         });
 
         // 他のステージも追加
@@ -54,9 +62,16 @@ public class StageManager
         // 現在のステージをクリア
         WindowManager.Instance.ClearWindows();
         currentGoal?.Close();
+        NoEntryZoneManager.Instance.ClearZones();
 
         currentStage = stageNumber;
         var stageData = stages[currentStage];
+
+        // 不可侵領域の生成
+        foreach (var zoneData in stageData.NoEntryZones)
+        {
+            NoEntryZoneManager.Instance.AddZone(zoneData.location, zoneData.size);
+        }
 
         if (stageData.GoalInFront)
         {
@@ -135,8 +150,6 @@ public class StageManager
             OnGoalReached();
             return true;
         }
-
-        return false;
     }
 
     private void OnGoalReached()
@@ -146,10 +159,12 @@ public class StageManager
     }
 }
 
+// StageDataに不可侵領域の情報を追加
 public class StageData
 {
-    public List<(WindowType type, Point location, Size size,string? text)> Windows { get; set; }
+    public List<(WindowType type, Point location, Size size, string? text)> Windows { get; set; }
     public Point GoalPosition { get; set; }
     public bool GoalInFront { get; set; }
     public Point PlayerStartPosition { get; set; }
+    public List<(Point location, Size size)> NoEntryZones { get; set; } = new List<(Point, Size)>();  // 追加
 }

@@ -108,6 +108,7 @@ namespace MultiWindowActionGame
             windowManager.Draw(g);
             player.Draw(g);
             StageManager.Instance.CurrentGoal?.Draw(g);
+            NoEntryZoneManager.Instance.Draw(g);
             // デバッグ情報の描画
             if (IsDebugMode) // デバッグモードフラグを追加
             {

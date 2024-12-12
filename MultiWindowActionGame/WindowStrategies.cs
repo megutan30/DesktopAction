@@ -33,6 +33,7 @@ namespace MultiWindowActionGame
         private bool isResizing = false;
         private Point lastMousePos;
         private Size originalSize;
+
         public void Update(GameWindow window, float deltaTime)
         {
             if (isResizing)
@@ -65,7 +66,7 @@ namespace MultiWindowActionGame
         {
             isResizing = true;
             lastMousePos = window.PointToClient(Cursor.Position);
-            originalSize = window.Size;
+            originalSize = window.CollisionBounds.Size;
         }
 
         private void StopResizing()
@@ -96,6 +97,7 @@ namespace MultiWindowActionGame
             // まず現在のウィンドウにスケールを設定
             resizeEffect.UpdateScale(window, scale);
 
+
             // 直接の子に対してスケールを設定
             foreach (var child in window.Children)
             {
@@ -109,15 +111,20 @@ namespace MultiWindowActionGame
             }
         }
 
-
         private Size CalculateNewSize(GameWindow window, Point currentMousePos)
         {
             int dx = currentMousePos.X - lastMousePos.X;
             int dy = currentMousePos.Y - lastMousePos.Y;
 
-            return new Size(
+            Size proposedSize = new Size(
                 Math.Max(originalSize.Width + dx, window.MinimumSize.Width),
                 Math.Max(originalSize.Height + dy, window.MinimumSize.Height)
+            );
+
+            // 不可侵領域を考慮した有効なサイズを取得
+            return NoEntryZoneManager.Instance.GetValidSize(
+                window.ClientBounds,
+                proposedSize
             );
         }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
@@ -125,7 +132,6 @@ namespace MultiWindowActionGame
             window.Cursor = Cursors.SizeNWSE;
         }
     }
-
     public class MovableWindowStrategy : IWindowStrategy
     {
         private readonly MovementEffect movementEffect = new MovementEffect();
@@ -180,6 +186,26 @@ namespace MultiWindowActionGame
                 currentMousePos.Y - lastMousePos.Y
             );
 
+            // 移動先の位置をチェック
+            Rectangle proposedBounds = new Rectangle(
+                window.CollisionBounds.X + (int)movement.X,
+                window.CollisionBounds.Y + (int)movement.Y,
+                window.CollisionBounds.Width,
+                window.CollisionBounds.Height
+            );
+
+            // 不可侵領域を考慮した有効な位置を取得
+            Rectangle validBounds = NoEntryZoneManager.Instance.GetValidPosition(
+                window.ClientBounds,
+                proposedBounds
+            );
+
+            // 有効な位置に基づいて移動量を調整
+            movement = new Vector2(
+                validBounds.X - window.CollisionBounds.X,
+                validBounds.Y - window.CollisionBounds.Y
+            );
+
             movementEffect.UpdateMovement(movement);
             window.ApplyEffect(movementEffect);
         }
@@ -189,7 +215,6 @@ namespace MultiWindowActionGame
             window.Cursor = Cursors.SizeAll;
         }
     }
-
     public class DeletableWindowStrategy : IWindowStrategy
     {
         public bool IsMinimized { get; private set; }
@@ -246,7 +271,6 @@ namespace MultiWindowActionGame
             window.OnRestore();
         }
 
-        // IWindowStrategy の他のメソッドは基本的な実装
         public void Update(GameWindow window, float deltaTime) { }
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }

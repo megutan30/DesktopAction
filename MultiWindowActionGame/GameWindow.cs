@@ -225,7 +225,6 @@ namespace MultiWindowActionGame
             return false;
         }
 
-        // すべての子孫を取得するメソッド
         public IEnumerable<GameWindow> GetAllDescendants()
         {
             var descendants = new List<GameWindow>();

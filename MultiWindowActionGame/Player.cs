@@ -38,7 +38,6 @@ namespace MultiWindowActionGame
         private DateTime? minimizedTime;
         public TimeSpan TimeSinceMinimized =>
             minimizedTime.HasValue ? DateTime.Now - minimizedTime.Value : TimeSpan.MaxValue;
-
         public Player(Point startPosition)
         {
             OriginalSize = new Size(40, 40);
@@ -173,6 +172,11 @@ namespace MultiWindowActionGame
 
         private bool IsValidMove(Rectangle bounds, Graphics g)
         {
+            // まず不可侵領域との判定を行う
+            if (NoEntryZoneManager.Instance.IntersectsWithAnyZone(bounds))
+            {
+                return false;
+            }
             if (Parent == null)
             {
                 // ウィンドウの外にいる場合はメインフォームの境界のみをチェック
@@ -264,7 +268,6 @@ namespace MultiWindowActionGame
             // 新しいウィンドウに入った時に現在のサイズを基準サイズとして設定
             referenceSize = bounds.Size;
         }
-        // 効果の適用を拡張
         public void ApplyEffect(IWindowEffect effect)
         {
             if (!CanReceiveEffect(effect)) return;
@@ -344,7 +347,6 @@ namespace MultiWindowActionGame
             currentState.Update(this, deltaTime);
 
             Vector2 movement = CalculateMovement(deltaTime);
-            var preGravityPosition = bounds.Location;
             ApplyGravity(deltaTime);
 
             Rectangle newBounds = new Rectangle(
@@ -414,12 +416,15 @@ namespace MultiWindowActionGame
         }
         private Rectangle HandleWindowCollisions(Rectangle newBounds)
         {
-            var intersectingWindows = WindowManager.Instance.GetIntersectingWindows(newBounds);
-            Rectangle adjustedBounds = newBounds;
+            var adjustedBounds = newBounds;
 
+            // 不可侵領域との衝突チェック
+            adjustedBounds = NoEntryZoneManager.Instance.GetValidPosition(bounds, adjustedBounds);
+
+            // ウィンドウとの衝突チェック
+            var intersectingWindows = WindowManager.Instance.GetIntersectingWindows(adjustedBounds);
             foreach (var window in intersectingWindows)
             {
-                // タイトルバーを含むウィンドウの境界を使用
                 Rectangle windowBounds = window.CollisionBounds;
 
                 // 上からの衝突（タイトルバーを含む）
@@ -614,6 +619,7 @@ namespace MultiWindowActionGame
             IsGrounded = false;
 
             var windowManager = WindowManager.Instance;
+            var noEntryManager = NoEntryZoneManager.Instance;
 
             // プレイヤーの足元の現在の範囲を作成
             Rectangle currentFeetBounds = new Rectangle(
@@ -622,6 +628,7 @@ namespace MultiWindowActionGame
                 bounds.Width,
                 10
             );
+
             // 移動量に基づいて拡張された判定領域を作成（より大きな範囲をカバー）
             float maxVerticalStep = Math.Max(Math.Abs(verticalVelocity * GameTime.DeltaTime), 20f); // 最小20ピクセルの判定範囲を確保
             Rectangle sweepBounds = new Rectangle(
@@ -630,6 +637,19 @@ namespace MultiWindowActionGame
                 currentFeetBounds.Width,
                 (int)maxVerticalStep + currentFeetBounds.Height + 10 // 下側にも余裕を持たせる
             );
+
+            // 不可侵領域との接地判定
+            foreach (var zone in noEntryManager.Zones)
+            {
+                if (bounds.Bottom >= zone.Bounds.Top &&
+                    bounds.Bottom <= zone.Bounds.Top + 5 &&
+                    bounds.Right > zone.Bounds.Left &&
+                    bounds.Left < zone.Bounds.Right)
+                {
+                    HandleGrounding(zone.Bounds.Top, wasGrounded);
+                    return;
+                }
+            }
 
             // 足元の範囲で交差判定を行う
             var intersectingWindows = windowManager.GetIntersectingWindows(sweepBounds)
