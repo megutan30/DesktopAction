@@ -24,6 +24,7 @@ public class NoEntryZone : Form, IEffectTarget
     private readonly System.Windows.Forms.Timer animationTimer;
     private int animationOffset = 0;
     private const int STRIPE_WIDTH = 20;  // 縞模様の幅
+    private const int TOTAL_PATTERN_HEIGHT = STRIPE_WIDTH * 2;// 赤と黒の組み合わせの高さ
 
     public Rectangle Bounds => bounds;
     public GameWindow? Parent { get; private set; }
@@ -33,6 +34,7 @@ public class NoEntryZone : Form, IEffectTarget
     public NoEntryZone(Point location, Size size)
     {
         bounds = new Rectangle(location, size);
+        this.MinimumSize = new Size(10, 10);
         InitializeZone();
 
         // アニメーション用タイマー設定
@@ -48,11 +50,18 @@ public class NoEntryZone : Form, IEffectTarget
         this.StartPosition = FormStartPosition.Manual;
         this.Location = bounds.Location;
         this.Size = bounds.Size;
-        this.BackColor = Color.Magenta;
-        this.TransparencyKey = Color.Magenta;
         this.ShowInTaskbar = false;
         this.Load += NoEntryZone_Load;
         this.Paint += NoEntryZone_Paint;
+        this.BackColor = Color.Magenta;
+        this.TransparencyKey = Color.Magenta;
+        // ダブルバッファリングを有効にする
+        this.SetStyle(
+            ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.UserPaint,
+            true
+        );
     }
 
     private void NoEntryZone_Load(object? sender, EventArgs e)
@@ -72,26 +81,35 @@ public class NoEntryZone : Form, IEffectTarget
 
     private void AnimationTimer_Tick(object? sender, EventArgs e)
     {
-        animationOffset = (animationOffset + 2) % STRIPE_WIDTH;
-        this.Invalidate();  // 再描画を要求
+        animationOffset = (animationOffset + 2) % TOTAL_PATTERN_HEIGHT;
+        this.Invalidate();
     }
 
     private void NoEntryZone_Paint(object? sender, PaintEventArgs e)
     {
+        // アンチエイリアシングを有効にする
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
         using (Brush redBrush = new SolidBrush(Color.FromArgb(180, Color.Red)))
         using (Brush blackBrush = new SolidBrush(Color.FromArgb(180, Color.Black)))
+        using (BufferedGraphics buffered = BufferedGraphicsManager.Current.Allocate(
+            e.Graphics, this.ClientRectangle))
         {
-            int y = -STRIPE_WIDTH + animationOffset;
-            while (y < this.Height)
+            Graphics g = buffered.Graphics;
+            g.Clear(Color.Transparent);
+
+            // パターンの開始位置を調整（ウィンドウの高さを考慮）
+            int startY = -(animationOffset % TOTAL_PATTERN_HEIGHT);
+            // 画面外から開始して、画面外まで描画
+            for (int y = startY; y < this.Height + TOTAL_PATTERN_HEIGHT; y += TOTAL_PATTERN_HEIGHT)
             {
-                // 赤と黒の縞模様を描画
-                e.Graphics.FillRectangle(redBrush, 0, y, this.Width, STRIPE_WIDTH);
-                e.Graphics.FillRectangle(blackBrush, 0, y + STRIPE_WIDTH, this.Width, STRIPE_WIDTH);
-                y += STRIPE_WIDTH * 2;
+                g.FillRectangle(redBrush, 0, y, this.Width, STRIPE_WIDTH);
+                g.FillRectangle(blackBrush, 0, y + STRIPE_WIDTH, this.Width, STRIPE_WIDTH);
             }
+
+            buffered.Render();
         }
     }
-
     // IEffectTarget の実装
     public void UpdateTargetPosition(Point newPosition)
     {
@@ -135,4 +153,15 @@ public class NoEntryZone : Form, IEffectTarget
         }
         base.Dispose(disposing);
     }
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams cp = base.CreateParams;
+            cp.ExStyle |= 0x00080000; // WS_EX_LAYERED
+            cp.ExStyle |= 0x00000020; // WS_EX_TRANSPARENT
+            return cp;
+        }
+    }
+
 }

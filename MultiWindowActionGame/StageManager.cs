@@ -19,40 +19,60 @@ public class StageManager
 
     private void InitializeStages()
     {
-        // ステージデータの初期化
+        //Stage3
         stages.Add(new StageData
         {
-            Windows = new List<(WindowType type, Point location, Size size,string? text)>
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
-                (WindowType.Normal, new Point(100, 600), new Size(1000, 200),null),
-                (WindowType.TextDisplay, new Point(450, 100), new Size(300, 100), "Stage 1"),
-                (WindowType.Movable, new Point(100, 550), new Size(300, 200), null),
-                (WindowType.Resizable, new Point(100, 150), new Size(300, 200), null),
-                (WindowType.Minimizable, new Point(900, 150), new Size(300, 200), null),
+                (WindowType.Movable, new Point(50, 600), new Size(200, 200),null),
+                (WindowType.Resizable, new Point(50, 200), new Size(200, 200),null),
+                (WindowType.Normal, new Point(1000, 600), new Size(500, 200),null),
+                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 4"),
             },
-            GoalPosition = new Point(1000, 700),
+            GoalPosition = new Point(1300, 700),
             GoalInFront = true,
             PlayerStartPosition = new Point(150, 650),
             NoEntryZones = new List<(Point, Size)>
             {
-                //(new Point(400, 400), new Size(100, 100)),
-                (new Point(400, 500), new Size(300, 50)),
+                (new Point(660, 0), new Size(100, 400)),
+                (new Point(660, 500), new Size(100, 400)),
             }
         });
-
-        // 他のステージも追加
+        // ステージデータの初期化
+        //Stage1
         stages.Add(new StageData
         {
             Windows = new List<(WindowType type, Point location, Size size,string? text)>
             {
-                (WindowType.Resizable, new Point(100, 100), new Size(300, 200),null),
-                (WindowType.Movable, new Point(450, 100), new Size(300, 200),null)
+                (WindowType.Normal, new Point(100, 600), new Size(500, 200),null),
+                (WindowType.Normal, new Point(500, 500), new Size(600, 200),null),
+                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 1"),
             },
-            GoalPosition = new Point(700, 300),
-            GoalInFront = false,
-            PlayerStartPosition = new Point(150, 150)
+            GoalPosition = new Point(1000, 600),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(150, 650),
+            NoEntryZones = new List<(Point, Size)>
+            {
+            }
         });
 
+        //Stage2
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.Normal, new Point(100, 600), new Size(500, 200),null),
+                (WindowType.Movable, new Point(550, 600), new Size(200, 200),null),
+                (WindowType.Normal, new Point(1000, 600), new Size(500, 200),null),
+                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 2"),
+            },
+            GoalPosition = new Point(1300, 700),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(150, 650),
+            NoEntryZones = new List<(Point, Size)>
+            {
+            }
+        });
     }
 
     public void StartStage(int stageNumber)

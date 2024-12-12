@@ -84,12 +84,18 @@ namespace MultiWindowActionGame
                 (float)newSize.Width / originalSize.Width,
                 (float)newSize.Height / originalSize.Height
             );
-
+            // スケールの適用前にバリデーション
+            bool isValidResize = true;
+            Rectangle proposedBounds = new Rectangle(
+                window.CollisionBounds.Location,
+                newSize
+            );
             // 最上位のウィンドウから子孫すべてにスケールを設定
-            ApplyScaleToWindowAndDescendants(window, scale);
-
-            // 効果を適用
-            window.ApplyEffect(resizeEffect);
+            if (isValidResize)
+            {
+                ApplyScaleToWindowAndDescendants(window, scale);
+                window.ApplyEffect(resizeEffect);
+            }
         }
 
         private void ApplyScaleToWindowAndDescendants(GameWindow window, SizeF scale)
@@ -123,7 +129,7 @@ namespace MultiWindowActionGame
 
             // 不可侵領域を考慮した有効なサイズを取得
             return NoEntryZoneManager.Instance.GetValidSize(
-                window.ClientBounds,
+                window.CollisionBounds,
                 proposedSize
             );
         }

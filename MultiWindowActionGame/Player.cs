@@ -321,16 +321,16 @@ namespace MultiWindowActionGame
         {
             Vector2 movement = Vector2.Zero;
 
-            if (Input.IsKeyDown(Keys.A))
+            if (Input.IsKeyDown(Keys.A)|| Input.IsKeyDown(Keys.Left))
             {
                 movement.X -= speed * deltaTime;
             }
-            if (Input.IsKeyDown(Keys.D))
+            if (Input.IsKeyDown(Keys.D) || Input.IsKeyDown(Keys.Right))
             {
                 movement.X += speed * deltaTime;
             }
 
-            if (Input.IsKeyDown(Keys.Space) && IsGrounded)
+            if ((Input.IsKeyDown(Keys.Space) || Input.IsKeyDown(Keys.Up)) && IsGrounded)
             {
                 Jump();
             }

@@ -106,45 +106,51 @@ public class NoEntryZoneManager
 
         return adjustedBounds;
     }
-
-    // リサイズ可能な大きさを計算
     public Size GetValidSize(Rectangle currentBounds, Size proposedSize)
     {
         Size adjustedSize = proposedSize;
 
+        // リサイズ方向を判定
+        bool isGrowingWidth = proposedSize.Width > currentBounds.Width;
+        bool isGrowingHeight = proposedSize.Height > currentBounds.Height;
+
         foreach (var zone in zones)
         {
-            // X軸方向のリサイズをチェック
-            Rectangle xResize = new Rectangle(
-                currentBounds.X,
-                currentBounds.Y,
-                proposedSize.Width,
-                currentBounds.Height
-            );
-
-            if (xResize.IntersectsWith(zone.Bounds))
+            // X方向の拡大をチェック
+            if (isGrowingWidth)
             {
-                // X方向のリサイズを制限
-                if (currentBounds.X < zone.Bounds.X)
+                Rectangle xResize = new Rectangle(
+                    currentBounds.X,
+                    currentBounds.Y,
+                    proposedSize.Width,
+                    currentBounds.Height
+                );
+
+                if (xResize.IntersectsWith(zone.Bounds))
                 {
-                    adjustedSize.Width = zone.Bounds.X - currentBounds.X;
+                    if (currentBounds.X < zone.Bounds.X)
+                    {
+                        adjustedSize.Width = zone.Bounds.X - currentBounds.X;
+                    }
                 }
             }
 
-            // Y軸方向のリサイズをチェック
-            Rectangle yResize = new Rectangle(
-                currentBounds.X,
-                currentBounds.Y,
-                currentBounds.Width,
-                proposedSize.Height
-            );
-
-            if (yResize.IntersectsWith(zone.Bounds))
+            // Y方向の拡大をチェック
+            if (isGrowingHeight)
             {
-                // Y方向のリサイズを制限
-                if (currentBounds.Y < zone.Bounds.Y)
+                Rectangle yResize = new Rectangle(
+                    currentBounds.X,
+                    currentBounds.Y,
+                    currentBounds.Width,
+                    proposedSize.Height
+                );
+
+                if (yResize.IntersectsWith(zone.Bounds))
                 {
-                    adjustedSize.Height = zone.Bounds.Y - currentBounds.Y;
+                    if (currentBounds.Y < zone.Bounds.Y)
+                    {
+                        adjustedSize.Height = zone.Bounds.Y - currentBounds.Y;
+                    }
                 }
             }
         }
