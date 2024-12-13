@@ -81,7 +81,7 @@ public abstract class GameButton : Form
 
         // ボタンの背景
         using (SolidBrush brush = new SolidBrush(
-            isHovered ? Color.FromArgb(200, 200, 200) : Color.FromArgb(230, 230, 230)))
+            isHovered ? Color.FromArgb(230, 230, 230): Color.FromArgb(200, 200, 200)))
         {
             e.Graphics.FillRectangle(brush, ClientRectangle);
         }

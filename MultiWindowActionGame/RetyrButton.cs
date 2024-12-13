@@ -19,7 +19,7 @@ namespace MultiWindowActionGame
 
         protected override void DrawButtonContent(Graphics g)
         {
-            using (Font font = new Font("Arial", 12, FontStyle.Bold))
+            using (Font font = new Font(CustomFonts.PressStart.FontFamily, 12, FontStyle.Bold))
             {
                 string text = "Retry";
                 SizeF textSize = g.MeasureString(text, font);

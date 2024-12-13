@@ -301,30 +301,31 @@ namespace MultiWindowActionGame
         }
         public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
         {
-            // マークの大きさと位置を計算
             int markSize = 60;
             int x = bounds.X + (bounds.Width - markSize) / 2;
             int y = bounds.Y + (bounds.Height - markSize) / 2;
 
             using (var pen = new Pen(isHovered ? Color.White : Color.FromArgb(128, 128, 128), 2))
             {
-                // 上矢印
-                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 2, y + markSize);
-                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 4, y + markSize / 4);
-                g.DrawLine(pen, x + markSize / 2, y, x + markSize * 3 / 4, y + markSize / 4);
+                // 中心の十字
+                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 2, y + markSize);  // 縦線
+                g.DrawLine(pen, x, y + markSize / 2, x + markSize, y + markSize / 2);  // 横線
 
-                // 下矢印
-                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize / 4, y + markSize * 3 / 4);
-                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize * 3 / 4, y + markSize * 3 / 4);
+                // 上矢印の傘
+                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 3, y + markSize / 5);
+                g.DrawLine(pen, x + markSize / 2, y, x + markSize * 2 / 3, y + markSize / 5);
 
-                // 左矢印
-                g.DrawLine(pen, x, y + markSize / 2, x + markSize, y + markSize / 2);
-                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 4, y + markSize / 4);
-                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 4, y + markSize * 3 / 4);
+                // 下矢印の傘
+                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize / 3, y + markSize * 4 / 5);
+                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize * 2 / 3, y + markSize * 4 / 5);
 
-                // 右矢印
-                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 3 / 4, y + markSize / 4);
-                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 3 / 4, y + markSize * 3 / 4);
+                // 左矢印の傘
+                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 5, y + markSize / 3);
+                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 5, y + markSize * 2 / 3);
+
+                // 右矢印の傘
+                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 4 / 5, y + markSize / 3);
+                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 4 / 5, y + markSize * 2 / 3);
             }
         }
         public void UpdateCursor(GameWindow window, Point clientMousePos)

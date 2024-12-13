@@ -66,6 +66,7 @@ namespace MultiWindowActionGame
         public void ResetSize(Size size)
         {
             bounds.Size = size;
+            referenceSize = size;
         }
         private void RestoreState()
         {

@@ -129,7 +129,7 @@ namespace MultiWindowActionGame
 
             graphicsBuffer.Render();
             Program.EnsureTopMost();
-            StageManager.Instance.EnsureButtonsTopMost();
+            //StageManager.Instance.EnsureButtonsTopMost();
         }
         private void DrawDebugInfo(Graphics g)
         {

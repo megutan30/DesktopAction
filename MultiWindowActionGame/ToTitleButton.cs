@@ -15,14 +15,15 @@ namespace MultiWindowActionGame
 
         protected override void OnButtonClick()
         {
-            StageManager.Instance.StartStage(0);  // Title
+            StageManager.Instance.ToTitaleStage();  // タイトル画面へ
+
         }
 
         protected override void DrawButtonContent(Graphics g)
         {
             using (Font font = new Font(CustomFonts.PressStart.FontFamily, 14, FontStyle.Bold))  // フォントサイズを少し大きく
             {
-                string text = "Start";
+                string text = "Title";
                 SizeF textSize = g.MeasureString(text, font);
                 g.DrawString(text, font, Brushes.Black,
                     (Width - textSize.Width) / 2,
