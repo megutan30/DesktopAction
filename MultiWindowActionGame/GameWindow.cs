@@ -247,6 +247,24 @@ namespace MultiWindowActionGame
 
         public void Draw(Graphics g)
         {
+            // 親がある場合、親の色に基づいたアウトラインを描画
+            if (Parent != null)
+            {
+                // 親の背景色を取得して、少し暗くする
+                Color parentColor = Parent.BackColor;
+                Color outlineColor = Color.FromArgb(
+                    Math.Max(0, parentColor.R - 50),
+                    Math.Max(0, parentColor.G - 50),
+                    Math.Max(0, parentColor.B - 50)
+                );
+
+                // より太いアウトラインを描画
+                using (Pen outlinePen = new Pen(outlineColor, 3))
+                {
+                    g.DrawRectangle(outlinePen, CollisionBounds);
+                }
+            }
+
             if (MainGame.IsDebugMode)
             {
                 DrawDebugInfo(g);

@@ -216,12 +216,38 @@ namespace MultiWindowActionGame
             int deltaX = currentMousePos.X - lastMousePos.X;
             int deltaY = currentMousePos.Y - lastMousePos.Y;
 
+            // 現在の位置で不可侵領域との接触をチェック
+            Rectangle currentBounds = window.CollisionBounds;
+            Rectangle rightCheck = new Rectangle(
+                currentBounds.X + 1, currentBounds.Y,
+                currentBounds.Width, currentBounds.Height
+            );
+            Rectangle leftCheck = new Rectangle(
+                currentBounds.X - 1, currentBounds.Y,
+                currentBounds.Width, currentBounds.Height
+            );
+            Rectangle downCheck = new Rectangle(
+                currentBounds.X, currentBounds.Y + 1,
+                currentBounds.Width, currentBounds.Height
+            );
+            Rectangle upCheck = new Rectangle(
+                currentBounds.X, currentBounds.Y - 1,
+                currentBounds.Width, currentBounds.Height
+            );
+
+            // 各方向の接触状態を更新
+            isBlockedRight = NoEntryZoneManager.Instance.IntersectsWithAnyZone(rightCheck);
+            isBlockedLeft = NoEntryZoneManager.Instance.IntersectsWithAnyZone(leftCheck);
+            isBlockedDown = NoEntryZoneManager.Instance.IntersectsWithAnyZone(downCheck);
+            isBlockedUp = NoEntryZoneManager.Instance.IntersectsWithAnyZone(upCheck);
+
             // 移動方向に基づいてブロックをチェック
             Vector2 movement = new Vector2(
                 (deltaX > 0 && isBlockedRight) || (deltaX < 0 && isBlockedLeft) ? 0 : deltaX,
                 (deltaY > 0 && isBlockedDown) || (deltaY < 0 && isBlockedUp) ? 0 : deltaY
             );
 
+            // 以下は既存のコード
             Rectangle proposedBounds = new Rectangle(
                 window.CollisionBounds.X + (int)movement.X,
                 window.CollisionBounds.Y + (int)movement.Y,
@@ -233,38 +259,6 @@ namespace MultiWindowActionGame
                 window.CollisionBounds,
                 proposedBounds
             );
-
-            // 移動方向に基づいて制限状態を更新
-            if (validBounds.X != proposedBounds.X)
-            {
-                if (deltaX > 0)
-                    isBlockedRight = true;
-                else if (deltaX < 0)
-                    isBlockedLeft = true;
-            }
-            else
-            {
-                // 移動方向と反対のブロックを解除
-                if (deltaX > 0)
-                    isBlockedLeft = false;
-                else if (deltaX < 0)
-                    isBlockedRight = false;
-            }
-
-            if (validBounds.Y != proposedBounds.Y)
-            {
-                if (deltaY > 0)
-                    isBlockedDown = true;
-                else if (deltaY < 0)
-                    isBlockedUp = true;
-            }
-            else
-            {
-                if (deltaY > 0)
-                    isBlockedUp = false;
-                else if (deltaY < 0)
-                    isBlockedDown = false;
-            }
 
             movement = new Vector2(
                 validBounds.X - window.CollisionBounds.X,
@@ -282,7 +276,6 @@ namespace MultiWindowActionGame
             movementEffect.UpdateMovement(movement);
             window.ApplyEffect(movementEffect);
         }
-
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.SizeAll;
