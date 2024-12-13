@@ -63,6 +63,10 @@ namespace MultiWindowActionGame
             SetState(new NormalState());
             IsGrounded = false;
         }
+        public void ResetSize(Size size)
+        {
+            bounds.Size = size;
+        }
         private void RestoreState()
         {
             if (savedState != null)
