@@ -38,31 +38,12 @@ public class StageManager
                 // 必要に応じて他のウィンドウを追加
             },
             PlayerStartPosition = new Point(730, 650),
-            StartButtonPosition = new Point(680, 400),  // 画面中央付近
+            StartButtonPosition = new Point(680, 400),  //画面中央付近
             IsTitleStage = true
         });
 
         //Stage4
         //親子関係＆Zバッファ
-        stages.Add(new StageData
-        {
-            Windows = new List<(WindowType type, Point location, Size size, string? text)>
-            {
-                (WindowType.Movable, new Point(50, 600), new Size(200, 200),null),
-                (WindowType.Resizable, new Point(50, 200), new Size(200, 200),null),
-                (WindowType.Minimizable, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 8"),
-            },
-            GoalPosition = new Point(1300, 700),
-            GoalInFront = true,
-            PlayerStartPosition = new Point(150, 650),
-            NoEntryZones = new List<(Point, Size)>
-            {
-                (new Point(860, 0), new Size(400, 400)),
-                (new Point(860, 500), new Size(400, 400)),
-            },
-             RetryButtonPosition = new Point(10, 10),
-        });
 
         //Stage8
         //最小化未定
@@ -263,32 +244,43 @@ public class StageManager
 
         currentStage = stageNumber;
         var stageData = stages[currentStage];
-        if (stageData == null) return;
-        // 通常ステージの場合のみプレイヤーを生成
-        MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
+
+        // プレイヤーの処理
+        var player = MainGame.GetPlayer();
+        if (player == null)
+        {
+            // プレイヤーがまだ存在しない場合は新規作成
+            MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
+        }
+        else
+        {
+            // 既存のプレイヤーの位置をリセット
+            player.Show();
+            player.ResetPosition(stageData.PlayerStartPosition);
+        }
+
+        // ゴールの生成（タイトル画面では生成しない）
         if (!stageData.IsTitleStage)
         {
             if (stageData.GoalInFront)
             {
-                // ゴールを最前面に生成
                 currentGoal = new Goal(stageData.GoalPosition, true);
                 currentGoal.Show();
             }
             else
             {
-                // ゴールを最後方に生成
                 currentGoal = new Goal(stageData.GoalPosition, false);
                 currentGoal.Show();
             }
         }
-        // タイトル画面以外の場合のみリトライボタンを生成
+
+        // ボタンの生成
         if (!stageData.IsTitleStage && stageData.RetryButtonPosition.HasValue)
         {
             currentRetryButton = new RetryButton(stageData.RetryButtonPosition.Value);
             currentRetryButton.Show();
         }
 
-        // タイトル画面の場合はStartボタンを生成
         if (stageData.IsTitleStage && stageData.StartButtonPosition.HasValue)
         {
             currentStartButton = new StartButton(stageData.StartButtonPosition.Value);
@@ -306,14 +298,6 @@ public class StageManager
         {
             WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size, windowData.text);
         }
-
-        // プレイヤーの位置をリセット
-        var player = MainGame.GetPlayer();
-        if (player != null)
-        {
-            player.ResetPosition(stageData.PlayerStartPosition);
-            player.ResetSize(new Size(40,40));
-        }
     }
 
     public void RestartCurrentStage()
@@ -327,6 +311,17 @@ public class StageManager
             throw new ArgumentOutOfRangeException(nameof(stageNumber));
         }
         return stages[stageNumber];
+    }
+    public void EnsureButtonsTopMost()
+    {
+        if (currentRetryButton != null && !currentRetryButton.IsDisposed)
+        {
+            currentRetryButton.EnsureTopMost();
+        }
+        if (currentStartButton != null && !currentStartButton.IsDisposed)
+        {
+            currentStartButton.EnsureTopMost();
+        }
     }
     public bool CheckGoal(Player player)
     {
@@ -374,7 +369,19 @@ public class StageManager
     }
     public void StartNextStage()
     {
-        StartStage(currentStage + 1);
+        var nextStageNumber = currentStage + 1;
+        if (nextStageNumber < stages.Count)
+        {
+            // プレイヤーを次のステージの開始位置に設定
+            var nextStageData = stages[nextStageNumber];
+            var player = MainGame.GetPlayer();
+            if (player != null)
+            {
+                player.ResetPosition(nextStageData.PlayerStartPosition);
+            }
+
+            StartStage(nextStageNumber);
+        }
     }
 }
 

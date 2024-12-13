@@ -1,4 +1,6 @@
 ﻿// ボタンの基底クラス
+using System.Runtime.InteropServices;
+
 public abstract class GameButton : Form
 {
     protected Rectangle bounds;
@@ -7,15 +9,45 @@ public abstract class GameButton : Form
     private const int WS_EX_LAYERED = 0x80000;
     private const int WS_EX_TRANSPARENT = 0x20;
     private const int WS_EX_TOPMOST = 0x8;
+    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
 
+    [DllImport("user32.dll")]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
     public Rectangle Bounds => bounds;
 
     protected GameButton(Point location, Size size)
     {
         bounds = new Rectangle(location, size);
         InitializeButton();
+        this.Load += GameButton_Load;
     }
-
+    private void GameButton_Load(object? sender, EventArgs e)
+    {
+        SetWindowProperties();
+    }
+    private void SetWindowProperties()
+    {
+        int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
+        exStyle |= WS_EX_TRANSPARENT;
+        exStyle |= WS_EX_TOPMOST;
+        SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
+        SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    }
+    public void EnsureTopMost()
+    {
+        if (this.Handle != IntPtr.Zero)
+        {
+            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        }
+    }
     private void InitializeButton()
     {
         this.FormBorderStyle = FormBorderStyle.None;

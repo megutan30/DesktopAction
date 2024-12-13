@@ -12,13 +12,12 @@ namespace MultiWindowActionGame
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
         public static MainGame Instance => instance ?? throw new InvalidOperationException("MainGame is not initialized");
-        public static bool IsDebugMode { get; private set; } = true;
+        public static bool IsDebugMode { get; private set; } = false;
         public void Initialize()
         {
             instance = this;
             WindowManager.Instance.Initialize();
 
-            // プレイヤーの生成を StageManager の初期化後に移動
             windowManager = WindowManager.Instance;
 
             InitializeGraphicsBuffer();
@@ -118,6 +117,7 @@ namespace MultiWindowActionGame
 
             windowManager.Draw(g);
             player?.Draw(g);
+
             StageManager.Instance.CurrentGoal?.Draw(g);
             NoEntryZoneManager.Instance.Draw(g);
             // デバッグ情報の描画
@@ -129,6 +129,7 @@ namespace MultiWindowActionGame
 
             graphicsBuffer.Render();
             Program.EnsureTopMost();
+            StageManager.Instance.EnsureButtonsTopMost();
         }
         private void DrawDebugInfo(Graphics g)
         {
