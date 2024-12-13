@@ -11,6 +11,7 @@ namespace MultiWindowActionGame
         private Player? player;
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
+        public static MainGame Instance => instance ?? throw new InvalidOperationException("MainGame is not initialized");
         public static bool IsDebugMode { get; private set; } = true;
         public void Initialize()
         {
@@ -28,13 +29,22 @@ namespace MultiWindowActionGame
 
             GameTime.Start();
 
-            // プレイヤーの生成（初期ステージの開始位置を取得）
-            var initialStage = StageManager.Instance.GetStage(0);
-            player = new Player(initialStage.PlayerStartPosition);
-            windowManager.SetPlayer(player);
-
             // ステージ1から開始
             StageManager.Instance.StartStage(0);
+        }
+        public void InitializePlayer(Point startPosition)
+        {
+            if (player == null)
+            {
+                // プレイヤーが存在しない場合のみ新規生成
+                player = new Player(startPosition);
+                windowManager.SetPlayer(player);
+            }
+            else
+            {
+                // 既に存在する場合は位置のリセットのみ
+                player.ResetPosition(startPosition);
+            }
         }
         public static Player? GetPlayer()
         {
@@ -86,15 +96,15 @@ namespace MultiWindowActionGame
 
         private async Task UpdateAsync()
         {
-            await player.UpdateAsync(GameTime.DeltaTime);
-            await windowManager.UpdateAsync(GameTime.DeltaTime);
-            GameWindow? currentWindow = windowManager.GetWindowAt(player.Bounds);
-            StageManager.Instance.CurrentGoal?.EnsureZOrder();
-            // ゴールチェック
-            if (StageManager.Instance.CheckGoal(player))
+            if (player != null)
             {
-                // ゴール時の演出などを追加
-                System.Diagnostics.Debug.WriteLine("Goal!");
+                await player.UpdateAsync(GameTime.DeltaTime);
+            }
+            await windowManager.UpdateAsync(GameTime.DeltaTime);
+            if (player != null && StageManager.Instance.CheckGoal(player))
+            {
+                // ゴールした時の処理
+                Console.WriteLine("Goal!");
             }
         }
 
@@ -106,22 +116,23 @@ namespace MultiWindowActionGame
             g.Clear(Color.Transparent);
 
             windowManager.Draw(g);
-            player.Draw(g);
+            player?.Draw(g);
             StageManager.Instance.CurrentGoal?.Draw(g);
             NoEntryZoneManager.Instance.Draw(g);
             // デバッグ情報の描画
             if (IsDebugMode) // デバッグモードフラグを追加
             {
-                windowManager.DrawDebugInfo(g, player.Bounds);
+                windowManager.DrawDebugInfo(g, player?.Bounds ??Rectangle.Empty);
                 DrawDebugInfo(g);
-                player.DrawDebugInfo(g);
             }
 
             graphicsBuffer.Render();
+            Program.EnsureTopMost();
         }
         private void DrawDebugInfo(Graphics g)
         {
             // プレイヤーの位置情報を描画
+            if (player == null)return;
             g.DrawString($"Player Position: {player.Bounds.Location}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 10));
         }
 

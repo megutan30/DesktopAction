@@ -33,7 +33,6 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(300, 500), new Size(200, 100),null),
                 // 必要に応じて他のウィンドウを追加
             },
-            PlayerStartPosition = new Point(150, 150),
             StartButtonPosition = new Point(450, 300),  // 画面中央付近
             IsTitleStage = true
         });
@@ -259,7 +258,25 @@ public class StageManager
 
         currentStage = stageNumber;
         var stageData = stages[currentStage];
+        if (stageData == null) return;
 
+        if (!stageData.IsTitleStage)
+        {
+            // 通常ステージの場合のみプレイヤーを生成
+            MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
+            if (stageData.GoalInFront)
+            {
+                // ゴールを最前面に生成
+                currentGoal = new Goal(stageData.GoalPosition, true);
+                currentGoal.Show();
+            }
+            else
+            {
+                // ゴールを最後方に生成
+                currentGoal = new Goal(stageData.GoalPosition, false);
+                currentGoal.Show();
+            }
+        }
         // タイトル画面以外の場合のみリトライボタンを生成
         if (!stageData.IsTitleStage && stageData.RetryButtonPosition.HasValue)
         {
@@ -280,29 +297,10 @@ public class StageManager
             NoEntryZoneManager.Instance.AddZone(zoneData.location, zoneData.size);
         }
 
-        if (stageData.GoalInFront)
+        // ウィンドウを生成
+        foreach (var windowData in stageData.Windows)
         {
-            // ゴールを最前面に生成
-            currentGoal = new Goal(stageData.GoalPosition, true);
-            currentGoal.Show();
-
-            // ウィンドウを生成
-            foreach (var windowData in stageData.Windows)
-            {
-                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size,windowData.text);
-            }
-        }
-        else
-        {
-            // ゴールを最後方に生成
-            currentGoal = new Goal(stageData.GoalPosition, false);
-            currentGoal.Show();
-
-            // ウィンドウを生成
-            foreach (var windowData in stageData.Windows)
-            {
-                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size,windowData.text);
-            }
+            WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size, windowData.text);
         }
 
         // プレイヤーの位置をリセット
