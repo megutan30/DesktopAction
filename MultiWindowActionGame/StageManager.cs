@@ -29,11 +29,16 @@ public class StageManager
         {
             Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
-                (WindowType.TextDisplay, new Point(300, 100), new Size(400, 150), "Window Action Game"),
-                (WindowType.NormalBlack, new Point(300, 500), new Size(200, 100),null),
+                (WindowType.NormalBlack, new Point(500, 600), new Size(500, 150),null),
+                (WindowType.NormalBlack, new Point(200, 450), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(900, 450), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(200, 300), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(900, 300), new Size(400, 200),null),
+                (WindowType.TextDisplay, new Point(500, 100), new Size(500, 250), "Window Action Game"),
                 // 必要に応じて他のウィンドウを追加
             },
-            StartButtonPosition = new Point(450, 300),  // 画面中央付近
+            PlayerStartPosition = new Point(730, 650),
+            StartButtonPosition = new Point(680, 400),  // 画面中央付近
             IsTitleStage = true
         });
 
@@ -259,11 +264,10 @@ public class StageManager
         currentStage = stageNumber;
         var stageData = stages[currentStage];
         if (stageData == null) return;
-
+        // 通常ステージの場合のみプレイヤーを生成
+        MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
         if (!stageData.IsTitleStage)
         {
-            // 通常ステージの場合のみプレイヤーを生成
-            MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
             if (stageData.GoalInFront)
             {
                 // ゴールを最前面に生成

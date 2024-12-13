@@ -101,6 +101,7 @@ namespace MultiWindowActionGame
                 await player.UpdateAsync(GameTime.DeltaTime);
             }
             await windowManager.UpdateAsync(GameTime.DeltaTime);
+            StageManager.Instance.CurrentGoal?.EnsureZOrder();
             if (player != null && StageManager.Instance.CheckGoal(player))
             {
                 // ゴールした時の処理
