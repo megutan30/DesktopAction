@@ -228,15 +228,101 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
+            // Z順（後ろから前）に描画
             foreach (var window in windows)
             {
-                window.Draw(g);
+                // まずウィンドウ自体を描画
+                DrawWindowBase(g, window);
             }
 
-            if (MainGame.IsDebugMode)
+            // 次にZ順でマークを描画
+            foreach (var window in windows)
             {
-                DrawDebugInfo(g);
+                DrawWindowMark(g, window);
             }
+        }
+    }
+    private void DrawWindowBase(Graphics g, GameWindow window)
+    {
+        // 親子関係のアウトラインなど、ウィンドウの基本的な描画
+        if (window.Parent != null)
+        {
+            Color parentColor = window.Parent.BackColor;
+            Color outlineColor = Color.FromArgb(
+                Math.Max(0, parentColor.R - 50),
+                Math.Max(0, parentColor.G - 50),
+                Math.Max(0, parentColor.B - 50)
+            );
+
+            using (Pen outlinePen = new Pen(outlineColor, 3))
+            {
+                g.DrawRectangle(outlinePen, window.CollisionBounds);
+            }
+        }
+
+        // デバッグ情報など他の描画
+        if (MainGame.IsDebugMode)
+        {
+            //window.DrawDebugInfo(g);
+        }
+        else
+        {
+            g.DrawString($"Window ID: {window.Id}", window.Font, Brushes.Black,
+                window.AdjustedBounds.X + 10, window.AdjustedBounds.Y + 10);
+            g.DrawString($"Type: {window.Strategy.GetType().Name}", window.Font, Brushes.Black,
+                window.AdjustedBounds.X + 10, window.AdjustedBounds.Y + 30);
+        }
+    }
+
+    private void DrawWindowMark(Graphics g, GameWindow window)
+    {
+        Rectangle markBounds = window.CollisionBounds;
+
+        // この領域と交差する、より前面にあるウィンドウを取得
+        var coveringWindows = windows
+            .Where(w => w != window &&
+                       windows.IndexOf(w) > windows.IndexOf(window) &&
+                       w.AdjustedBounds.IntersectsWith(markBounds))
+            .ToList();
+
+        // マウスの現在位置を取得
+        Point mousePos = Cursor.Position;
+        bool isHovered = window.ClientRectangle.Contains(window.PointToClient(mousePos));
+
+        // 前面のウィンドウがマウス位置と重なっているかチェック
+        if (isHovered)
+        {
+            foreach (var coveringWindow in coveringWindows)
+            {
+                if (coveringWindow.AdjustedBounds.Contains(mousePos))
+                {
+                    isHovered = false;
+                    break;
+                }
+            }
+        }
+
+        if (coveringWindows.Any())
+        {
+            using (Region clipRegion = new Region(markBounds))
+            {
+                foreach (var coveringWindow in coveringWindows)
+                {
+                    clipRegion.Exclude(coveringWindow.AdjustedBounds);
+                }
+
+                Region originalClip = g.Clip;
+                g.Clip = clipRegion;
+
+                // isHoveredの結果に基づいてマークを描画
+                window.Strategy.DrawStrategyMark(g, window.AdjustedBounds, isHovered);
+
+                g.Clip = originalClip;
+            }
+        }
+        else
+        {
+            window.Strategy.DrawStrategyMark(g, window.AdjustedBounds, isHovered);
         }
     }
     public void DrawDebugInfo(Graphics g)
