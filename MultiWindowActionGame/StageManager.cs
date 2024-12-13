@@ -11,6 +11,8 @@ public class StageManager
     private Goal? currentGoal;
     public Goal? CurrentGoal=>currentGoal;
     private List<StageData> stages = new List<StageData>();
+    private RetryButton? currentRetryButton;
+    private StartButton? currentStartButton;
 
     private StageManager()
     {
@@ -21,6 +23,20 @@ public class StageManager
     {
 
         // ステージデータの初期化
+
+        // タイトルステージ（インデックス0）
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.TextDisplay, new Point(300, 100), new Size(400, 150), "Window Action Game"),
+                (WindowType.NormalBlack, new Point(300, 500), new Size(200, 100),null),
+                // 必要に応じて他のウィンドウを追加
+            },
+            PlayerStartPosition = new Point(150, 150),
+            StartButtonPosition = new Point(450, 300),  // 画面中央付近
+            IsTitleStage = true
+        });
 
         //Stage4
         //親子関係＆Zバッファ
@@ -40,7 +56,8 @@ public class StageManager
             {
                 (new Point(860, 0), new Size(400, 400)),
                 (new Point(860, 500), new Size(400, 400)),
-            }
+            },
+             RetryButtonPosition = new Point(10, 10),
         });
 
         //Stage8
@@ -61,7 +78,10 @@ public class StageManager
             {
                 (new Point(860, 0), new Size(100, 400)),
                 (new Point(860, 500), new Size(100, 400)),
-            }
+            },
+
+
+             RetryButtonPosition = new Point(100, 100),
         });
 
         //Stage1
@@ -234,9 +254,25 @@ public class StageManager
         WindowManager.Instance.ClearWindows();
         currentGoal?.Close();
         NoEntryZoneManager.Instance.ClearZones();
+        currentRetryButton?.Close();
+        currentStartButton?.Close();
 
         currentStage = stageNumber;
         var stageData = stages[currentStage];
+
+        // タイトル画面以外の場合のみリトライボタンを生成
+        if (!stageData.IsTitleStage && stageData.RetryButtonPosition.HasValue)
+        {
+            currentRetryButton = new RetryButton(stageData.RetryButtonPosition.Value);
+            currentRetryButton.Show();
+        }
+
+        // タイトル画面の場合はStartボタンを生成
+        if (stageData.IsTitleStage && stageData.StartButtonPosition.HasValue)
+        {
+            currentStartButton = new StartButton(stageData.StartButtonPosition.Value);
+            currentStartButton.Show();
+        }
 
         // 不可侵領域の生成
         foreach (var zoneData in stageData.NoEntryZones)
@@ -276,6 +312,11 @@ public class StageManager
             player.ResetPosition(stageData.PlayerStartPosition);
             player.ResetSize(new Size(40,40));
         }
+    }
+
+    public void RestartCurrentStage()
+    {
+        StartStage(currentStage);
     }
     public StageData GetStage(int stageNumber)
     {
@@ -329,14 +370,20 @@ public class StageManager
         // 次のステージへ
         StartStage(currentStage + 1);
     }
+    public void StartNextStage()
+    {
+        StartStage(currentStage + 1);
+    }
 }
 
-// StageDataに不可侵領域の情報を追加
 public class StageData
 {
     public List<(WindowType type, Point location, Size size, string? text)> Windows { get; set; }
     public Point GoalPosition { get; set; }
     public bool GoalInFront { get; set; }
     public Point PlayerStartPosition { get; set; }
-    public List<(Point location, Size size)> NoEntryZones { get; set; } = new List<(Point, Size)>();  // 追加
+    public List<(Point location, Size size)> NoEntryZones { get; set; } = new List<(Point, Size)>();
+    public Point? RetryButtonPosition { get; set; }
+    public Point? StartButtonPosition { get; set; }
+    public bool IsTitleStage { get; set; }
 }

@@ -27,9 +27,6 @@ public class WindowManager : IWindowObserver
     public void Initialize()
     {
         if (isInitialized) return;
-
-        // ステージ1から開始
-        StageManager.Instance.StartStage(0);
         isInitialized = true;
     }
     public void InvalidateCache()
