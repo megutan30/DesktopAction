@@ -23,7 +23,14 @@ namespace MultiWindowActionGame
 
         public void Draw(Player player, Graphics g)
         {
-            g.FillRectangle(Brushes.Blue, player.Bounds);
+            if (MainGame.IsDebugMode)
+            {
+                g.FillRectangle(Brushes.Blue, player.Bounds);
+            }
+            else
+            {
+                g.FillRectangle(Brushes.Blue, player.Bounds);
+            }
         }
 
         public void HandleInput(Player player)
@@ -56,7 +63,14 @@ namespace MultiWindowActionGame
 
         public void Draw(Player player, Graphics g)
         {
-            g.FillRectangle(Brushes.Green, player.Bounds);
+            if (MainGame.IsDebugMode)
+            {
+                g.FillRectangle(Brushes.Green, player.Bounds);
+            }
+            else
+            {
+                g.FillRectangle(Brushes.Blue, player.Bounds);
+            }
         }
 
         public void HandleInput(Player player)
@@ -78,7 +92,14 @@ namespace MultiWindowActionGame
 
         public void Draw(Player player, Graphics g)
         {
-            g.FillRectangle(Brushes.Red, player.Bounds);
+            if (MainGame.IsDebugMode)
+            {
+                g.FillRectangle(Brushes.Red, player.Bounds);
+            }
+            else
+            {
+                g.FillRectangle(Brushes.Blue, player.Bounds);
+            }
         }
 
         public void HandleInput(Player player)

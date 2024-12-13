@@ -33,6 +33,7 @@ namespace MultiWindowActionGame
         private bool isResizing = false;
         private Point lastMousePos;
         private Size originalSize;
+        private bool isInitialized = false;
         public void Update(GameWindow window, float deltaTime)
         {
             if (isResizing)
@@ -65,7 +66,7 @@ namespace MultiWindowActionGame
         {
             isResizing = true;
             lastMousePos = window.PointToClient(Cursor.Position);
-            originalSize = window.Size;
+            originalSize = window.CollisionBounds.Size;
         }
 
         private void StopResizing()
@@ -78,23 +79,34 @@ namespace MultiWindowActionGame
             Point currentMousePos = window.PointToClient(Cursor.Position);
             Size newSize = CalculateNewSize(window, currentMousePos);
 
+            // 現在のサイズと同じ場合は何もしない
+            if (newSize == window.Size)
+            {
+                return;
+            }
             // このウィンドウのスケールを計算
             SizeF scale = new SizeF(
                 (float)newSize.Width / originalSize.Width,
                 (float)newSize.Height / originalSize.Height
             );
 
-            // 最上位のウィンドウから子孫すべてにスケールを設定
-            ApplyScaleToWindowAndDescendants(window, scale);
-
-            // 効果を適用
-            window.ApplyEffect(resizeEffect);
+            // 実際のリサイズ前に境界チェック
+            Rectangle proposedBounds = new Rectangle(
+                window.CollisionBounds.Location,
+                newSize
+            );
+            if (!NoEntryZoneManager.Instance.IntersectsWithAnyZone(proposedBounds))
+            {
+                ApplyScaleToWindowAndDescendants(window, scale);
+                window.ApplyEffect(resizeEffect);
+            }
         }
 
         private void ApplyScaleToWindowAndDescendants(GameWindow window, SizeF scale)
         {
             // まず現在のウィンドウにスケールを設定
             resizeEffect.UpdateScale(window, scale);
+
 
             // 直接の子に対してスケールを設定
             foreach (var child in window.Children)
@@ -109,23 +121,33 @@ namespace MultiWindowActionGame
             }
         }
 
-
         private Size CalculateNewSize(GameWindow window, Point currentMousePos)
         {
             int dx = currentMousePos.X - lastMousePos.X;
             int dy = currentMousePos.Y - lastMousePos.Y;
 
-            return new Size(
+            // originalSizeを基準にした新しいサイズを計算
+            Size proposedSize = new Size(
                 Math.Max(originalSize.Width + dx, window.MinimumSize.Width),
                 Math.Max(originalSize.Height + dy, window.MinimumSize.Height)
             );
+
+            // 不可侵領域との衝突をチェックする前のサイズを保存
+            Size newSize = proposedSize;
+
+            // 不可侵領域を考慮した有効なサイズを取得
+            newSize = NoEntryZoneManager.Instance.GetValidSize(
+                new Rectangle(window.CollisionBounds.Location, originalSize),  // 開始時の大きさを基準に判定
+                newSize
+            );
+
+            return newSize;
         }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.SizeNWSE;
         }
     }
-
     public class MovableWindowStrategy : IWindowStrategy
     {
         private readonly MovementEffect movementEffect = new MovementEffect();
@@ -133,6 +155,11 @@ namespace MultiWindowActionGame
         private Point lastMousePos;
         private const int WM_NCHITTEST = 0x84;
         private const int HTCAPTION = 2;
+        private bool isBlockedRight = false;  // 右方向への移動が制限されているか
+        private bool isBlockedLeft = false;   // 左方向への移動が制限されているか
+        private bool isBlockedDown = false;   // 下方向への移動が制限されているか
+        private bool isBlockedUp = false;     // 上方向への移動が制限されているか
+        private Point lastValidPosition;  // 最後の有効な位置
         public MovementEffect MovementEffect => movementEffect;
         public void Update(GameWindow window, float deltaTime)
         {
@@ -164,21 +191,93 @@ namespace MultiWindowActionGame
         private void StartDragging(GameWindow window)
         {
             isDragging = true;
+            ResetBlockFlags();
             lastMousePos = window.PointToClient(Cursor.Position);
+            lastValidPosition = window.Location;
+        }
+        private void ResetBlockFlags()
+        {
+            isBlockedRight = false;
+            isBlockedLeft = false;
+            isBlockedDown = false;
+            isBlockedUp = false;
         }
 
         private void StopDragging()
         {
             isDragging = false;
+            ResetBlockFlags();
             movementEffect.UpdateMovement(Vector2.Zero);
         }
+
         private void ApplyMovementEffect(GameWindow window)
         {
             Point currentMousePos = window.PointToClient(Cursor.Position);
+            int deltaX = currentMousePos.X - lastMousePos.X;
+            int deltaY = currentMousePos.Y - lastMousePos.Y;
+
+            // 移動方向に基づいてブロックをチェック
             Vector2 movement = new Vector2(
-                currentMousePos.X - lastMousePos.X,
-                currentMousePos.Y - lastMousePos.Y
+                (deltaX > 0 && isBlockedRight) || (deltaX < 0 && isBlockedLeft) ? 0 : deltaX,
+                (deltaY > 0 && isBlockedDown) || (deltaY < 0 && isBlockedUp) ? 0 : deltaY
             );
+
+            Rectangle proposedBounds = new Rectangle(
+                window.CollisionBounds.X + (int)movement.X,
+                window.CollisionBounds.Y + (int)movement.Y,
+                window.CollisionBounds.Width,
+                window.CollisionBounds.Height
+            );
+
+            Rectangle validBounds = NoEntryZoneManager.Instance.GetValidPosition(
+                window.CollisionBounds,
+                proposedBounds
+            );
+
+            // 移動方向に基づいて制限状態を更新
+            if (validBounds.X != proposedBounds.X)
+            {
+                if (deltaX > 0)
+                    isBlockedRight = true;
+                else if (deltaX < 0)
+                    isBlockedLeft = true;
+            }
+            else
+            {
+                // 移動方向と反対のブロックを解除
+                if (deltaX > 0)
+                    isBlockedLeft = false;
+                else if (deltaX < 0)
+                    isBlockedRight = false;
+            }
+
+            if (validBounds.Y != proposedBounds.Y)
+            {
+                if (deltaY > 0)
+                    isBlockedDown = true;
+                else if (deltaY < 0)
+                    isBlockedUp = true;
+            }
+            else
+            {
+                if (deltaY > 0)
+                    isBlockedUp = false;
+                else if (deltaY < 0)
+                    isBlockedDown = false;
+            }
+
+            movement = new Vector2(
+                validBounds.X - window.CollisionBounds.X,
+                validBounds.Y - window.CollisionBounds.Y
+            );
+
+            if (movement != Vector2.Zero)
+            {
+                lastValidPosition = new Point(
+                    lastValidPosition.X + (int)movement.X,
+                    lastValidPosition.Y + (int)movement.Y
+                );
+            }
 
             movementEffect.UpdateMovement(movement);
             window.ApplyEffect(movementEffect);
@@ -189,7 +288,6 @@ namespace MultiWindowActionGame
             window.Cursor = Cursors.SizeAll;
         }
     }
-
     public class DeletableWindowStrategy : IWindowStrategy
     {
         public bool IsMinimized { get; private set; }
@@ -246,7 +344,6 @@ namespace MultiWindowActionGame
             window.OnRestore();
         }
 
-        // IWindowStrategy の他のメソッドは基本的な実装
         public void Update(GameWindow window, float deltaTime) { }
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }

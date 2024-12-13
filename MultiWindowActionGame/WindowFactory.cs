@@ -10,7 +10,8 @@ namespace MultiWindowActionGame
         {
             IWindowStrategy strategy = type switch
             {
-                WindowType.Normal => new NormalWindowStrategy(),
+                WindowType.NormalBlack => new NormalWindowStrategy(),
+                WindowType.NormalWhite => new NormalWindowStrategy(),
                 WindowType.Resizable => new ResizableWindowStrategy(),
                 WindowType.Movable => new MovableWindowStrategy(),
                 WindowType.Deletable => new DeletableWindowStrategy(),
@@ -41,11 +42,12 @@ namespace MultiWindowActionGame
 
             window.BackColor = type switch
             {
-                WindowType.Normal => Color.Black,
+                WindowType.NormalBlack => Color.Black,
+                WindowType.NormalWhite => Color.White,
                 WindowType.Resizable => Color.LightGreen,
                 WindowType.Movable => Color.LightBlue,
                 WindowType.Deletable => Color.LightPink,
-                WindowType.Minimizable => Color.AliceBlue,
+                WindowType.Minimizable => Color.LightPink,
                 WindowType.TextDisplay => Color.Black,
                 _ => Color.White
             };
@@ -74,7 +76,8 @@ namespace MultiWindowActionGame
 
     public enum WindowType
     {
-        Normal,
+        NormalWhite,
+        NormalBlack,
         Resizable,
         Movable,
         Deletable,
