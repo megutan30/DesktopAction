@@ -264,7 +264,9 @@ namespace MultiWindowActionGame
                     g.DrawRectangle(outlinePen, CollisionBounds);
                 }
             }
-
+            //// ウィンドウの種類に応じて、ストラテジーマークを描画
+            //bool isHovered = this.ClientRectangle.Contains(this.PointToClient(Cursor.Position));
+            //Strategy.DrawStrategyMark(g, ClientBounds, isHovered);
             if (MainGame.IsDebugMode)
             {
                 DrawDebugInfo(g);

@@ -393,7 +393,22 @@ namespace MultiWindowActionGame
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }
         public void HandleWindowMessage(GameWindow window, Message m) { }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        {
+            // マークの大きさと位置を計算
+            int markSize = 30;
+            int x = bounds.Right - markSize - 10;
+            int y = bounds.Top + 10;
+
+            // マークの色を設定（ホバー時は白、通常時はグレー）
+            Color markColor = isHovered ? Color.FromArgb(128, 128, 128) : Color.FromArgb(128, 128, 128);
+
+            // 最小化ボタンを描画
+            using (var brush = new SolidBrush(markColor))
+            {
+                g.FillRectangle(brush, x, y, markSize, markSize / 4);
+            }
+        }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;
