@@ -378,7 +378,6 @@ namespace MultiWindowActionGame
     public class MinimizableWindowStrategy : IWindowStrategy
     {
         private readonly MinimizeEffect minimizeEffect = new MinimizeEffect();
-
         public void HandleMinimize(GameWindow window)
         {
             window.OnMinimize();
@@ -392,21 +391,29 @@ namespace MultiWindowActionGame
         public void Update(GameWindow window, float deltaTime) { }
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }
-        public void HandleWindowMessage(GameWindow window, Message m) { }
+        public void HandleWindowMessage(GameWindow window, Message m)
+        {
+            switch (m.Msg)
+            {
+                case 0x0201: // WM_LBUTTONDOWN
+                    window.OnMinimize();
+                    break;
+            }
+        }
         public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
         {
             // マークの大きさと位置を計算
-            int markSize = 30;
-            int x = bounds.Right - markSize - 10;
-            int y = bounds.Top + 10;
+            int markSize = 60;
+            int x = bounds.X + (bounds.Width - markSize) / 2;
+            int y = bounds.Y + (bounds.Height - markSize) / 2;
 
             // マークの色を設定（ホバー時は白、通常時はグレー）
-            Color markColor = isHovered ? Color.FromArgb(128, 128, 128) : Color.FromArgb(128, 128, 128);
+            Color markColor = isHovered ? Color.White : Color.FromArgb(128, 128, 128);
 
             // 最小化ボタンを描画
             using (var brush = new SolidBrush(markColor))
             {
-                g.FillRectangle(brush, x, y, markSize, markSize / 4);
+                g.FillRectangle(brush, x, y, markSize, markSize / 6);
             }
         }
         public void UpdateCursor(GameWindow window, Point clientMousePos)

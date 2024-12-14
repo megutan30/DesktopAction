@@ -454,6 +454,10 @@ namespace MultiWindowActionGame
             {
                 movableStrategy.HandleWindowMessage(this, m);
             }
+            if (strategy is MinimizableWindowStrategy minimizableStrategy)
+            {
+                minimizableStrategy.HandleWindowMessage(this, m);
+            }
         }
         private void UpdateMovableRegionForDescendants(GameWindow window)
         {
