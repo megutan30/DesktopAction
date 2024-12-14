@@ -151,7 +151,7 @@ namespace MultiWindowActionGame
         }
         private void UpdateParentOnRestore()
         {
-            var potentialParent = WindowManager.Instance.GetWindowAt(bounds);
+            var potentialParent = WindowManager.Instance.GetTopWindowAt(bounds,Parent);
             if (potentialParent != null && !potentialParent.IsMinimized)
             {
                 SetParent(potentialParent);
@@ -629,9 +629,9 @@ namespace MultiWindowActionGame
             // プレイヤーの足元の現在の範囲を作成
             Rectangle currentFeetBounds = new Rectangle(
                 bounds.X,
-                bounds.Bottom - 5,
+                bounds.Bottom - 25,
                 bounds.Width,
-                10
+                30
             );
 
             // 移動量に基づいて拡張された判定領域を作成（より大きな範囲をカバー）

@@ -393,7 +393,7 @@ namespace MultiWindowActionGame
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }
         public void HandleWindowMessage(GameWindow window, Message m) { }
-                public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;
