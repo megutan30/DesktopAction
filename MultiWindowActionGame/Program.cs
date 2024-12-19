@@ -36,13 +36,14 @@ namespace MultiWindowActionGame
                 FormBorderStyle = FormBorderStyle.None,
                 WindowState = FormWindowState.Maximized,
                 TopMost = true,
+                ShowInTaskbar =false,
                 BackColor = System.Drawing.Color.Black,
                 TransparencyKey = System.Drawing.Color.Black,
-                Text ="Player"
+                Text ="Game"
                 
             };
 
-            mainForm.Activated += MainForm_Activated;
+            //mainForm.Activated += MainForm_Activated;
 
             SetWindowProperties(mainForm);
 
@@ -55,43 +56,7 @@ namespace MultiWindowActionGame
 
             await gameLoopTask; 
         }
-        private static void MainForm_Activated(object? sender, EventArgs e)
-        {
-            var player = MainGame.GetPlayer();
-            if (player == null || !player.IsMinimized) return;  // 最小化されていない場合は何もしない
-
-            // プレイヤーの親ウィンドウが最小化中の場合は復帰させない
-            var parentWindow = WindowManager.Instance.GetParentWindow(player);
-            if (parentWindow != null && parentWindow.IsMinimized) return;
-
-            // プレイヤーが最小化されてから一定時間経過していない場合は復帰させない
-            if (player.TimeSinceMinimized < TimeSpan.FromMilliseconds(500))
-            {
-                return;
-            }
-
-            // 元の位置に他のウィンドウがないか確認
-            var windowAtOriginalPosition = WindowManager.Instance.GetWindowAt(player.Bounds);
-
-            // 復帰時の親の決定
-            if (player.LastValidParent != null &&
-                player.LastValidParent.AdjustedBounds.IntersectsWith(player.Bounds))
-            {
-                // 前回の有効な親がある場合、その親を維持
-                player.SetParent(player.LastValidParent);
-            }
-            else if (windowAtOriginalPosition != null)
-            {
-                player.SetParent(windowAtOriginalPosition);
-            }
-            else
-            {
-                // ウィンドウがない場合はデスクトップ上で復帰
-                player.SetParent(null);
-            }
-
-            player.OnRestore();
-        }
+     
         private static void SetWindowProperties(Form form)
         {
             int exStyle = GetWindowLong(form.Handle, GWL_EXSTYLE);
@@ -104,17 +69,6 @@ namespace MultiWindowActionGame
 
         public static void EnsureTopMost()
         {
-            var player = MainGame.GetPlayer();
-            if (player == null) return;
-
-            // プレイヤーが最小化中、または最小化からの復帰処理中は
-            // メインフォームのTopMostを制御しない
-            if (player.IsMinimized ||
-                player.TimeSinceMinimized < TimeSpan.FromMilliseconds(500))
-            {
-                return;
-            }
-
             if (mainForm != null && !mainForm.IsDisposed)
             {
                 if (mainForm.InvokeRequired)

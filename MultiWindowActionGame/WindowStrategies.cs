@@ -13,6 +13,7 @@ namespace MultiWindowActionGame
         void HandleResize(GameWindow window);
         void HandleWindowMessage(GameWindow window, Message m);
         void UpdateCursor(GameWindow window, Point clientMousePos);
+        void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered);
     }
 
     public class NormalWindowStrategy : IWindowStrategy
@@ -21,6 +22,7 @@ namespace MultiWindowActionGame
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }
         public void HandleWindowMessage(GameWindow window, Message m) { }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;
@@ -143,6 +145,27 @@ namespace MultiWindowActionGame
 
             return newSize;
         }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        {
+            // マークの大きさと位置を計算
+            int markSize = 60;
+            int x = bounds.X + (bounds.Width - markSize) / 2;
+            int y = bounds.Y + (bounds.Height - markSize) / 2;
+
+            using (var pen = new Pen(isHovered ? Color.White : Color.FromArgb(128, 128, 128), 2))
+            {
+                // 中心から右下への線
+                g.DrawLine(pen, x + markSize / 4, y + markSize / 4, x + markSize * 3 / 4, y + markSize * 3 / 4);
+
+                // 左上矢印
+                g.DrawLine(pen, x + markSize / 4, y + markSize / 4, x + markSize / 2, y + markSize / 4);
+                g.DrawLine(pen, x + markSize / 4, y + markSize / 4, x + markSize / 4, y + markSize / 2);
+
+                // 右下矢印
+                g.DrawLine(pen, x + markSize * 3 / 4, y + markSize * 3 / 4, x + markSize / 2, y + markSize * 3 / 4);
+                g.DrawLine(pen, x + markSize * 3 / 4, y + markSize * 3 / 4, x + markSize * 3 / 4, y + markSize / 2);
+            }
+        }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.SizeNWSE;
@@ -216,12 +239,38 @@ namespace MultiWindowActionGame
             int deltaX = currentMousePos.X - lastMousePos.X;
             int deltaY = currentMousePos.Y - lastMousePos.Y;
 
+            // 現在の位置で不可侵領域との接触をチェック
+            Rectangle currentBounds = window.CollisionBounds;
+            Rectangle rightCheck = new Rectangle(
+                currentBounds.X + 1, currentBounds.Y,
+                currentBounds.Width, currentBounds.Height
+            );
+            Rectangle leftCheck = new Rectangle(
+                currentBounds.X - 1, currentBounds.Y,
+                currentBounds.Width, currentBounds.Height
+            );
+            Rectangle downCheck = new Rectangle(
+                currentBounds.X, currentBounds.Y + 1,
+                currentBounds.Width, currentBounds.Height
+            );
+            Rectangle upCheck = new Rectangle(
+                currentBounds.X, currentBounds.Y - 1,
+                currentBounds.Width, currentBounds.Height
+            );
+
+            // 各方向の接触状態を更新
+            isBlockedRight = NoEntryZoneManager.Instance.IntersectsWithAnyZone(rightCheck);
+            isBlockedLeft = NoEntryZoneManager.Instance.IntersectsWithAnyZone(leftCheck);
+            isBlockedDown = NoEntryZoneManager.Instance.IntersectsWithAnyZone(downCheck);
+            isBlockedUp = NoEntryZoneManager.Instance.IntersectsWithAnyZone(upCheck);
+
             // 移動方向に基づいてブロックをチェック
             Vector2 movement = new Vector2(
                 (deltaX > 0 && isBlockedRight) || (deltaX < 0 && isBlockedLeft) ? 0 : deltaX,
                 (deltaY > 0 && isBlockedDown) || (deltaY < 0 && isBlockedUp) ? 0 : deltaY
             );
 
+            // 以下は既存のコード
             Rectangle proposedBounds = new Rectangle(
                 window.CollisionBounds.X + (int)movement.X,
                 window.CollisionBounds.Y + (int)movement.Y,
@@ -233,38 +282,6 @@ namespace MultiWindowActionGame
                 window.CollisionBounds,
                 proposedBounds
             );
-
-            // 移動方向に基づいて制限状態を更新
-            if (validBounds.X != proposedBounds.X)
-            {
-                if (deltaX > 0)
-                    isBlockedRight = true;
-                else if (deltaX < 0)
-                    isBlockedLeft = true;
-            }
-            else
-            {
-                // 移動方向と反対のブロックを解除
-                if (deltaX > 0)
-                    isBlockedLeft = false;
-                else if (deltaX < 0)
-                    isBlockedRight = false;
-            }
-
-            if (validBounds.Y != proposedBounds.Y)
-            {
-                if (deltaY > 0)
-                    isBlockedDown = true;
-                else if (deltaY < 0)
-                    isBlockedUp = true;
-            }
-            else
-            {
-                if (deltaY > 0)
-                    isBlockedUp = false;
-                else if (deltaY < 0)
-                    isBlockedDown = false;
-            }
 
             movement = new Vector2(
                 validBounds.X - window.CollisionBounds.X,
@@ -282,7 +299,35 @@ namespace MultiWindowActionGame
             movementEffect.UpdateMovement(movement);
             window.ApplyEffect(movementEffect);
         }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        {
+            int markSize = 60;
+            int x = bounds.X + (bounds.Width - markSize) / 2;
+            int y = bounds.Y + (bounds.Height - markSize) / 2;
 
+            using (var pen = new Pen(isHovered ? Color.White : Color.FromArgb(128, 128, 128), 2))
+            {
+                // 中心の十字
+                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 2, y + markSize);  // 縦線
+                g.DrawLine(pen, x, y + markSize / 2, x + markSize, y + markSize / 2);  // 横線
+
+                // 上矢印の傘
+                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 3, y + markSize / 5);
+                g.DrawLine(pen, x + markSize / 2, y, x + markSize * 2 / 3, y + markSize / 5);
+
+                // 下矢印の傘
+                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize / 3, y + markSize * 4 / 5);
+                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize * 2 / 3, y + markSize * 4 / 5);
+
+                // 左矢印の傘
+                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 5, y + markSize / 3);
+                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 5, y + markSize * 2 / 3);
+
+                // 右矢印の傘
+                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 4 / 5, y + markSize / 3);
+                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 4 / 5, y + markSize * 2 / 3);
+            }
+        }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.SizeAll;
@@ -324,7 +369,7 @@ namespace MultiWindowActionGame
         {
             IsMinimized = false;
         }
-
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;
@@ -333,7 +378,6 @@ namespace MultiWindowActionGame
     public class MinimizableWindowStrategy : IWindowStrategy
     {
         private readonly MinimizeEffect minimizeEffect = new MinimizeEffect();
-
         public void HandleMinimize(GameWindow window)
         {
             window.OnMinimize();
@@ -347,7 +391,31 @@ namespace MultiWindowActionGame
         public void Update(GameWindow window, float deltaTime) { }
         public void HandleInput(GameWindow window) { }
         public void HandleResize(GameWindow window) { }
-        public void HandleWindowMessage(GameWindow window, Message m) { }
+        public void HandleWindowMessage(GameWindow window, Message m)
+        {
+            switch (m.Msg)
+            {
+                case 0x0201: // WM_LBUTTONDOWN
+                    window.OnMinimize();
+                    break;
+            }
+        }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        {
+            // マークの大きさと位置を計算
+            int markSize = 60;
+            int x = bounds.X + (bounds.Width - markSize) / 2;
+            int y = bounds.Y + (bounds.Height - markSize) / 2;
+
+            // マークの色を設定（ホバー時は白、通常時はグレー）
+            Color markColor = isHovered ? Color.White : Color.FromArgb(128, 128, 128);
+
+            // 最小化ボタンを描画
+            using (var brush = new SolidBrush(markColor))
+            {
+                g.FillRectangle(brush, x, y, markSize, markSize / 6);
+            }
+        }
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {
             window.Cursor = Cursors.Default;
@@ -370,6 +438,7 @@ namespace MultiWindowActionGame
         public void HandleResize(GameWindow window) { window.Invalidate(); }
 
         public void HandleWindowMessage(GameWindow window, Message m) { }
+        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
 
         public void UpdateCursor(GameWindow window, Point clientMousePos)
         {

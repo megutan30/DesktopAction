@@ -247,6 +247,26 @@ namespace MultiWindowActionGame
 
         public void Draw(Graphics g)
         {
+            // 親がある場合、親の色に基づいたアウトラインを描画
+            if (Parent != null)
+            {
+                // 親の背景色を取得して、少し暗くする
+                Color parentColor = Parent.BackColor;
+                Color outlineColor = Color.FromArgb(
+                    Math.Max(0, parentColor.R - 50),
+                    Math.Max(0, parentColor.G - 50),
+                    Math.Max(0, parentColor.B - 50)
+                );
+
+                // より太いアウトラインを描画
+                using (Pen outlinePen = new Pen(outlineColor, 3))
+                {
+                    g.DrawRectangle(outlinePen, CollisionBounds);
+                }
+            }
+            //// ウィンドウの種類に応じて、ストラテジーマークを描画
+            //bool isHovered = this.ClientRectangle.Contains(this.PointToClient(Cursor.Position));
+            //Strategy.DrawStrategyMark(g, ClientBounds, isHovered);
             if (MainGame.IsDebugMode)
             {
                 DrawDebugInfo(g);
@@ -381,13 +401,13 @@ namespace MultiWindowActionGame
                 case 0x0201: // WM_LBUTTONDOWN
                     shouldBringToFront = true;
                     isDragging = true;
+
+                    WindowManager.Instance.HandleWindowActivation(this);
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
                     if (shouldBringToFront)
                     {
-                        WindowManager.Instance.CheckPotentialParentWindow(this);
-                        WindowManager.Instance.HandleWindowActivation(this);
                         WindowManager.Instance.CheckPotentialParentWindow(this);
                         shouldBringToFront = false;
                     }
@@ -434,6 +454,10 @@ namespace MultiWindowActionGame
             {
                 movableStrategy.HandleWindowMessage(this, m);
             }
+            if (strategy is MinimizableWindowStrategy minimizableStrategy)
+            {
+                minimizableStrategy.HandleWindowMessage(this, m);
+            }
         }
         private void UpdateMovableRegionForDescendants(GameWindow window)
         {
@@ -441,7 +465,7 @@ namespace MultiWindowActionGame
             foreach (var child in window.Children)
             {
                 // Playerの場合
-                if (child is Player player)
+                if (child is PlayerForm player)
                 {
                     player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(window));
                     return;

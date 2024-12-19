@@ -24,21 +24,13 @@ namespace MultiWindowActionGame
 
             WindowManager.Instance.RegisterWindow(window);
 
-            if (type == WindowType.Movable)
-            {
-                window.FormBorderStyle = FormBorderStyle.FixedSingle;
-            }
-            else if (type == WindowType.Resizable)
-            {
-                window.FormBorderStyle = FormBorderStyle.FixedSingle;
-            }
-            else
-            {
-                window.FormBorderStyle = FormBorderStyle.FixedSingle;
-            }
-
-            window.MinimizeBox = (type == WindowType.Deletable);
+            window.FormBorderStyle = FormBorderStyle.FixedSingle;
             window.MinimizeBox = (type == WindowType.Minimizable);
+
+            if (type == WindowType.Minimizable)
+            {
+               window.MinimizeBox = true;
+            }
 
             window.BackColor = type switch
             {

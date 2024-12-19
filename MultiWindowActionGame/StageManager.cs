@@ -1,5 +1,6 @@
 ﻿using MultiWindowActionGame;
 using System.Diagnostics;
+using System.Numerics;
 
 public class StageManager
 {
@@ -11,6 +12,9 @@ public class StageManager
     private Goal? currentGoal;
     public Goal? CurrentGoal=>currentGoal;
     private List<StageData> stages = new List<StageData>();
+    private RetryButton? currentRetryButton;
+    private StartButton? currentStartButton;
+    private ToTitaleButton? currentToTitaleButton;
 
     private StageManager()
     {
@@ -19,49 +23,44 @@ public class StageManager
 
     private void InitializeStages()
     {
-
-        // ステージデータの初期化
-
-        //Stage4
-        //親子関係＆Zバッファ
-        stages.Add(new StageData
-        {
-            Windows = new List<(WindowType type, Point location, Size size, string? text)>
-            {
-                (WindowType.Movable, new Point(50, 600), new Size(200, 200),null),
-                (WindowType.Resizable, new Point(50, 200), new Size(200, 200),null),
-                (WindowType.Minimizable, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 8"),
-            },
-            GoalPosition = new Point(1300, 700),
-            GoalInFront = true,
-            PlayerStartPosition = new Point(150, 650),
-            NoEntryZones = new List<(Point, Size)>
-            {
-                (new Point(860, 0), new Size(400, 400)),
-                (new Point(860, 500), new Size(400, 400)),
-            }
-        });
-
+        //親子関係がわかりやすい。
         //Stage8
-        //最小化未定
+        //最小化
         stages.Add(new StageData
         {
             Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
-                (WindowType.Movable, new Point(50, 600), new Size(200, 200),null),
-                (WindowType.Resizable, new Point(50, 200), new Size(200, 200),null),
-                (WindowType.Minimizable, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 8"),
+                (WindowType.NormalBlack, new Point(500, 250), new Size(500, 580),null),
+                (WindowType.Minimizable, new Point(500, 300), new Size(500, 300),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 8"),
             },
-            GoalPosition = new Point(1300, 700),
+            GoalPosition = new Point(600, 700),
             GoalInFront = true,
-            PlayerStartPosition = new Point(150, 650),
+            PlayerStartPosition = new Point(600, 450),
             NoEntryZones = new List<(Point, Size)>
             {
-                (new Point(860, 0), new Size(100, 400)),
-                (new Point(860, 500), new Size(100, 400)),
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
+        // ステージデータの初期化
+        // タイトルステージ（インデックス0）
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.NormalBlack, new Point(500, 600), new Size(500, 150),null),
+                (WindowType.NormalBlack, new Point(200, 450), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(900, 450), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(200, 300), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(900, 300), new Size(400, 200),null),
+                (WindowType.TextDisplay, new Point(500, 120), new Size(500, 250), "Window Action Game"),
+                // 必要に応じて他のウィンドウを追加
+            },
+            PlayerStartPosition = new Point(730, 650),
+            StartButtonPosition = new Point(680, 400),
+            IsTitleStage = true,
         });
 
         //Stage1
@@ -70,16 +69,19 @@ public class StageManager
         {
             Windows = new List<(WindowType type, Point location, Size size,string? text)>
             {
+
                 (WindowType.NormalBlack, new Point(100, 600), new Size(500, 200),null),
                 (WindowType.NormalWhite, new Point(500, 500), new Size(600, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 1"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 1"),
             },
             GoalPosition = new Point(1000, 600),
             GoalInFront = true,
             PlayerStartPosition = new Point(150, 650),
             NoEntryZones = new List<(Point, Size)>
             {
-            }
+            },
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
         });
 
         //Stage2
@@ -91,14 +93,17 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(100, 600), new Size(500, 200),null),
                 (WindowType.Movable, new Point(550, 610), new Size(200, 200),null),
                 (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 2"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 2"),
             },
             GoalPosition = new Point(1300, 700),
             GoalInFront = true,
             PlayerStartPosition = new Point(150, 650),
             NoEntryZones = new List<(Point, Size)>
             {
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
         });
         //Stage3
         //リサイズウィンドウ
@@ -109,14 +114,17 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(100, 200), new Size(500, 200),null),
                 (WindowType.Resizable, new Point(580, 200), new Size(200, 200),null),
                  (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 3"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 3"),
             },
             GoalPosition = new Point(1300, 700),
             GoalInFront = true,
             PlayerStartPosition = new Point(150, 250),
             NoEntryZones = new List<(Point, Size)>
             {
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
         });
         //Stage4
         //不可侵領域
@@ -127,7 +135,7 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(100, 600), new Size(300, 200),null),
                 (WindowType.Movable, new Point(380, 580), new Size(200, 200),null),
                 (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 4"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 4"),
             },
             GoalPosition = new Point(1300, 700),
             GoalInFront = true,
@@ -135,7 +143,10 @@ public class StageManager
             NoEntryZones = new List<(Point, Size)>
             {
                 (new Point(660, 500), new Size(100, 400)),
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
         });
 
         //Stage5
@@ -149,14 +160,17 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(850, 410), new Size(500, 200),null),
                 (WindowType.NormalWhite, new Point(450, 280), new Size(500, 200),null),
                 (WindowType.NormalBlack, new Point(50, 150), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 5"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 5"),
             },
             GoalPosition = new Point(100, 800),
             GoalInFront = true,
             PlayerStartPosition = new Point(350, 300),
             NoEntryZones = new List<(Point, Size)>
             {
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
         });
         //Stage5
         //Zバッファ2
@@ -177,14 +191,17 @@ public class StageManager
                 (WindowType.NormalWhite, new Point(850, 540), new Size(500, 200),null),
                 (WindowType.NormalBlack, new Point(550, 670), new Size(800, 200),null),
 
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 5"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 5"),
             },
             GoalPosition = new Point(1200, 200),
             GoalInFront = true,
             PlayerStartPosition = new Point(250, 250),
             NoEntryZones = new List<(Point, Size)>
             {
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
         });
         //Stage6
         //最初から親子関係のあるウィンドウ
@@ -192,17 +209,20 @@ public class StageManager
         {
             Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
-                (WindowType.Resizable, new Point(625,100), new Size(1000, 600),null),
-                (WindowType.NormalBlack, new Point(675, 100), new Size(300, 200),null),
-                (WindowType.NormalBlack, new Point(75, 75), new Size(300, 150),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 6"),
+                (WindowType.Resizable, new Point(750,100), new Size(750, 600),null),
+                (WindowType.NormalBlack, new Point(775, 150), new Size(300, 200),null),
+                (WindowType.NormalBlack, new Point(250, 100), new Size(300, 150),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 6"),
             },
-            GoalPosition = new Point(100, 150),
+            GoalPosition = new Point(300, 180),
             GoalInFront = true,
             PlayerStartPosition = new Point(1050, 600),
             NoEntryZones = new List<(Point, Size)>
             {
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 40),
+            RetryButtonPosition = new Point(295, 40),
         });
         //Stage7
         //親子関係を利用する
@@ -213,7 +233,7 @@ public class StageManager
                 (WindowType.Movable, new Point(50, 600), new Size(200, 200),null),
                 (WindowType.Resizable, new Point(50, 200), new Size(200, 200),null),
                 (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(350, 50), new Size(300, 100), "Stage 7"),
+                (WindowType.TextDisplay, new Point(500, 50) , new Size(300, 100), "Stage 7"),
             },
             GoalPosition = new Point(1300, 700),
             GoalInFront = true,
@@ -222,7 +242,52 @@ public class StageManager
             {
                 (new Point(860, 0), new Size(100, 400)),
                 (new Point(860, 500), new Size(100, 400)),
-            }
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
+
+        //Stage9
+        //ウィンドウ外に出る
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.Minimizable, new Point(200, 600), new Size(300, 200),null),
+                (WindowType.NormalBlack, new Point(500, 475), new Size(300, 200),null),
+                (WindowType.NormalBlack, new Point(700, 350), new Size(300, 200),null),
+                (WindowType.Minimizable, new Point(1000, 50), new Size(500, 200),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 9"),
+            },
+            GoalPosition = new Point(1400, 100),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(300, 700),
+            NoEntryZones = new List<(Point, Size)>
+            {
+                (new Point(1000, 250), new Size(500, 500)),
+                (new Point(0, 725), new Size(100, 150)),
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
+        //クリア画面
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.NormalBlack, new Point(500, 600), new Size(500, 150),null),
+                (WindowType.TextDisplay, new Point(200, 450), new Size(400, 200),"Created by"),
+                (WindowType.TextDisplay, new Point(900, 450), new Size(400, 200),"Megutan"),
+                (WindowType.NormalBlack, new Point(200, 300), new Size(400, 200),null),
+                (WindowType.NormalBlack, new Point(900, 300), new Size(400, 200),null),
+                (WindowType.TextDisplay, new Point(500, 120), new Size(500, 250), "Thank you!!"),
+                // 必要に応じて他のウィンドウを追加
+            },
+            PlayerStartPosition = new Point(730, 650),
+            ToTitaleButtonPosition = new Point(680, 400),  //画面中央付近
+            IsTitleStage = true
         });
     }
 
@@ -234,48 +299,90 @@ public class StageManager
         WindowManager.Instance.ClearWindows();
         currentGoal?.Close();
         NoEntryZoneManager.Instance.ClearZones();
+        currentRetryButton?.Close();
+        currentStartButton?.Close();
+        currentToTitaleButton?.Close();
 
         currentStage = stageNumber;
         var stageData = stages[currentStage];
 
+        // プレイヤーの処理
+        var player = MainGame.GetPlayer();
+
+        if (player == null)
+        {
+            // プレイヤーがまだ存在しない場合は新規作成
+            MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
+        }
+        else
+        {
+            player.ResetPosition(stageData.PlayerStartPosition);
+            player.ResetSize(new Size(40, 40));
+            player.Show();
+        }
+
+        // ゴールの生成と管理
+        if (stageData.IsTitleStage)
+        {
+            // タイトル画面の場合は確実にゴールを閉じる
+            if (currentGoal != null)
+            {
+                currentGoal.Close();
+                currentGoal = null;
+            }
+        }
+        else
+        {
+            // 通常ステージの場合
+            if (stageData.GoalInFront)
+            {
+                currentGoal = new Goal(stageData.GoalPosition, true);
+                currentGoal.Show();
+            }
+            else
+            {
+                currentGoal = new Goal(stageData.GoalPosition, false);
+                currentGoal.Show();
+            }
+        }
+        // ボタンの生成
+        if (stageData.RetryButtonPosition.HasValue)
+        {
+            currentRetryButton = new RetryButton(stageData.RetryButtonPosition.Value);
+            currentRetryButton.Show();
+        }
+
+        if (stageData.StartButtonPosition.HasValue)
+        {
+            currentStartButton = new StartButton(stageData.StartButtonPosition.Value);
+            currentStartButton.Show();
+        }
+
+        if (stageData.ToTitaleButtonPosition.HasValue)
+        {
+            currentToTitaleButton = new ToTitaleButton(stageData.ToTitaleButtonPosition.Value);
+            currentToTitaleButton.Show();
+        }
         // 不可侵領域の生成
         foreach (var zoneData in stageData.NoEntryZones)
         {
             NoEntryZoneManager.Instance.AddZone(zoneData.location, zoneData.size);
         }
 
-        if (stageData.GoalInFront)
+        // ウィンドウを生成
+        foreach (var windowData in stageData.Windows)
         {
-            // ゴールを最前面に生成
-            currentGoal = new Goal(stageData.GoalPosition, true);
-            currentGoal.Show();
-
-            // ウィンドウを生成
-            foreach (var windowData in stageData.Windows)
-            {
-                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size,windowData.text);
-            }
+            WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size, windowData.text);
         }
-        else
-        {
-            // ゴールを最後方に生成
-            currentGoal = new Goal(stageData.GoalPosition, false);
-            currentGoal.Show();
+    }
 
-            // ウィンドウを生成
-            foreach (var windowData in stageData.Windows)
-            {
-                WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size,windowData.text);
-            }
-        }
-
-        // プレイヤーの位置をリセット
-        var player = MainGame.GetPlayer();
-        if (player != null)
-        {
-            player.ResetPosition(stageData.PlayerStartPosition);
-            player.ResetSize(new Size(40,40));
-        }
+    public void RestartCurrentStage()
+    {
+        StartStage(currentStage);
+    }
+    public void ToTitaleStage()
+    {
+        StartStage(0);
     }
     public StageData GetStage(int stageNumber)
     {
@@ -285,7 +392,22 @@ public class StageManager
         }
         return stages[stageNumber];
     }
-    public bool CheckGoal(Player player)
+    public void EnsureButtonsTopMost()
+    {
+        if (currentRetryButton != null && !currentRetryButton.IsDisposed)
+        {
+            currentRetryButton.EnsureTopMost();
+        }
+        if (currentStartButton != null && !currentStartButton.IsDisposed)
+        {
+            currentStartButton.EnsureTopMost();
+        }
+        if (currentToTitaleButton != null && !currentToTitaleButton.IsDisposed)
+        {
+            currentToTitaleButton.EnsureTopMost();
+        }
+    }
+    public bool CheckGoal(PlayerForm player)
     {
         if (currentGoal == null) return false;
 
@@ -319,24 +441,36 @@ public class StageManager
         {
             // ゴール達成
             System.Diagnostics.Debug.WriteLine("Goal reached!");
-            OnGoalReached();
             return true;
         }
     }
-
-    private void OnGoalReached()
+    public void StartNextStage()
     {
-        // 次のステージへ
-        StartStage(currentStage + 1);
+        var nextStageNumber = currentStage + 1;
+        if (nextStageNumber < stages.Count)
+        {
+            // プレイヤーを次のステージの開始位置に設定
+            var nextStageData = stages[nextStageNumber];
+            var player = MainGame.GetPlayer();
+            if (player != null)
+            {
+                player.ResetPosition(nextStageData.PlayerStartPosition);
+            }
+
+            StartStage(nextStageNumber);
+        }
     }
 }
 
-// StageDataに不可侵領域の情報を追加
 public class StageData
 {
     public List<(WindowType type, Point location, Size size, string? text)> Windows { get; set; }
     public Point GoalPosition { get; set; }
     public bool GoalInFront { get; set; }
     public Point PlayerStartPosition { get; set; }
-    public List<(Point location, Size size)> NoEntryZones { get; set; } = new List<(Point, Size)>();  // 追加
+    public List<(Point location, Size size)> NoEntryZones { get; set; } = new List<(Point, Size)>();
+    public Point? RetryButtonPosition { get; set; }
+    public Point? StartButtonPosition { get; set; }
+    public Point? ToTitaleButtonPosition { get; set; }
+    public bool IsTitleStage { get; set; }
 }
