@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Numerics;
 using System.Windows.Forms;
 
 namespace MultiWindowActionGame
@@ -8,7 +9,7 @@ namespace MultiWindowActionGame
     public class MainGame
     {
         private static MainGame? instance;
-        private Player? player;
+        private PlayerForm? player;
         private WindowManager windowManager = WindowManager.Instance;
         private BufferedGraphics? graphicsBuffer;
         public static MainGame Instance => instance ?? throw new InvalidOperationException("MainGame is not initialized");
@@ -17,7 +18,6 @@ namespace MultiWindowActionGame
         {
             instance = this;
             WindowManager.Instance.Initialize();
-
             windowManager = WindowManager.Instance;
 
             InitializeGraphicsBuffer();
@@ -27,39 +27,35 @@ namespace MultiWindowActionGame
             }
 
             GameTime.Start();
-
-            // ステージ1から開始
             StageManager.Instance.StartStage(0);
         }
+
         public void InitializePlayer(Point startPosition)
         {
             if (player == null)
             {
-                // プレイヤーが存在しない場合のみ新規生成
-                player = new Player(startPosition);
+                player = new PlayerForm(startPosition);
                 windowManager.SetPlayer(player);
+                player.Show();
             }
             else
             {
-                // 既に存在する場合は位置のリセットのみ
                 player.ResetPosition(startPosition);
             }
         }
-        public static Player? GetPlayer()
+        public static PlayerForm? GetPlayer()
         {
             return instance?.player;
         }
-
         private void InitializeGraphicsBuffer()
         {
             if (Program.mainForm != null && Program.mainForm.ClientSize.Width > 0 && Program.mainForm.ClientSize.Height > 0)
             {
                 BufferedGraphicsContext context = BufferedGraphicsManager.Current;
                 graphicsBuffer = context.Allocate(Program.mainForm.CreateGraphics(),
-                Program.mainForm.ClientRectangle);
+                    Program.mainForm.ClientRectangle);
             }
         }
-
         private void MainForm_Resize(object? sender, EventArgs e)
         {
             InitializeGraphicsBuffer();
@@ -77,22 +73,22 @@ namespace MultiWindowActionGame
                 GameTime.Update();
                 await UpdateAsync();
                 Render();
-                Program.EnsureTopMost();
 
                 int elapsedTime = Environment.TickCount - startTime;
                 int sleepTime = targetFrameTime - elapsedTime;
-                if (Input.IsKeyDown(Keys.F3)) // F3キーでデバッグモードを切り替え
+
+                if (Input.IsKeyDown(Keys.F3))
                 {
                     IsDebugMode = !IsDebugMode;
-                    await Task.Delay(200); // キーの連続入力を防ぐための遅延
+                    await Task.Delay(200);
                 }
+
                 if (sleepTime > 0)
                 {
                     await Task.Delay(sleepTime);
                 }
             }
         }
-
         private async Task UpdateAsync()
         {
             if (player != null)
@@ -100,14 +96,15 @@ namespace MultiWindowActionGame
                 await player.UpdateAsync(GameTime.DeltaTime);
             }
             await windowManager.UpdateAsync(GameTime.DeltaTime);
+
             StageManager.Instance.CurrentGoal?.EnsureZOrder();
+
             if (player != null && StageManager.Instance.CheckGoal(player))
             {
-                // ゴールした時の処理
-                Console.WriteLine("Goal!");
+                Debug.WriteLine("Goal!");
+                StageManager.Instance.StartNextStage();
             }
         }
-
         private void Render()
         {
             if (graphicsBuffer == null) return;
@@ -116,27 +113,34 @@ namespace MultiWindowActionGame
             g.Clear(Color.Transparent);
 
             windowManager.Draw(g);
-            player?.Draw(g);
-
             StageManager.Instance.CurrentGoal?.Draw(g);
             NoEntryZoneManager.Instance.Draw(g);
-            // デバッグ情報の描画
-            if (IsDebugMode) // デバッグモードフラグを追加
+
+            if (IsDebugMode)
             {
-                windowManager.DrawDebugInfo(g, player?.Bounds ??Rectangle.Empty);
+                windowManager.DrawDebugInfo(g, player?.Bounds ?? Rectangle.Empty);
                 DrawDebugInfo(g);
             }
 
             graphicsBuffer.Render();
-            Program.EnsureTopMost();
-            //StageManager.Instance.EnsureButtonsTopMost();
+            EnsureWindowsTopMost();
         }
         private void DrawDebugInfo(Graphics g)
         {
-            // プレイヤーの位置情報を描画
-            if (player == null)return;
-            g.DrawString($"Player Position: {player.Bounds.Location}", SystemFonts.DefaultFont, Brushes.White, new PointF(10, 10));
+            if (player == null) return;
+
+            g.DrawString(
+                $"Player Position: {player.Bounds.Location}",
+                SystemFonts.DefaultFont,
+                Brushes.White,
+                new PointF(10, 10)
+            );
         }
 
+        private void EnsureWindowsTopMost()
+        {
+            player?.BringToFront();
+            //StageManager.Instance.EnsureButtonsTopMost();
+        }
     }
 }

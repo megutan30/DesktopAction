@@ -401,13 +401,13 @@ namespace MultiWindowActionGame
                 case 0x0201: // WM_LBUTTONDOWN
                     shouldBringToFront = true;
                     isDragging = true;
+
+                    WindowManager.Instance.HandleWindowActivation(this);
                     break;
 
                 case 0x0202: // WM_LBUTTONUP
                     if (shouldBringToFront)
                     {
-                        WindowManager.Instance.CheckPotentialParentWindow(this);
-                        WindowManager.Instance.HandleWindowActivation(this);
                         WindowManager.Instance.CheckPotentialParentWindow(this);
                         shouldBringToFront = false;
                     }
@@ -465,7 +465,7 @@ namespace MultiWindowActionGame
             foreach (var child in window.Children)
             {
                 // Playerの場合
-                if (child is Player player)
+                if (child is PlayerForm player)
                 {
                     player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(window));
                     return;

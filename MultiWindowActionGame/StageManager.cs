@@ -31,7 +31,7 @@ public class StageManager
             Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
                 (WindowType.NormalBlack, new Point(500, 250), new Size(500, 580),null),
-                (WindowType.Minimizable, new Point(500, 400), new Size(500, 200),null),
+                (WindowType.Minimizable, new Point(500, 300), new Size(500, 300),null),
                 (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 8"),
             },
             GoalPosition = new Point(600, 700),
@@ -308,6 +308,7 @@ public class StageManager
 
         // プレイヤーの処理
         var player = MainGame.GetPlayer();
+
         if (player == null)
         {
             // プレイヤーがまだ存在しない場合は新規作成
@@ -315,9 +316,8 @@ public class StageManager
         }
         else
         {
-            // 既存のプレイヤーの位置をリセット
-            player.ResetSize(new Size(40, 40));
             player.ResetPosition(stageData.PlayerStartPosition);
+            player.ResetSize(new Size(40, 40));
             player.Show();
         }
 
@@ -407,7 +407,7 @@ public class StageManager
             currentToTitaleButton.EnsureTopMost();
         }
     }
-    public bool CheckGoal(Player player)
+    public bool CheckGoal(PlayerForm player)
     {
         if (currentGoal == null) return false;
 
@@ -441,15 +441,8 @@ public class StageManager
         {
             // ゴール達成
             System.Diagnostics.Debug.WriteLine("Goal reached!");
-            OnGoalReached();
             return true;
         }
-    }
-
-    private void OnGoalReached()
-    {
-        // 次のステージへ
-        StartStage(currentStage + 1);
     }
     public void StartNextStage()
     {

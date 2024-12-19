@@ -106,7 +106,7 @@ namespace MultiWindowActionGame
             {
                 // 初期参照サイズを保存
                 referenceSize[target] = target is GameWindow window ? window.Size :
-                                      target is Player player ? player.Bounds.Size :
+                                      target is PlayerForm player ? player.Bounds.Size :
                                       Size.Empty;
             }
             targetScales[target] = newScale;

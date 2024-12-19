@@ -4,16 +4,16 @@ namespace MultiWindowActionGame
 {
     public interface IPlayerState
     {
-        void Update(Player player, float deltaTime);
-        void Draw(Player player, Graphics g);
-        void HandleInput(Player player);
+        void Update(PlayerForm player, float deltaTime);
+        void Draw(PlayerForm player, Graphics g);
+        void HandleInput(PlayerForm player);
         bool ShouldCheckGround { get; }
     }
 
     public class NormalState : IPlayerState
     {
         public bool ShouldCheckGround => true;
-        public void Update(Player player, float deltaTime)
+        public void Update(PlayerForm player, float deltaTime)
         {
             if (!player.IsGrounded)
             {
@@ -21,25 +21,20 @@ namespace MultiWindowActionGame
             }
         }
 
-        public void Draw(Player player, Graphics g)
+        public void Draw(PlayerForm player, Graphics g)
         {
             if (MainGame.IsDebugMode)
             {
-                g.FillRectangle(Brushes.Blue, player.Bounds);
+                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
             }
             else
             {
-                g.FillRectangle(Brushes.Blue, player.Bounds);
+                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
             }
         }
 
-        public void HandleInput(Player player)
+        public void HandleInput(PlayerForm player)
         {
-            if (Input.IsKeyDown(Keys.W) && player.IsGrounded)
-            {
-                player.Jump();
-                player.SetState(new JumpingState());
-            }
         }
     }
 
@@ -49,7 +44,7 @@ namespace MultiWindowActionGame
         private float jumpTime = 0;
         private const float MaxJumpTime = 0.5f;
 
-        public void Update(Player player, float deltaTime)
+        public void Update(PlayerForm player, float deltaTime)
         {
             if (player.VerticalVelocity > 0)
             {
@@ -61,19 +56,19 @@ namespace MultiWindowActionGame
             }
         }
 
-        public void Draw(Player player, Graphics g)
+        public void Draw(PlayerForm player, Graphics g)
         {
             if (MainGame.IsDebugMode)
             {
-                g.FillRectangle(Brushes.Green, player.Bounds);
+                g.FillRectangle(Brushes.Green, player.ClientRectangle);
             }
             else
             {
-                g.FillRectangle(Brushes.Blue, player.Bounds);
+                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
             }
         }
 
-        public void HandleInput(Player player)
+        public void HandleInput(PlayerForm player)
         {
             // ジャンプ中の入力処理（必要に応じて）
         }
@@ -82,7 +77,7 @@ namespace MultiWindowActionGame
     public class FallingState : IPlayerState
     {
         public bool ShouldCheckGround => true;
-        public void Update(Player player, float deltaTime)
+        public void Update(PlayerForm player, float deltaTime)
         {
             if (player.IsGrounded)
             {
@@ -90,19 +85,19 @@ namespace MultiWindowActionGame
             }
         }
 
-        public void Draw(Player player, Graphics g)
+        public void Draw(PlayerForm player, Graphics g)
         {
             if (MainGame.IsDebugMode)
             {
-                g.FillRectangle(Brushes.Red, player.Bounds);
+                g.FillRectangle(Brushes.Red, player.ClientRectangle);
             }
             else
             {
-                g.FillRectangle(Brushes.Blue, player.Bounds);
+                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
             }
         }
 
-        public void HandleInput(Player player)
+        public void HandleInput(PlayerForm player)
         {
             // 落下中の入力処理（必要に応じて）
         }

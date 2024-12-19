@@ -10,7 +10,7 @@ public class WindowManager : IWindowObserver
     public static WindowManager Instance { get { return lazy.Value; } }
     private List<GameWindow> windows = new List<GameWindow>();
     private object windowLock = new object();
-    private Player? player;
+    private PlayerForm? player;
     private bool isInitialized = false;
 
     private readonly Dictionary<GameWindow, HashSet<IEffectTarget>> containedTargetsCache = new();
@@ -19,10 +19,8 @@ public class WindowManager : IWindowObserver
     private bool needsUpdateCache = true;
     private Dictionary<GameWindow, GameWindow> childToParentRelations = new Dictionary<GameWindow, GameWindow>();
     private bool isCheckingRelations = false;
-    private WindowManager()
-    {
-        
-    }
+
+    private WindowManager() { }
 
     public void Initialize()
     {
@@ -33,7 +31,7 @@ public class WindowManager : IWindowObserver
     {
         needsUpdateCache = true;
     }
-    public void SetPlayer(Player player)
+    public void SetPlayer(PlayerForm player)
     {
         this.player = player;
     }
@@ -228,14 +226,11 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
-            // Z順（後ろから前）に描画
             foreach (var window in windows)
             {
-                // まずウィンドウ自体を描画
                 DrawWindowBase(g, window);
             }
 
-            // 次にZ順でマークを描画
             foreach (var window in windows)
             {
                 DrawWindowMark(g, window);
@@ -254,6 +249,7 @@ public class WindowManager : IWindowObserver
                 Math.Max(0, parentColor.B - 50)
             );
 
+            DrawParentChildConnection(g, window);
             using (Pen outlinePen = new Pen(outlineColor, 3))
             {
                 g.DrawRectangle(outlinePen, window.CollisionBounds);
@@ -325,44 +321,42 @@ public class WindowManager : IWindowObserver
             window.Strategy.DrawStrategyMark(g, window.AdjustedBounds, isHovered);
         }
     }
-    public void DrawDebugInfo(Graphics g)
+    public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
     {
-        foreach (var window in windows)
+        if (!MainGame.IsDebugMode) return;
+
+        lock (windowLock)
         {
-            // ウィンドウの基本情報
-            g.DrawRectangle(new Pen(Color.Blue, 1), window.AdjustedBounds);
-
-            //// Z-order情報
-            //g.DrawString($"Z: {windows.IndexOf(window)}",
-            //    SystemFonts.DefaultFont, Brushes.White,
-            //    window.Location.X + 5, window.Location.Y + 5);
-
-            // 親子関係の表示
-            if (window.Parent != null)
+            foreach (var window in windows)
             {
-                using (var pen = new Pen(Color.Yellow, 2))
+                g.DrawRectangle(new Pen(Color.Blue, 1), window.AdjustedBounds);
+
+                if (window.Parent != null)
                 {
-                    Point childCenter = new Point(
-                        window.Bounds.X + window.Bounds.Width / 2,
-                        window.Bounds.Y + window.Bounds.Height / 2
-                    );
-                    Point parentCenter = new Point(
-                        window.Parent.Bounds.X + window.Parent.Bounds.Width / 2,
-                        window.Parent.Bounds.Y + window.Parent.Bounds.Height / 2
-                    );
-                    g.DrawLine(pen, childCenter, parentCenter);
+                    DrawParentChildConnection(g, window);
+                }
+
+                Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, playerBounds);
+                if (!intersection.IsEmpty)
+                {
+                    g.FillRectangle(new SolidBrush(Color.FromArgb(100, Color.Red)), intersection);
                 }
             }
         }
-        // 親ウィンドウのみをデバッグ表示
-        foreach (var window in windows.Where(w => w.Parent == null))
+    }
+    private void DrawParentChildConnection(Graphics g, GameWindow childWindow)
+    {
+        using (var pen = new Pen(Color.Yellow, 2))
         {
-            DrawWindowDebugInfo(g, window);
-            // 子ウィンドウの情報も表示
-            foreach (var child in window.GetAllDescendants())
-            {
-                DrawWindowDebugInfo(g, child, true);
-            }
+            Point childCenter = new Point(
+                childWindow.Bounds.X + childWindow.Bounds.Width / 2,
+                childWindow.Bounds.Y + childWindow.Bounds.Height / 2
+            );
+            Point parentCenter = new Point(
+                childWindow.Parent.Bounds.X + childWindow.Parent.Bounds.Width / 2,
+                childWindow.Parent.Bounds.Y + childWindow.Parent.Bounds.Height / 2
+            );
+            g.DrawLine(pen, childCenter, parentCenter);
         }
     }
     private void DrawWindowDebugInfo(Graphics g, GameWindow window, bool isChild = false)
@@ -406,31 +400,29 @@ public class WindowManager : IWindowObserver
         }
     }
 
-    public GameWindow? GetTopWindowAt(Rectangle playerBounds, GameWindow? currentWindow)
+    public GameWindow? GetTopWindowAt(Rectangle bounds, GameWindow? currentWindow)
     {
         Point[] checkPoints = new Point[]
         {
-            new Point(playerBounds.Left, playerBounds.Bottom), // 左下
-            new Point(playerBounds.Right, playerBounds.Bottom), // 右下
-            new Point(playerBounds.Left, playerBounds.Top), // 左上
-            new Point(playerBounds.Right, playerBounds.Top), // 右上
-            new Point(playerBounds.X + playerBounds.Width / 2, playerBounds.Y + playerBounds.Height / 2) // 中心
+                new Point(bounds.Left, bounds.Bottom),
+                new Point(bounds.Right, bounds.Bottom),
+                new Point(bounds.Left, bounds.Top),
+                new Point(bounds.Right, bounds.Top),
+                new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2)
         };
-        // 現在ウィンドウの外にいる場合
-        if (currentWindow == null)
-        {
-            // プレイヤーが完全にウィンドウ内に入っているものだけを対象とする
-            return windows
-                .Where(w => w.AdjustedBounds.Contains(playerBounds))
-                .OrderByDescending(w => windows.IndexOf(w))
-                .FirstOrDefault();
-        }
-
-        Dictionary<GameWindow, HashSet<Point>> windowPoints = new Dictionary<GameWindow, HashSet<Point>>();
 
         lock (windowLock)
         {
-            // 各チェックポイントについて、どのウィンドウに含まれているかをチェック
+            if (currentWindow == null)
+            {
+                return windows
+                    .Where(w => w.AdjustedBounds.Contains(bounds))
+                    .OrderByDescending(w => windows.IndexOf(w))
+                    .FirstOrDefault();
+            }
+
+            Dictionary<GameWindow, HashSet<Point>> windowPoints = new Dictionary<GameWindow, HashSet<Point>>();
+
             foreach (var point in checkPoints)
             {
                 for (int i = windows.Count - 1; i >= 0; i--)
@@ -448,36 +440,15 @@ public class WindowManager : IWindowObserver
                 }
             }
 
-            if (windowPoints.Count == 0)
+            if (!windowPoints.Any()) return null;
+
+            var currentWindowPoints = windowPoints.GetValueOrDefault(currentWindow, new HashSet<Point>());
+
+            if (currentWindowPoints.Any())
             {
-                return null;
-            }
-
-            // 現在のウィンドウの情報を取得
-            var currentWindowPoints = currentWindow != null && windowPoints.ContainsKey(currentWindow)
-                ? windowPoints[currentWindow]
-                : new HashSet<Point>();
-
-            if (currentWindow == null)
-            {
-                // 現在のウィンドウがない場合、すべての点を含むウィンドウを探す
-                var fullWindow = windowPoints
-                    .Where(w => w.Value.Count == checkPoints.Length)
-                    .Select(w => new { Window = w.Key, BottomEdge = w.Key.AdjustedBounds.Bottom })
-                    .OrderBy(w => w.BottomEdge)
-                    .ThenByDescending(w => windows.IndexOf(w.Window))
-                    .FirstOrDefault();
-
-                return fullWindow?.Window ?? windowPoints.First().Key;
-            }
-
-            // 現在のウィンドウに点が残っている場合の処理
-            if (currentWindowPoints.Count > 0)
-            {
-                // 下部の点を含むウィンドウを探し、下端の位置で優先順位付け
                 var candidateWindows = windowPoints
                     .Where(w => w.Key != currentWindow &&
-                               (w.Value.Contains(checkPoints[0]) || w.Value.Contains(checkPoints[1])))
+                              (w.Value.Contains(checkPoints[0]) || w.Value.Contains(checkPoints[1])))
                     .Select(w => new
                     {
                         Window = w.Key,
@@ -491,29 +462,16 @@ public class WindowManager : IWindowObserver
                 if (candidateWindows.Any())
                 {
                     var bestWindow = candidateWindows.First();
-                    // 現在のウィンドウより下端が低い場合は移動しない
                     if (bestWindow.BottomEdge <= currentWindow.AdjustedBounds.Bottom)
                     {
                         return bestWindow.Window;
                     }
                 }
 
-                // 後面のウィンドウへの移動条件をチェック
-                var backWindows = windowPoints
-                    .Where(w => w.Key != currentWindow && w.Value.Count == checkPoints.Length)
-                    .Select(w => w.Key)
-                    .FirstOrDefault();
-
-                if (backWindows != null)
-                {
-                    return backWindows;
-                }
-
                 return currentWindow;
             }
             else
             {
-                // 下部の点を含むウィンドウの中から最適なものを選択
                 var candidateWindows = windowPoints
                     .Where(w => w.Value.Contains(checkPoints[0]) || w.Value.Contains(checkPoints[1]))
                     .Select(w => new
@@ -522,35 +480,18 @@ public class WindowManager : IWindowObserver
                         Points = w.Value,
                         BottomEdge = w.Key.AdjustedBounds.Bottom
                     })
-                    .OrderBy(w => w.BottomEdge) // 下端が高いものを優先
-                    .ThenByDescending(w => windows.IndexOf(w.Window)) // 同じ高さならZ-orderが高いものを優先
+                    .OrderBy(w => w.BottomEdge)
+                    .ThenByDescending(w => windows.IndexOf(w.Window))
                     .ToList();
 
                 if (candidateWindows.Any())
                 {
                     return candidateWindows.First().Window;
                 }
-
-                // 下部の点を含むウィンドウがない場合は、すべての点を含むウィンドウを探す
-                var fullWindow = windowPoints
-                    .Where(w => w.Value.Count == checkPoints.Length)
-                    .Select(w => new
-                    {
-                        Window = w.Key,
-                        BottomEdge = w.Key.AdjustedBounds.Bottom
-                    })
-                    .OrderBy(w => w.BottomEdge)
-                    .ThenByDescending(w => windows.IndexOf(w.Window))
-                    .FirstOrDefault();
-
-                if (fullWindow != null)
-                {
-                    return fullWindow.Window;
-                }
             }
-
-            return currentWindow;
         }
+
+        return currentWindow;
     }
     public GameWindow? GetWindowFullyContaining(Rectangle bounds)
     {
@@ -598,20 +539,19 @@ public class WindowManager : IWindowObserver
             AddWindowAndChildren(child, orderedWindows);
         }
     }
+
     public Region CalculateMovableRegion(GameWindow currentWindow)
     {
         Region movableRegion = new Region(currentWindow.AdjustedBounds);
 
         lock (windowLock)
         {
-            // 親ウィンドウのみを考慮
             var topLevelWindows = windows.Where(w => w.Parent == null && w != currentWindow);
             foreach (var window in topLevelWindows)
             {
                 if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
                     IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
                 {
-                    // ウィンドウとその子孫すべての領域を含める
                     movableRegion.Union(window.AdjustedBounds);
                     foreach (var child in window.GetAllDescendants())
                     {
@@ -620,70 +560,20 @@ public class WindowManager : IWindowObserver
                 }
             }
         }
+
         return movableRegion;
     }
 
     private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
         return (Math.Abs(rect1.Right - rect2.Left) <= 100 ||
-                Math.Abs(rect1.Left - rect2.Right) <= 100 ||
-                Math.Abs(rect1.Bottom - rect2.Top) <= 100 ||
-                Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
-               (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
-                rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
+               Math.Abs(rect1.Left - rect2.Right) <= 100 ||
+               Math.Abs(rect1.Bottom - rect2.Top) <= 100 ||
+               Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
+              (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
+               rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
     }
 
-    public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
-    {
-        lock (windowLock)
-        {
-            foreach (var window in windows)
-            {
-                // ウィンドウの枠を描画
-                g.DrawRectangle(Pens.Blue, window.AdjustedBounds);
-
-                // プレイヤーとの交差を確認
-                Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, playerBounds);
-                if (!intersection.IsEmpty)
-                {
-                    // 交差している場合、交差部分を赤で塗りつぶす
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(100, Color.Red)), intersection);
-                }
-
-                // 隣接しているかチェック
-                if (IsAdjacentTo(window.AdjustedBounds, playerBounds))
-                {
-                    // 隣接している場合、ウィンドウの枠を緑で描画
-                    g.DrawRectangle(new Pen(Color.Green, 2), window.AdjustedBounds);
-                }
-
-                foreach (var relation in parentChildRelations)
-                {
-                    var child = relation.Key;
-                    var parent = relation.Value;
-
-                    // 親子関係を線で表示
-                    using (Pen pen = new Pen(Color.Yellow, 2))
-                    {
-                        Point childCenter = new Point(
-                            child.Bounds.X + child.Bounds.Width / 2,
-                            child.Bounds.Y + child.Bounds.Height / 2
-                        );
-                        Point parentCenter = new Point(
-                            parent.Bounds.X + parent.Bounds.Width / 2,
-                            parent.Bounds.Y + parent.Bounds.Height / 2
-                        );
-                        g.DrawLine(pen, childCenter, parentCenter);
-                    }
-
-                    // 関係情報を表示
-                    string info = $"Parent: {parent.Id}";
-                    g.DrawString(info, SystemFonts.DefaultFont, Brushes.Yellow,
-                        child.Bounds.X, child.Bounds.Y - 20);
-                }
-            }
-        }
-    }
 
     public GameWindow? GetNearestWindow(Rectangle bounds)
     {
@@ -728,35 +618,36 @@ public class WindowManager : IWindowObserver
     {
         lock (windowLock)
         {
+            // プレイヤーが関連するウィンドウの場合は特別処理
+            if (player != null && (window == player.Parent ||
+                window.GetAllDescendants().Contains(player.Parent)))
+            {
+                player.BringToFront();
+            }
+
             if (windows.IndexOf(window) == windows.Count - 1) return;
 
-            // 直接の子ウィンドウの場合は兄弟間での順序変更のみ行う
             if (window.Parent != null)
             {
                 ReorderSiblingWindows(window);
                 return;
             }
 
-            // 親ウィンドウの場合の処理
-            // 現在のウィンドウとその子孫の相対的なZ順序を保持
             var currentOrder = CollectRelatedWindows(window)
                 .OrderBy(w => windows.IndexOf(w))
                 .ToList();
 
-            // 現在の相対的な順序の差分を計算
             var orderDiffs = new Dictionary<GameWindow, int>();
             for (int i = 0; i < currentOrder.Count; i++)
             {
                 orderDiffs[currentOrder[i]] = i;
             }
 
-            // すべてのウィンドウを一時的に削除
             foreach (var relatedWindow in currentOrder)
             {
                 windows.Remove(relatedWindow);
             }
 
-            // 相対的な順序を保ちながら最前面に追加
             int baseIndex = windows.Count;
             foreach (var relatedWindow in currentOrder)
             {
@@ -764,10 +655,8 @@ public class WindowManager : IWindowObserver
                 windows.Insert(Math.Min(newIndex, windows.Count), relatedWindow);
                 relatedWindow.BringToFront();
             }
-
         }
     }
-
     private void ReorderSiblingWindows(GameWindow clickedWindow)
     {
         if (clickedWindow.Parent == null) return;
@@ -819,8 +708,6 @@ public class WindowManager : IWindowObserver
             CollectRelatedWindowsRecursive(child, collection);
         }
     }
-
-    // イベントハンドラでキャッシュを無効化
     void IWindowObserver.OnWindowChanged(GameWindow window, WindowChangeType changeType)
     {
         if (changeType == WindowChangeType.Deleted)

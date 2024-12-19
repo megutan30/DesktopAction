@@ -155,7 +155,6 @@ public class Goal : Form, IEffectTarget
         // 必要に応じて更新処理を実装
     }
 
-    // Goal.cs
     public void Draw(Graphics g)
     {
         if (MainGame.IsDebugMode)
