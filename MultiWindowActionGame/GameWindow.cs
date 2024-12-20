@@ -142,8 +142,8 @@ namespace MultiWindowActionGame
             this.strategy = strategy;
             this.Strategy = strategy;
             this.OriginalSize = size;
-            this.MinimumSize = new Size(100, 100);
-            
+            this.MinimumSize = GameSettings.Instance.Window.MinimumSize;
+
             InitializeWindow(location, size);
             InitializeEvents();
 

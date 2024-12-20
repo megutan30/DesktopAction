@@ -63,8 +63,9 @@ namespace MultiWindowActionGame
 
         public async Task RunGameLoopAsync()
         {
-            const int targetFps = 60;
-            const int targetFrameTime = 1000 / targetFps;
+            // 固定値から設定値を使用するように変更
+            var settings = GameSettings.Instance.Gameplay;
+            int targetFrameTime = 1000 / settings.TargetFPS;
 
             while (Program.mainForm != null && !Program.mainForm.IsDisposed)
             {
@@ -120,6 +121,7 @@ namespace MultiWindowActionGame
             {
                 windowManager.DrawDebugInfo(g, player?.Bounds ?? Rectangle.Empty);
                 DrawDebugInfo(g);
+                DebugDisplay.DrawSettingsInfo(g, new Point(10, 100));
             }
 
             graphicsBuffer.Render();

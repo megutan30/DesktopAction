@@ -36,7 +36,7 @@ public class StageManager
             },
             GoalPosition = new Point(600, 700),
             GoalInFront = true,
-            PlayerStartPosition = new Point(600, 450),
+            PlayerStartPosition = new Point(600, 400),
             NoEntryZones = new List<(Point, Size)>
             {
             },

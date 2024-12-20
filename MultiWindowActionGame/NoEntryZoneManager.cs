@@ -40,7 +40,16 @@ public class NoEntryZoneManager
     // 指定された矩形が不可侵領域と重なるかチェック
     public bool IntersectsWithAnyZone(Rectangle bounds)
     {
-        return zones.Any(zone => zone.Bounds.IntersectsWith(bounds));
+        var settings = GameSettings.Instance.Gameplay;
+        // バッファを考慮した判定領域を作成
+        var bufferedBounds = new Rectangle(
+            bounds.X - (int)settings.NoEntryZoneBuffer,
+            bounds.Y - (int)settings.NoEntryZoneBuffer,
+            bounds.Width + (int)(settings.NoEntryZoneBuffer * 2),
+            bounds.Height + (int)(settings.NoEntryZoneBuffer * 2)
+        );
+
+        return zones.Any(zone => zone.Bounds.IntersectsWith(bufferedBounds));
     }
 
     public Rectangle GetValidPosition(Rectangle currentBounds, Rectangle proposedBounds)

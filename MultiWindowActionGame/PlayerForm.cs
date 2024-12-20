@@ -6,6 +6,7 @@ namespace MultiWindowActionGame
 {
     public class PlayerForm : Form, IEffectTarget, IDrawable
     {
+        private readonly GameSettings.PlayerSettings settings;
         private const int WM_MOUSEACTIVATE = 0x0021;
         private const int MA_NOACTIVATE = 3;
         private const int WM_SYSCOMMAND = 0x0112;
@@ -33,9 +34,6 @@ namespace MultiWindowActionGame
         private GameWindow? lastValidParent;
         private DateTime? minimizedTime;
         private float verticalVelocity = 0;
-        private float speed = 400.0f;
-        private float gravity = 1000.0f;
-        private float jumpForce = 600.0f;
         private Region movableRegion;
         private bool isHovered;
         private Size originalSize;
@@ -52,8 +50,9 @@ namespace MultiWindowActionGame
 
         public PlayerForm(Point startPosition)
         {
-            bounds = new Rectangle(startPosition, new Size(40, 40));
-            originalSize = bounds.Size;
+            settings = GameSettings.Instance.Player;
+            bounds = new Rectangle(startPosition, settings.DefaultSize);
+            originalSize = settings.DefaultSize;
             currentState = new NormalState();
             movableRegion = new Region();
             InitializeForm();
@@ -122,11 +121,11 @@ namespace MultiWindowActionGame
 
             if (Input.IsKeyDown(Keys.A) || Input.IsKeyDown(Keys.Left))
             {
-                movement.X -= speed * deltaTime;
+                movement.X -= settings.MovementSpeed * deltaTime;
             }
             if (Input.IsKeyDown(Keys.D) || Input.IsKeyDown(Keys.Right))
             {
-                movement.X += speed * deltaTime;
+                movement.X += settings.MovementSpeed * deltaTime;
             }
 
             movement.Y += verticalVelocity * deltaTime;
@@ -135,7 +134,7 @@ namespace MultiWindowActionGame
 
         private void Jump()
         {
-            verticalVelocity = -jumpForce;
+            verticalVelocity = -settings.JumpForce;
             IsGrounded = false;
             SetState(new JumpingState());
         }
@@ -144,7 +143,7 @@ namespace MultiWindowActionGame
         {
             if (!IsGrounded)
             {
-                verticalVelocity += gravity * deltaTime;
+                verticalVelocity += settings.Gravity * deltaTime;
             }
             else
             {
@@ -240,7 +239,7 @@ namespace MultiWindowActionGame
                 bounds.X,
                 bounds.Bottom - 10,
                 bounds.Width,
-                15
+                settings.GroundCheckHeight
             );
 
             float maxVerticalStep = Math.Max(Math.Abs(verticalVelocity * GameTime.DeltaTime), 20f);
