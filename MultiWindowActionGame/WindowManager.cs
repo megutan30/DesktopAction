@@ -566,12 +566,13 @@ public class WindowManager : IWindowObserver
 
     private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
-        return (Math.Abs(rect1.Right - rect2.Left) <= 100 ||
-               Math.Abs(rect1.Left - rect2.Right) <= 100 ||
-               Math.Abs(rect1.Bottom - rect2.Top) <= 100 ||
-               Math.Abs(rect1.Top - rect2.Bottom) <= 100) &&
-              (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
-               rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
+        var settings = GameSettings.Instance.Gameplay;
+        return (Math.Abs(rect1.Right - rect2.Left) <= settings.WindowSnapDistance ||
+                Math.Abs(rect1.Left - rect2.Right) <= settings.WindowSnapDistance ||
+                Math.Abs(rect1.Bottom - rect2.Top) <= settings.WindowSnapDistance ||
+                Math.Abs(rect1.Top - rect2.Bottom) <= settings.WindowSnapDistance) &&
+               (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
+                rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
     }
 
 
