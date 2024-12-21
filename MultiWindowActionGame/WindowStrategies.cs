@@ -3,6 +3,7 @@ using System;
 using System.Drawing;
 using System.Numerics;
 using System.Windows.Forms;
+using static MultiWindowActionGame.GameSettings;
 
 namespace MultiWindowActionGame
 {
@@ -36,6 +37,12 @@ namespace MultiWindowActionGame
         private Point lastMousePos;
         private Size originalSize;
         private bool isInitialized = false;
+        private readonly WindowSettings settings;
+        public ResizableWindowStrategy()
+        {
+            settings = GameSettings.Instance.Window;
+        }
+
         public void Update(GameWindow window, float deltaTime)
         {
             if (isResizing)
@@ -130,8 +137,8 @@ namespace MultiWindowActionGame
 
             // originalSizeを基準にした新しいサイズを計算
             Size proposedSize = new Size(
-                Math.Max(originalSize.Width + dx, window.MinimumSize.Width),
-                Math.Max(originalSize.Height + dy, window.MinimumSize.Height)
+                Math.Max(originalSize.Width + dx, settings.MinimumSize.Width),
+                Math.Max(originalSize.Height + dy, settings.MinimumSize.Height)
             );
 
             // 不可侵領域との衝突をチェックする前のサイズを保存
@@ -184,6 +191,12 @@ namespace MultiWindowActionGame
         private bool isBlockedUp = false;     // 上方向への移動が制限されているか
         private Point lastValidPosition;  // 最後の有効な位置
         public MovementEffect MovementEffect => movementEffect;
+        private readonly WindowSettings settings;
+        public MovableWindowStrategy()
+        {
+            settings = GameSettings.Instance.Window;
+        }
+
         public void Update(GameWindow window, float deltaTime)
         {
             if (isDragging)
@@ -270,7 +283,6 @@ namespace MultiWindowActionGame
                 (deltaY > 0 && isBlockedDown) || (deltaY < 0 && isBlockedUp) ? 0 : deltaY
             );
 
-            // 以下は既存のコード
             Rectangle proposedBounds = new Rectangle(
                 window.CollisionBounds.X + (int)movement.X,
                 window.CollisionBounds.Y + (int)movement.Y,

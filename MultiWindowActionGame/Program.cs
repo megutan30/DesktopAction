@@ -43,8 +43,6 @@ namespace MultiWindowActionGame
                 
             };
 
-            //mainForm.Activated += MainForm_Activated;
-
             SetWindowProperties(mainForm);
 
             MainGame game = new MainGame();

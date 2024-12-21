@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Numerics;
 using System.Windows.Forms;
+using static MultiWindowActionGame.GameSettings;
 
 namespace MultiWindowActionGame
 {
@@ -14,6 +15,13 @@ namespace MultiWindowActionGame
         private BufferedGraphics? graphicsBuffer;
         public static MainGame Instance => instance ?? throw new InvalidOperationException("MainGame is not initialized");
         public static bool IsDebugMode { get; private set; } = false;
+        private readonly GameplaySettings settings;
+        private SettingsForm? settingsForm;
+        private bool isPaused = false;
+        public MainGame()
+        {
+            settings = GameSettings.Instance.Gameplay;
+        }
         public void Initialize()
         {
             instance = this;
@@ -60,15 +68,28 @@ namespace MultiWindowActionGame
         {
             InitializeGraphicsBuffer();
         }
+        public void PauseGame()
+        {
+            isPaused = true;
+            GameTime.SetPaused(true);
+        }
 
+        public void ResumeGame()
+        {
+            isPaused = false;
+            GameTime.SetPaused(false);
+        }
         public async Task RunGameLoopAsync()
         {
-            // 固定値から設定値を使用するように変更
-            var settings = GameSettings.Instance.Gameplay;
             int targetFrameTime = 1000 / settings.TargetFPS;
 
             while (Program.mainForm != null && !Program.mainForm.IsDisposed)
             {
+                if (isPaused)
+                {
+                    await Task.Delay(100);
+                    return;
+                }
                 int startTime = Environment.TickCount;
 
                 GameTime.Update();
@@ -99,11 +120,27 @@ namespace MultiWindowActionGame
             await windowManager.UpdateAsync(GameTime.DeltaTime);
 
             StageManager.Instance.CurrentGoal?.EnsureZOrder();
-
+            if (Input.IsKeyDown(Keys.F1))
+            {
+                ShowSettingsForm();
+                await Task.Delay(200); // キーの連続入力を防ぐ
+            }
             if (player != null && StageManager.Instance.CheckGoal(player))
             {
                 Debug.WriteLine("Goal!");
                 StageManager.Instance.StartNextStage();
+            }
+        }
+        private void ShowSettingsForm()
+        {
+            if (Program.mainForm != null)
+            {
+                isPaused = true;
+                using (var settingsForm = new SettingsForm())
+                {
+                    settingsForm.ShowDialog(Program.mainForm);
+                }
+                isPaused = false;
             }
         }
         private void Render()

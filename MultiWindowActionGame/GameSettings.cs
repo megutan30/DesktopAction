@@ -32,16 +32,12 @@ namespace MultiWindowActionGame
         public class WindowSettings
         {
             public Size MinimumSize { get; set; }
-            public int ResizeThreshold { get; set; }
-            public int MovementThreshold { get; set; }
-            public float AnimationSpeed { get; set; }
         }
 
         // ゲームプレイ設定
         public class GameplaySettings
         {
             public int TargetFPS { get; set; }
-            public float NoEntryZoneBuffer { get; set; }
             public float WindowSnapDistance { get; set; }
         }
 
@@ -93,15 +89,11 @@ namespace MultiWindowActionGame
             Window = new WindowSettings
             {
                 MinimumSize = new Size(100, 100),
-                ResizeThreshold = 5,
-                MovementThreshold = 100,
-                AnimationSpeed = 2.0f
             };
 
             Gameplay = new GameplaySettings
             {
                 TargetFPS = 60,
-                NoEntryZoneBuffer = 5.0f,
                 WindowSnapDistance = 20.0f
             };
         }

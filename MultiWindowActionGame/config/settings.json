@@ -7,20 +7,16 @@
       "Width": 40,
       "Height": 40
     },
-    "GroundCheckHeight": 25
+    "GroundCheckHeight": 15
   },
   "Window": {
     "MinimumSize": {
       "Width": 100,
       "Height": 100
-    },
-    "ResizeThreshold": 5,
-    "MovementThreshold": 100,
-    "AnimationSpeed": 2.0
+    }
   },
   "Gameplay": {
     "TargetFPS": 60,
-    "NoEntryZoneBuffer": 0.0,
     "WindowSnapDistance": 20.0
   }
 }
