@@ -130,6 +130,8 @@ namespace MultiWindowActionGame
                 Debug.WriteLine("Goal!");
                 StageManager.Instance.StartNextStage();
             }
+
+            SettingsNotification.Update(GameTime.DeltaTime);
         }
         private void ShowSettingsForm()
         {
@@ -159,6 +161,7 @@ namespace MultiWindowActionGame
                 windowManager.DrawDebugInfo(g, player?.Bounds ?? Rectangle.Empty);
                 DrawDebugInfo(g);
                 DebugDisplay.DrawSettingsInfo(g, new Point(10, 100));
+                SettingsNotification.Draw(g); 
             }
 
             graphicsBuffer.Render();

@@ -6,7 +6,7 @@ namespace MultiWindowActionGame
 {
     public class PlayerForm : Form, IEffectTarget, IDrawable
     {
-        private readonly GameSettings.PlayerSettings settings;
+        private GameSettings.PlayerSettings settings;
         private const int WM_MOUSEACTIVATE = 0x0021;
         private const int MA_NOACTIVATE = 3;
         private const int WM_SYSCOMMAND = 0x0112;
@@ -51,12 +51,38 @@ namespace MultiWindowActionGame
         public PlayerForm(Point startPosition)
         {
             settings = GameSettings.Instance.Player;
+            GameSettings.Instance.SettingsChanged += OnSettingsChanged;
             bounds = new Rectangle(startPosition, settings.DefaultSize);
             originalSize = settings.DefaultSize;
             currentState = new NormalState();
             movableRegion = new Region();
             InitializeForm();
             this.Load += PlayerForm_Load;
+        }
+        private void OnSettingsChanged(object? sender, GameSettings.SettingsChangedEventArgs e)
+        {
+            if (e.Type == GameSettings.SettingType.Player || e.Type == GameSettings.SettingType.All)
+            {
+                // 設定を再読み込み
+                settings = GameSettings.Instance.Player;
+
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(UpdatePlayerProperties);
+                }
+                else
+                {
+                    UpdatePlayerProperties();
+                }
+            }
+        }
+
+        private void UpdatePlayerProperties()
+        {
+            if (bounds.Size != settings.DefaultSize)
+            {
+                ResetSize(settings.DefaultSize);
+            }
         }
 
         private void InitializeForm()
@@ -390,6 +416,12 @@ namespace MultiWindowActionGame
         private void OnPaint(object? sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // プレイヤーの描画
+            using (var brush = new SolidBrush(Color.Blue))
+            {
+                e.Graphics.FillRectangle(brush, ClientRectangle);
+            }
 
             // 状態に応じた描画
             currentState.Draw(this, e.Graphics);
@@ -745,11 +777,11 @@ namespace MultiWindowActionGame
                     break;
             }
         }
-
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                GameSettings.Instance.SettingsChanged -= OnSettingsChanged;
                 movableRegion?.Dispose();
             }
             base.Dispose(disposing);

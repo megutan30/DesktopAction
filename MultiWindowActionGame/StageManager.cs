@@ -24,26 +24,7 @@ public class StageManager
     private void InitializeStages()
     {
         //親子関係がわかりやすい。
-        //Stage8
-        //最小化
-        stages.Add(new StageData
-        {
-            Windows = new List<(WindowType type, Point location, Size size, string? text)>
-            {
-                (WindowType.NormalBlack, new Point(500, 250), new Size(500, 580),null),
-                (WindowType.Minimizable, new Point(500, 300), new Size(500, 300),null),
-                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 8"),
-            },
-            GoalPosition = new Point(600, 700),
-            GoalInFront = true,
-            PlayerStartPosition = new Point(600, 400),
-            NoEntryZones = new List<(Point, Size)>
-            {
-            },
 
-            ToTitaleButtonPosition = new Point(85, 90),
-            RetryButtonPosition = new Point(295, 90),
-        });
         // ステージデータの初期化
         // タイトルステージ（インデックス0）
         stages.Add(new StageData
@@ -247,7 +228,26 @@ public class StageManager
             ToTitaleButtonPosition = new Point(85, 90),
             RetryButtonPosition = new Point(295, 90),
         });
+        //Stage8
+        //最小化
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.NormalBlack, new Point(500, 250), new Size(500, 580),null),
+                (WindowType.Minimizable, new Point(500, 300), new Size(500, 300),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 8"),
+            },
+            GoalPosition = new Point(600, 700),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(600, 400),
+            NoEntryZones = new List<(Point, Size)>
+            {
+            },
 
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
         //Stage9
         //ウィンドウ外に出る
         stages.Add(new StageData
