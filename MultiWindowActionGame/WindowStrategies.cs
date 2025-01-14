@@ -77,7 +77,6 @@ namespace MultiWindowActionGame
             lastMousePos = window.PointToClient(Cursor.Position);
             originalSize = window.CollisionBounds.Size;
         }
-
         private void StopResizing()
         {
             isResizing = false;

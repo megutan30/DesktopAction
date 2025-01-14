@@ -40,10 +40,9 @@ namespace MultiWindowActionGame
                 BackColor = System.Drawing.Color.Black,
                 TransparencyKey = System.Drawing.Color.Black,
                 Text ="Game"
-                
             };
 
-            SetWindowProperties(mainForm);
+            WindowManager.Instance.RegisterFormOrder(mainForm, WindowManager.ZOrderPriority.Bottom);
 
             MainGame game = new MainGame();
             game.Initialize();
@@ -53,35 +52,6 @@ namespace MultiWindowActionGame
             Application.Run(mainForm);
 
             await gameLoopTask; 
-        }
-     
-        private static void SetWindowProperties(Form form)
-        {
-            int exStyle = GetWindowLong(form.Handle, GWL_EXSTYLE);
-            exStyle |= WS_EX_LAYERED;
-            exStyle |= WS_EX_TRANSPARENT;
-            exStyle |= WS_EX_TOPMOST;
-            SetWindowLong(form.Handle, GWL_EXSTYLE, exStyle);
-            SetWindowPos(form.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-
-        public static void EnsureTopMost()
-        {
-            if (mainForm != null && !mainForm.IsDisposed)
-            {
-                if (mainForm.InvokeRequired)
-                {
-                    mainForm.Invoke(new Action(EnsureTopMost));
-                }
-                else
-                {
-                    if (mainForm.Handle != IntPtr.Zero)
-                    {
-                        SetWindowPos(mainForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE);
-                    }
-                }
-            }
         }
     }
 }

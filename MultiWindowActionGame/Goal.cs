@@ -30,38 +30,22 @@ public class Goal : Form, IEffectTarget
     {
         this.isInFront = isInFront;
         InitializeGoal(location);
-        this.Load += Goal_Load;
+        // WindowManagerに登録
+        WindowManager.Instance.RegisterFormOrder(this,
+            isInFront ? WindowManager.ZOrderPriority.Goal : WindowManager.ZOrderPriority.Bottom);
     }
     private void Goal_Load(object? sender, EventArgs e)
     {
         SetWindowProperties();
-    }
-    public void EnsureZOrder()
-    {
-        if (isInFront)
-        {
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-        else
-        {
-            SetWindowPos(this.Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
+        WindowManager.Instance.UpdateFormZOrder(this,
+            isInFront ? WindowManager.ZOrderPriority.Goal : WindowManager.ZOrderPriority.Bottom);
     }
     private void SetWindowProperties()
     {
-        if (isInFront)
-        {
-            int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
-            exStyle |= WS_EX_LAYERED;
-            exStyle |= WS_EX_TRANSPARENT;
-            exStyle |= WS_EX_TOPMOST;
-            SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-        else
-        {
-            SetWindowPos(this.Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
+        int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
+        exStyle |= WS_EX_LAYERED;
+        exStyle |= WS_EX_TRANSPARENT;
+        SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
     }
     private void InitializeGoal(Point location)
     {
@@ -169,6 +153,14 @@ public class Goal : Form, IEffectTarget
                 Bounds.X,
                 Bounds.Y - 20);
         }
+    }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            WindowManager.Instance.UnregisterFormOrder(this);
+        }
+        base.Dispose(disposing);
     }
 }
 public static class Win32

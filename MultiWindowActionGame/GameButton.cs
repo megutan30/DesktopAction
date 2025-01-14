@@ -27,7 +27,7 @@ public abstract class GameButton : Form
     {
         bounds = new Rectangle(location, size);
         InitializeButton();
-        this.Load += GameButton_Load;
+        WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Button);
     }
     private void GameButton_Load(object? sender, EventArgs e)
     {
@@ -40,13 +40,6 @@ public abstract class GameButton : Form
         exStyle |= WS_EX_TOPMOST;
         SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
         SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    }
-    public void EnsureTopMost()
-    {
-        if (this.Handle != IntPtr.Zero)
-        {
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
     }
     private void InitializeButton()
     {
@@ -93,5 +86,17 @@ public abstract class GameButton : Form
         }
 
         DrawButtonContent(e.Graphics);
+    }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // フォームが破棄される前にWindowManagerから登録解除
+            if (!IsDisposed)
+            {
+                WindowManager.Instance.UnregisterFormOrder(this);
+            }
+        }
+        base.Dispose(disposing);
     }
 }

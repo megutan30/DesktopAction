@@ -58,6 +58,8 @@ namespace MultiWindowActionGame
             movableRegion = new Region();
             InitializeForm();
             this.Load += PlayerForm_Load;
+
+            WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Player);
         }
         private void OnSettingsChanged(object? sender, GameSettings.SettingsChangedEventArgs e)
         {
@@ -110,6 +112,7 @@ namespace MultiWindowActionGame
         private void PlayerForm_Load(object? sender, EventArgs e)
         {
             SetWindowProperties();
+            WindowManager.Instance.UpdateFormZOrder(this, WindowManager.ZOrderPriority.Player);
         }
 
         private void SetWindowProperties()
@@ -117,9 +120,7 @@ namespace MultiWindowActionGame
             int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
             exStyle |= WS_EX_LAYERED;
             exStyle |= WS_EX_TRANSPARENT;
-            exStyle |= WS_EX_TOPMOST;
             SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         }
 
         public async Task UpdateAsync(float deltaTime)
@@ -781,6 +782,7 @@ namespace MultiWindowActionGame
         {
             if (disposing)
             {
+                WindowManager.Instance.UnregisterFormOrder(this);
                 GameSettings.Instance.SettingsChanged -= OnSettingsChanged;
                 movableRegion?.Dispose();
             }

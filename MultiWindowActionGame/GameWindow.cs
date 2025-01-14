@@ -147,9 +147,10 @@ namespace MultiWindowActionGame
             InitializeWindow(location, size);
             InitializeEvents();
 
+            WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Window);
+
             Console.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
-            this.Activated += GameWindow_Activated;
         }
 
         private void InitializeWindow(Point location, Size size)
@@ -399,12 +400,10 @@ namespace MultiWindowActionGame
                     }
                     break;
                 case 0x0201: // WM_LBUTTONDOWN
-                    shouldBringToFront = true;
                     isDragging = true;
-
-                    WindowManager.Instance.HandleWindowActivation(this);
+                    shouldBringToFront = true;
+                    WindowManager.Instance.BringWindowToFront(this);
                     break;
-
                 case 0x0202: // WM_LBUTTONUP
                     if (shouldBringToFront)
                     {
@@ -479,17 +478,21 @@ namespace MultiWindowActionGame
         }
         public new void BringToFront()
         {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action(() => SetWindowPos(this.Handle, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)));
-            }
-            else
-            {
-                SetWindowPos(this.Handle, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-            }
+            WindowManager.Instance.BringWindowToFront(this);
         }
         #endregion
-
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                WindowManager.Instance.UnregisterFormOrder(this);
+                foreach (var observer in observers.ToList())
+                {
+                    RemoveObserver(observer);
+                }
+            }
+            base.Dispose(disposing);
+        }
         public class SizeChangedEventArgs : EventArgs
         {
             public Size NewSize { get; }
