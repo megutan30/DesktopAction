@@ -26,30 +26,8 @@ namespace MultiWindowActionGame
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
-        private bool isMoving = false;
-        private bool isResizing = false;
-        private bool isDragging = false;
-        private bool shouldBringToFront = false;
         public bool IsMinimized {  get; private set; }
         #region Win32 API Constants and Imports
-        private const int WM_SYSCOMMAND = 0x0112;
-        private const int WM_MOUSEMOVE = 0x0200;
-        private const int SC_CLOSE = 0xF060;
-        private const int SC_MINIMIZE = 0xF020;
-        private const int SC_MAXIMIZE = 0xF030;
-        private const int SC_RESTORE = 0xF120;
-        private const int HWND_TOP = 0;
-        private const uint SWP_NOMOVE = 0x0002;
-        private const uint SWP_NOSIZE = 0x0001;
-        private const uint MF_BYCOMMAND = 0x00000000;
-        private const uint MF_GRAYED = 0x00000001;
-        private const int WM_NCHITTEST = 0x0084;
-        private const int WM_NCLBUTTONDOWN = 0x00A1;
-        private const int SC_MOVE = 0xF010;
-        private const int HTCAPTION = 2;
-        private const int WM_MOUSEACTIVATE = 0x0021;
-        private const int MA_NOACTIVATE = 3;
-
         [DllImport("user32.dll")]
         private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
 
@@ -308,7 +286,7 @@ namespace MultiWindowActionGame
         private void GameWindow_Load(object sender, EventArgs e)
         {
             IntPtr hMenu = GetSystemMenu(this.Handle, false);
-            EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
+            EnableMenuItem(hMenu, WindowMessages.SC_CLOSE, WindowMessages.MF_BYCOMMAND | WindowMessages.MF_GRAYED);
         }
         private void GameWindow_Move(object? sender, EventArgs e)
         {
@@ -372,94 +350,15 @@ namespace MultiWindowActionGame
         #region Window Message Processing
         protected override void WndProc(ref Message m)
         {
-            switch (m.Msg)
+            var result = WindowMessageHandler.HandleWindowMessage(this, m);
+
+            if (result.Handled)
             {
-                case WM_MOUSEACTIVATE:
-                    m.Result = (IntPtr)MA_NOACTIVATE;
-                    return;
-                case WM_NCHITTEST:
-                    // タイトルバーのヒットテストを処理
-                    base.WndProc(ref m);
-                    if (m.Result.ToInt32() == HTCAPTION)
-                    {
-                        m.Result = IntPtr.Zero;
-                    }
-                    return;
-
-                case WM_NCLBUTTONDOWN:
-                    // タイトルバーでのマウス左ボタンクリックを処理
-                    if (m.WParam.ToInt32() == HTCAPTION) return;  // タイトルバーでのクリックを無視
-                    break;
-                case WM_SYSCOMMAND:
-                    int command = m.WParam.ToInt32() & 0xFFF0;
-                    if (command == SC_CLOSE) return;
-                    if (command == SC_MINIMIZE)
-                    {
-                        OnMinimize();
-                    }
-                    else if (command == SC_RESTORE)
-                    {
-                        OnRestore();
-                    }
-                    break;
-                case 0x0201: // WM_LBUTTONDOWN
-                    isDragging = true;
-                    shouldBringToFront = true;
-                    WindowManager.Instance.BringWindowToFront(this);
-                    break;
-                case 0x0202: // WM_LBUTTONUP
-                    if (shouldBringToFront)
-                    {
-                        WindowManager.Instance.CheckPotentialParentWindow(this);
-                        shouldBringToFront = false;
-                    }
-
-                    isDragging = false;
-
-                    var player = MainGame.GetPlayer();
-                    if (player != null)
-                    {
-                        // プレイヤーの現在の親ウィンドウを取得
-                        var playerParent = player.Parent;
-                        if (playerParent != null)
-                        {
-                            // 親ウィンドウの新しいMovableRegionを計算して更新
-                            player.UpdateMovableRegion(
-                                WindowManager.Instance.CalculateMovableRegion(playerParent)
-                            );
-                        }
-                    }
-                    break;
-
-                case 0x0231: // WM_ENTERSIZEMOVE
-                    if (Strategy is MovableWindowStrategy) isMoving = true;
-                    else if (Strategy is ResizableWindowStrategy) isResizing = true;
-                    break;
-
-                case 0x0232: // WM_EXITSIZEMOVE
-                    isMoving = isResizing = false;
-                    break;
-                case 0x0200: // WM_MOUSEMOVE
-                    Strategy.UpdateCursor(this, PointToClient(Cursor.Position));
-                    if (!isDragging) return;
-                    UpdateMovableRegionForDescendants(this);
-                    break;
+                m.Result = result.Result;
+                return;
             }
 
             base.WndProc(ref m);
-
-            if (strategy is ResizableWindowStrategy resizableStrategy)
-            {
-                resizableStrategy.HandleWindowMessage(this, m);
-            }
-            if (strategy is MovableWindowStrategy movableStrategy)
-            {
-                movableStrategy.HandleWindowMessage(this, m);
-            }
-            if (strategy is MinimizableWindowStrategy minimizableStrategy)
-            {
-                minimizableStrategy.HandleWindowMessage(this, m);
-            }
         }
         private void UpdateMovableRegionForDescendants(GameWindow window)
         {

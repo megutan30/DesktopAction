@@ -12,6 +12,7 @@ namespace MultiWindowActionGame
         void Update(GameWindow window, float deltaTime);
         void HandleInput(GameWindow window);
         void HandleResize(GameWindow window);
+        void HandleWindowMessage(GameWindow window, Message m);
         void UpdateCursor(GameWindow window, Point clientMousePos);
         void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered);
     }
@@ -566,26 +567,5 @@ namespace MultiWindowActionGame
             // リサイズ時のテキスト再描画
             window.Invalidate();
         }
-    }
-    public static class WindowMessages
-    {
-        // マウス関連
-        public const int WM_MOUSEMOVE = 0x0200;
-        public const int WM_LBUTTONDOWN = 0x0201;
-        public const int WM_LBUTTONUP = 0x0202;
-        public const int WM_MOUSEACTIVATE = 0x0021;
-        public const int MA_NOACTIVATE = 3;
-
-        // ヒットテスト関連
-        public const int WM_NCHITTEST = 0x0084;
-        public const int HTCAPTION = 2;
-
-        // システムコマンド関連
-        public const int WM_SYSCOMMAND = 0x0112;
-        public const int SC_CLOSE = 0xF060;
-        public const int SC_MINIMIZE = 0xF020;
-        public const int SC_MAXIMIZE = 0xF030;
-        public const int SC_RESTORE = 0xF120;
-        public const int SC_MOVE = 0xF010;
     }
 }
