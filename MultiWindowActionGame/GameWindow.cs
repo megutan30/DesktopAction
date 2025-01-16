@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace MultiWindowActionGame
 {
@@ -109,6 +110,11 @@ namespace MultiWindowActionGame
             WindowManager.Instance.HandleWindowActivation(this);
             WindowManager.Instance.CheckPotentialParentWindow(this);
         }
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            Strategy.UpdateCursor(this, e.Location);
+        }
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
             this.strategy = strategy;
@@ -121,7 +127,7 @@ namespace MultiWindowActionGame
 
             WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Window);
 
-            Console.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
+            Debug.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
         }
         private void InitializeWindow(Point location, Size size)
@@ -355,10 +361,17 @@ namespace MultiWindowActionGame
             if (result.Handled)
             {
                 m.Result = result.Result;
-                return;
+            }
+            else
+            {
+                base.WndProc(ref m);
             }
 
-            base.WndProc(ref m);
+            // カーソルの更新処理を追加
+            if (m.Msg == WindowMessages.WM_MOUSEMOVE)
+            {
+                Strategy.UpdateCursor(this, PointToClient(Cursor.Position));
+            }
         }
         private void UpdateMovableRegionForDescendants(GameWindow window)
         {

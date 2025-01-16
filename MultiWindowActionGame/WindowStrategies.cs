@@ -21,7 +21,6 @@ namespace MultiWindowActionGame
         // 共通のフィールド
         protected bool isActive = false;
         protected readonly WindowSettings settings;
-
         protected BaseWindowStrategy()
         {
             settings = GameSettings.Instance.Window;
@@ -34,7 +33,6 @@ namespace MultiWindowActionGame
         {
             window.Invalidate();
         }
-
         public virtual void HandleWindowMessage(GameWindow window, Message m)
         {
             switch (m.Msg)

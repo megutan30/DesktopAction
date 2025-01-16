@@ -704,61 +704,60 @@ public void BringWindowToFront(GameWindow window)
         float dy = Math.Max(0, Math.Max(windowBounds.Top - bounds.Bottom, bounds.Top - windowBounds.Bottom));
         return (float)Math.Sqrt(dx * dx + dy * dy);
     }
-
-   public void HandleWindowActivation(GameWindow window)
-{
-    lock (windowLock)
+    public void HandleWindowActivation(GameWindow window)
     {
-        // プレイヤーが関連するウィンドウの場合は特別処理
-        if (player != null && (window == player.Parent ||
-            window.GetAllDescendants().Contains(player.Parent)))
+        lock (windowLock)
         {
-            UpdateFormZOrder(player, ZOrderPriority.Player);
-        }
-
-        // 既に最前面の場合は何もしない
-        if (windows.IndexOf(window) == windows.Count - 1) return;
-
-        // 親がある場合と、親がない場合で処理を分ける
-        if (window.Parent != null)
-        {
-            // 同じ親を持つウィンドウ（兄弟）間での順序変更のみを行う
-            var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
-            var nonSiblings = windows.Where(w => w.Parent != window.Parent).ToList();
-
-            // 兄弟ウィンドウを一時的に除外
-            foreach (var sibling in siblings)
+            // プレイヤーが関連するウィンドウの場合は特別処理
+            if (player != null && (window == player.Parent ||
+                window.GetAllDescendants().Contains(player.Parent)))
             {
-                windows.Remove(sibling);
+                UpdateFormZOrder(player, ZOrderPriority.Player);
             }
 
-            // クリックされたウィンドウを最後に追加
-            siblings.Remove(window);
-            siblings.Add(window);
+            // 既に最前面の場合は何もしない
+            if (windows.IndexOf(window) == windows.Count - 1) return;
 
-            // 適切な位置に兄弟ウィンドウを戻す
-            var insertIndex = nonSiblings.FindIndex(w => w == window.Parent) + 1;
-            windows.InsertRange(insertIndex, siblings);
-        }
-        else
-        {
-            // ルートウィンドウの場合は、子孫を含めて移動
-            var windowGroup = CollectRelatedWindows(window);
-            
-            // グループ全体を一時的に削除
-            foreach (var groupWindow in windowGroup)
+            // 親がある場合と、親がない場合で処理を分ける
+            if (window.Parent != null)
             {
-                windows.Remove(groupWindow);
+                // 同じ親を持つウィンドウ（兄弟）間での順序変更のみを行う
+                var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
+                var nonSiblings = windows.Where(w => w.Parent != window.Parent).ToList();
+
+                // 兄弟ウィンドウを一時的に除外
+                foreach (var sibling in siblings)
+                {
+                    windows.Remove(sibling);
+                }
+
+                // クリックされたウィンドウを最後に追加
+                siblings.Remove(window);
+                siblings.Add(window);
+
+                // 適切な位置に兄弟ウィンドウを戻す
+                var insertIndex = nonSiblings.FindIndex(w => w == window.Parent) + 1;
+                windows.InsertRange(insertIndex, siblings);
+            }
+            else
+            {
+                // ルートウィンドウの場合は、子孫を含めて移動
+                var windowGroup = CollectRelatedWindows(window);
+
+                // グループ全体を一時的に削除
+                foreach (var groupWindow in windowGroup)
+                {
+                    windows.Remove(groupWindow);
+                }
+
+                // グループ全体を最前面に追加（相対的な順序を維持）
+                windows.AddRange(windowGroup);
             }
 
-            // グループ全体を最前面に追加（相対的な順序を維持）
-            windows.AddRange(windowGroup);
+            // Z-orderの更新
+            UpdateWindowGroupZOrder();
         }
-
-        // Z-orderの更新
-        UpdateWindowGroupZOrder();
     }
-}
     public void UpdateWindowGroupZOrder()
     {
         // 優先度ごとに処理
