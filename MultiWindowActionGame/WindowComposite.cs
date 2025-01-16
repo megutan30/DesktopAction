@@ -19,7 +19,6 @@ namespace MultiWindowActionGame
         void OnRestore();
         bool IsMinimized { get; }
     }
-
     public interface IWindowEffect
     {
         EffectType Type { get; }
@@ -27,7 +26,6 @@ namespace MultiWindowActionGame
         void Apply(IEffectTarget target);
         //void PropagateToChildren(IEffectTarget target);
     }
-
     public enum EffectType
     {
         Movement,
@@ -35,51 +33,52 @@ namespace MultiWindowActionGame
         Delete,
         Minimize
     }
-
-    public class MovementEffect : IWindowEffect
+    public abstract class BaseWindowEffect : IWindowEffect
     {
-        private Vector2 movement;
-        private Point sourceWindowLocation;
-        private Dictionary<IEffectTarget, Point> initialRelativePositions = new Dictionary<IEffectTarget, Point>();
-        public Vector2 CurrentMovement => movement;
-        public EffectType Type => EffectType.Movement;
-        public bool IsActive { get; private set; }
+        public bool IsActive { get; protected set; }
+        public abstract EffectType Type { get; }
 
-        public void UpdateMovement(Vector2 newMovement)
-        {
-            movement = newMovement;
-            IsActive = movement != Vector2.Zero;
-        }
-
-        public void Apply(IEffectTarget target)
+        public virtual void Apply(IEffectTarget target)
         {
             if (!IsActive || !target.CanReceiveEffect(this)) return;
 
-            // 対象自身に効果を適用
-            ApplyMovementToTarget(target);
+            // 対象自身にエフェクトを適用
+            ApplyToTarget(target);
 
-            // 直接の子のみに効果を適用（孫は親から効果を受け取る）
-            foreach (var directChild in GetDirectChildren(target))
+            // 直接の子にのみ適用
+            foreach (var child in GetDirectChildren(target))
             {
-                Apply(directChild);
+                Apply(child);
             }
         }
-        private IEnumerable<IEffectTarget> GetDirectChildren(IEffectTarget parent)
+
+        protected abstract void ApplyToTarget(IEffectTarget target);
+
+        protected IEnumerable<IEffectTarget> GetDirectChildren(IEffectTarget parent)
         {
-            // 子の中で、自身が親であるもののみを返す（孫は除外）
             return parent.Children.Where(child =>
             {
                 if (child is GameWindow childWindow)
                 {
                     return childWindow.Parent == parent;
                 }
-                return true; // Player等の非ウィンドウ要素は常に直接の子として扱う
+                return true;
             });
         }
-        private void ApplyMovementToTarget(IEffectTarget target)
-        {
-            if (!target.CanReceiveEffect(this)) return;
+    }
+    public class MovementEffect : BaseWindowEffect
+    {
+        private Vector2 movement;
+        public Vector2 CurrentMovement => movement;
+        public override EffectType Type => EffectType.Movement;
 
+        public void UpdateMovement(Vector2 newMovement)
+        {
+            movement = newMovement;
+            IsActive = movement != Vector2.Zero;
+        }
+        protected override void ApplyToTarget(IEffectTarget target)
+        {
             var newPosition = target is GameWindow window
                 ? new Point(
                     window.Location.X + (int)movement.X,
@@ -91,20 +90,16 @@ namespace MultiWindowActionGame
             target.UpdateTargetPosition(newPosition);
         }
     }
-
-    public class ResizeEffect : IWindowEffect
+    public class ResizeEffect : BaseWindowEffect
     {
-        private Dictionary<IEffectTarget, SizeF> targetScales = new Dictionary<IEffectTarget, SizeF>();
-        private Dictionary<IEffectTarget, Size> referenceSize = new Dictionary<IEffectTarget, Size>();
-
-        public EffectType Type => EffectType.Resize;
-        public bool IsActive { get; private set; }
+        private readonly Dictionary<IEffectTarget, SizeF> targetScales = new();
+        private readonly Dictionary<IEffectTarget, Size> referenceSize = new();
+        public override EffectType Type => EffectType.Resize;
 
         public void UpdateScale(IEffectTarget target, SizeF newScale)
         {
-            if (!targetScales.ContainsKey(target))
+            if (!referenceSize.ContainsKey(target))
             {
-                // 初期参照サイズを保存
                 referenceSize[target] = target is GameWindow window ? window.Size :
                                       target is PlayerForm player ? player.Bounds.Size :
                                       Size.Empty;
@@ -113,29 +108,7 @@ namespace MultiWindowActionGame
             IsActive = true;
         }
 
-        public void Apply(IEffectTarget target)
-        {
-            if (!IsActive || !target.CanReceiveEffect(this)) return;
-
-            ApplyResizeToTarget(target);
-
-            foreach (var directChild in GetDirectChildren(target))
-            {
-                Apply(directChild);
-            }
-        }
-        private IEnumerable<IEffectTarget> GetDirectChildren(IEffectTarget parent)
-        {
-            return parent.Children.Where(child =>
-            {
-                if (child is GameWindow childWindow)
-                {
-                    return childWindow.Parent == parent;
-                }
-                return true;
-            });
-        }
-        private void ApplyResizeToTarget(IEffectTarget target)
+        protected override void ApplyToTarget(IEffectTarget target)
         {
             if (!referenceSize.ContainsKey(target)) return;
 
@@ -161,22 +134,25 @@ namespace MultiWindowActionGame
         }
         public void Reset(IEffectTarget target)
         {
-            if (target == null) return; // null チェックを追加
+            if (target == null) return;
 
             targetScales.Remove(target);
             referenceSize.Remove(target);
             IsActive = targetScales.Count > 0;
         }
     }
-    public class MinimizeEffect : IWindowEffect
+    public class MinimizeEffect : BaseWindowEffect
     {
-        public EffectType Type => EffectType.Minimize;
-        public bool IsActive { get; private set; }
-
-        public void Apply(IEffectTarget target)
+        public override EffectType Type => EffectType.Minimize;
+        public void Activate()
         {
-            if (!target.CanReceiveEffect(this)) return;
+            IsActive = true;
+        }
+        protected override void ApplyToTarget(IEffectTarget target)
+        {
+            if (!IsActive) return;
             target.OnMinimize();
+            IsActive = false;
         }
     }
 }

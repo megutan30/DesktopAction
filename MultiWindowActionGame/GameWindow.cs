@@ -24,7 +24,6 @@ namespace MultiWindowActionGame
         private List<IWindowObserver> observers = new List<IWindowObserver>();
         private readonly List<IWindowEffect> effects = new();
         public Guid Id { get; } = Guid.NewGuid();
-
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
         private bool isMoving = false;
@@ -32,7 +31,6 @@ namespace MultiWindowActionGame
         private bool isDragging = false;
         private bool shouldBringToFront = false;
         public bool IsMinimized {  get; private set; }
-
         #region Win32 API Constants and Imports
         private const int WM_SYSCOMMAND = 0x0112;
         private const int WM_MOUSEMOVE = 0x0200;
@@ -74,7 +72,6 @@ namespace MultiWindowActionGame
             int cy,
             uint uFlags
         );
-
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
         {
@@ -83,7 +80,6 @@ namespace MultiWindowActionGame
             public int Right;
             public int Bottom;
         }
-
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT
         {
@@ -124,7 +120,6 @@ namespace MultiWindowActionGame
 
             WindowState = FormWindowState.Minimized;
         }
-
         public void OnRestore()
         {
             IsMinimized = false;
@@ -136,7 +131,6 @@ namespace MultiWindowActionGame
             WindowManager.Instance.HandleWindowActivation(this);
             WindowManager.Instance.CheckPotentialParentWindow(this);
         }
-
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
             this.strategy = strategy;
@@ -152,7 +146,6 @@ namespace MultiWindowActionGame
             Console.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
         }
-
         private void InitializeWindow(Point location, Size size)
         {
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -164,7 +157,6 @@ namespace MultiWindowActionGame
             this.MaximizeBox = false;
             this.MinimizeBox = false;
         }
-
         private void InitializeEvents()
         {
             this.Load += GameWindow_Load;
@@ -183,7 +175,6 @@ namespace MultiWindowActionGame
                 window.Parent = this;
             }
         }
-
         public void RemoveChild(IEffectTarget child)
         {
             if (Children.Remove(child))
@@ -202,18 +193,37 @@ namespace MultiWindowActionGame
         {
             this.Location = newPosition;
         }
-
         public bool CanReceiveEffect(IWindowEffect effect)
         {
-            if (isMoving && effect.Type == EffectType.Resize) return false;
-            if (isResizing && effect.Type == EffectType.Movement) return false;
-            return true;
-        }
+            // 親からのエフェクトは常に受け入れる
+            if (Parent != null)
+            {
+                return true;
+            }
 
+            // 自身が直接エフェクトを受け取る場合のチェック
+            switch (effect.Type)
+            {
+                case EffectType.Movement:
+                    return Strategy is MovableWindowStrategy;
+                case EffectType.Resize:
+                    return Strategy is ResizableWindowStrategy;
+                case EffectType.Minimize:
+                    return Strategy is MinimizableWindowStrategy;
+                default:
+                    return false;
+            }
+        }
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            WindowEffectManager.Instance.ClearEffects();
+            base.OnHandleDestroyed(e);
+        }
         public void ApplyEffect(IWindowEffect effect)
         {
             if (!CanReceiveEffect(effect)) return;
-            effect.Apply(this);
+            WindowEffectManager.Instance.AddEffect(effect);
+            WindowEffectManager.Instance.ApplyEffects(this);
         }
         public bool IsChildOf(GameWindow potentialParent)
         {
@@ -225,7 +235,6 @@ namespace MultiWindowActionGame
             }
             return false;
         }
-
         public IEnumerable<GameWindow> GetAllDescendants()
         {
             var descendants = new List<GameWindow>();
@@ -245,7 +254,6 @@ namespace MultiWindowActionGame
             strategy.HandleInput(this);
             UpdateBounds();
         }
-
         public void Draw(Graphics g)
         {
             // 親がある場合、親の色に基づいたアウトラインを描画
@@ -278,7 +286,6 @@ namespace MultiWindowActionGame
                 g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Black, 10, 30);
             }
         }
-
         private void DrawDebugInfo(Graphics g)
         {
             g.DrawString($"Window ID: {Id}", this.Font, Brushes.Green, 10, 10);
@@ -296,14 +303,13 @@ namespace MultiWindowActionGame
             }
         }
         #endregion
-
+        
         #region Window Event Handlers
         private void GameWindow_Load(object sender, EventArgs e)
         {
             IntPtr hMenu = GetSystemMenu(this.Handle, false);
             EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
         }
-
         private void GameWindow_Move(object? sender, EventArgs e)
         {
             UpdateBounds();
@@ -326,12 +332,10 @@ namespace MultiWindowActionGame
             NotifyObservers(WindowChangeType.Resized);
             strategy.HandleResize(this);
         }
-
         private void GameWindow_Click(object? sender, EventArgs e)
         {
             WindowManager.Instance.BringWindowToFront(this);
         }
-
         private void UpdateBounds()
         {
             Rectangle clientRect = GetClientRectangle();
@@ -343,7 +347,6 @@ namespace MultiWindowActionGame
                 clientRect.Height - (2 * Margin)
             );
         }
-
         private Rectangle GetClientRectangle()
         {
             RECT rect;
@@ -498,7 +501,6 @@ namespace MultiWindowActionGame
             public Size NewSize { get; }
             public SizeChangedEventArgs(Size newSize) => NewSize = newSize;
         }
-
         protected override CreateParams CreateParams
         {
             get
@@ -508,7 +510,6 @@ namespace MultiWindowActionGame
                 return cp;
             }
         }
-
         public bool IsResizable() => strategy is ResizableWindowStrategy;
     }
 }
