@@ -7,27 +7,6 @@ namespace MultiWindowActionGame
     public class PlayerForm : Form, IEffectTarget, IDrawable
     {
         private GameSettings.PlayerSettings settings;
-        private const int WM_MOUSEACTIVATE = 0x0021;
-        private const int MA_NOACTIVATE = 3;
-        private const int WM_SYSCOMMAND = 0x0112;
-        private const int SC_MINIMIZE = 0xF020;
-        private const int SC_RESTORE = 0xF120;
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x80000;
-        private const int WS_EX_TRANSPARENT = 0x20;
-        private const int WS_EX_TOPMOST = 0x8;
-        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-        private const uint SWP_NOMOVE = 0x0002;
-        private const uint SWP_NOSIZE = 0x0001;
-
-        [DllImport("user32.dll")]
-        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-        [DllImport("user32.dll")]
-        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
         private Rectangle bounds;
         private IPlayerState currentState;
@@ -47,7 +26,6 @@ namespace MultiWindowActionGame
         public float VerticalVelocity => verticalVelocity;
         public TimeSpan TimeSinceMinimized =>
             minimizedTime.HasValue ? DateTime.Now - minimizedTime.Value : TimeSpan.MaxValue;
-
         public PlayerForm(Point startPosition)
         {
             settings = GameSettings.Instance.Player;
@@ -61,6 +39,14 @@ namespace MultiWindowActionGame
 
             WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Player);
         }
+        public IPlayerState GetCurrentState() => currentState;
+        public Region GetMovableRegion() => movableRegion.Clone();
+        public Rectangle GetGroundCheckArea() => new Rectangle(
+            bounds.X,
+            bounds.Bottom - settings.GroundCheckHeight,
+            bounds.Width,
+            settings.GroundCheckHeight
+        );
         private void OnSettingsChanged(object? sender, GameSettings.SettingsChangedEventArgs e)
         {
             if (e.Type == GameSettings.SettingType.Player || e.Type == GameSettings.SettingType.All)
@@ -78,7 +64,6 @@ namespace MultiWindowActionGame
                 }
             }
         }
-
         private void UpdatePlayerProperties()
         {
             if (bounds.Size != settings.DefaultSize)
@@ -86,7 +71,6 @@ namespace MultiWindowActionGame
                 ResetSize(settings.DefaultSize);
             }
         }
-
         private void InitializeForm()
         {
             this.FormBorderStyle = FormBorderStyle.None;
@@ -117,10 +101,10 @@ namespace MultiWindowActionGame
 
         private void SetWindowProperties()
         {
-            int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
-            exStyle |= WS_EX_LAYERED;
-            exStyle |= WS_EX_TRANSPARENT;
-            SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
+            int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
+            exStyle |= WindowMessages.WS_EX_LAYERED;
+            exStyle |= WindowMessages.WS_EX_TRANSPARENT;
+            WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
         }
 
         public async Task UpdateAsync(float deltaTime)
@@ -426,39 +410,11 @@ namespace MultiWindowActionGame
 
             // 状態に応じた描画
             currentState.Draw(this, e.Graphics);
-
-            if (MainGame.IsDebugMode)
-            {
-                DrawDebugInfo(e.Graphics);
-            }
         }
 
         // IDrawable実装
         public void Draw(Graphics g)
         {
-            if (MainGame.IsDebugMode)
-            {
-                DrawDebugInfo(g);
-            }
-        }
-
-        private void DrawDebugInfo(Graphics g)
-        {
-            string stateInfo = $"State: {currentState.GetType().Name}";
-            string groundedInfo = $"Grounded: {IsGrounded}";
-            string velocityInfo = $"Velocity: {verticalVelocity:F2}";
-
-            using (Font debugFont = new Font("Arial", 8))
-            {
-                g.DrawString(stateInfo, debugFont, Brushes.Yellow, new Point(2, 2));
-                g.DrawString(groundedInfo, debugFont, Brushes.Yellow, new Point(2, 14));
-                g.DrawString(velocityInfo, debugFont, Brushes.Yellow, new Point(2, 26));
-            }
-
-            using (Pen debugPen = new Pen(Color.Red, 1))
-            {
-                //g.DrawRectangle(debugPen, new Rectangle(0, 0, Width - 1, Height - 1));
-            }
         }
 
         public void SetParent(GameWindow? newParent)
@@ -624,16 +580,16 @@ namespace MultiWindowActionGame
         {
             switch (m.Msg)
             {
-                case WM_MOUSEACTIVATE:
-                    m.Result = (IntPtr)MA_NOACTIVATE;
+                case WindowMessages.WM_MOUSEACTIVATE:
+                    m.Result = (IntPtr)WindowMessages.MA_NOACTIVATE;
                     return;
-                case WM_SYSCOMMAND:
+                case WindowMessages.WM_SYSCOMMAND:
                     int command = m.WParam.ToInt32() & 0xFFF0;
-                    if (command == SC_MINIMIZE)
+                    if (command == WindowMessages.SC_MINIMIZE)
                     {
                         OnMinimize();
                     }
-                    else if (command == SC_RESTORE)
+                    else if (command == WindowMessages.SC_RESTORE)
                     {
                         OnRestore();
                     }

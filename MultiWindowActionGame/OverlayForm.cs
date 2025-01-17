@@ -9,6 +9,9 @@ namespace MultiWindowActionGame
     public class OverlayForm : Form
     {
         private readonly WindowManager windowManager;
+        private PlayerDebugInfo? playerDebugInfo;
+        private WindowDebugInfo? windowDebugInfo;
+        private PerformanceDebugInfo performanceDebugInfo;
 
         public OverlayForm(WindowManager windowManager)
         {
@@ -16,37 +19,43 @@ namespace MultiWindowActionGame
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.TopMost = true;
-            this.BackColor = Color.Magenta;  // または別の色
+            this.BackColor = Color.Magenta;
             this.TransparencyKey = Color.Magenta;
 
-            // Program.mainFormと同じサイズ・位置に設定
             if (Program.mainForm != null)
             {
                 this.Size = Program.mainForm.Size;
                 this.Location = Program.mainForm.Location;
             }
 
+            windowDebugInfo = new WindowDebugInfo(windowManager);
             this.Paint += OverlayForm_Paint;
+            performanceDebugInfo = new PerformanceDebugInfo();
         }
 
         private void OverlayForm_Paint(object? sender, PaintEventArgs e)
         {
-            // タイトルバーの高さを取得
+
             int titleBarHeight = 30;
             e.Graphics.TranslateTransform(0, -titleBarHeight);
+            windowManager.DrawMarks(e.Graphics);
+            if (!MainGame.IsDebugMode) return;
             try
             {
-                if (MainGame.IsDebugMode)
+                var player = MainGame.GetPlayer();
+                if (player != null)
                 {
-                    windowManager.DrawDebugInfo(e.Graphics, MainGame.GetPlayer()?.Bounds ?? Rectangle.Empty);
+                    playerDebugInfo ??= new PlayerDebugInfo(player);
+                    playerDebugInfo.Draw(e.Graphics);
                 }
-                windowManager.DrawMarks(e.Graphics);
+
+                windowDebugInfo?.Draw(e.Graphics);
             }
             finally
             {
-                // 変換をリセット
                 e.Graphics.TranslateTransform(0, titleBarHeight);
             }
+            performanceDebugInfo.Draw(e.Graphics);
         }
 
         public void UpdateOverlay()

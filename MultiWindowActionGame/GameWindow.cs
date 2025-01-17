@@ -28,43 +28,10 @@ namespace MultiWindowActionGame
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
         public bool IsMinimized {  get; private set; }
+        public bool HasActiveEffects => effects.Any(e => e.IsActive);
+
         #region Win32 API Constants and Imports
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
 
-        [DllImport("user32.dll")]
-        private static extern bool EnableMenuItem(IntPtr hMenu, uint uIDEnableItem, uint uEnable);
-
-        [DllImport("user32.dll")]
-        private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("user32.dll")]
-        private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(
-            IntPtr hWnd,
-            int hWndInsertAfter,
-            int X,
-            int Y,
-            int cx,
-            int cy,
-            uint uFlags
-        );
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
-        {
-            public int Left;
-            public int Top;
-            public int Right;
-            public int Bottom;
-        }
-        [StructLayout(LayoutKind.Sequential)]
-        private struct POINT
-        {
-            public int X;
-            public int Y;
-        }
         public Rectangle CollisionBounds
         {
             get
@@ -158,6 +125,10 @@ namespace MultiWindowActionGame
             {
                 window.Parent = this;
             }
+        }
+        public IEnumerable<IWindowEffect> GetActiveEffects()
+        {
+            return effects.Where(e => e.IsActive).ToList();
         }
         public void RemoveChild(IEffectTarget child)
         {
@@ -257,42 +228,14 @@ namespace MultiWindowActionGame
                     g.DrawRectangle(outlinePen, CollisionBounds);
                 }
             }
-            //// ウィンドウの種類に応じて、ストラテジーマークを描画
-            //bool isHovered = this.ClientRectangle.Contains(this.PointToClient(Cursor.Position));
-            //Strategy.DrawStrategyMark(g, ClientBounds, isHovered);
-            if (MainGame.IsDebugMode)
-            {
-                DrawDebugInfo(g);
-            }
-            else
-            {
-                g.DrawString($"Window ID: {Id}", this.Font, Brushes.Black, 10, 10);
-                g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Black, 10, 30);
-            }
-        }
-        private void DrawDebugInfo(Graphics g)
-        {
-            g.DrawString($"Window ID: {Id}", this.Font, Brushes.Green, 10, 10);
-            g.DrawString($"Type: {strategy.GetType().Name}", this.Font, Brushes.Green, 10, 30);
-            g.DrawString($"Children: {Children.Count}", this.Font, Brushes.Red, 10, 50);
-            g.DrawString($"Parent: {Parent?.Id.ToString() ?? "None"}", this.Font, Brushes.Red, 10, 70);
-
-            g.DrawRectangle(new Pen(Color.Red, 1), CollisionBounds);
-            int y = 90;
-            foreach (var effect in effects)
-            {
-                g.DrawString($"Effect: {effect.Type} Active: {effect.IsActive}",
-                    this.Font, Brushes.Blue, 10, y);
-                y += 20;
-            }
         }
         #endregion
         
         #region Window Event Handlers
         private void GameWindow_Load(object sender, EventArgs e)
         {
-            IntPtr hMenu = GetSystemMenu(this.Handle, false);
-            EnableMenuItem(hMenu, WindowMessages.SC_CLOSE, WindowMessages.MF_BYCOMMAND | WindowMessages.MF_GRAYED);
+            IntPtr hMenu = WindowMessages.GetSystemMenu(this.Handle, false);
+            WindowMessages.EnableMenuItem(hMenu, WindowMessages.SC_CLOSE, WindowMessages.MF_BYCOMMAND | WindowMessages.MF_GRAYED);
         }
         private void GameWindow_Move(object? sender, EventArgs e)
         {
@@ -331,12 +274,19 @@ namespace MultiWindowActionGame
                 clientRect.Height - (2 * Margin)
             );
         }
+        public Point Center()
+        {
+            return new Point(
+                Bounds.X + Bounds.Width / 2,
+                Bounds.Y + Bounds.Height / 2
+            );
+        }
         private Rectangle GetClientRectangle()
         {
-            RECT rect;
-            GetClientRect(this.Handle, out rect);
-            POINT point = new POINT { X = rect.Left, Y = rect.Top };
-            ClientToScreen(this.Handle, ref point);
+            WindowMessages.RECT rect;
+            WindowMessages.GetClientRect(this.Handle, out rect);
+            WindowMessages.POINT point = new WindowMessages.POINT { X = rect.Left, Y = rect.Top };
+            WindowMessages.ClientToScreen(this.Handle, ref point);
             return new Rectangle(point.X, point.Y, rect.Right - rect.Left, rect.Bottom - rect.Top);
         }
         #endregion
@@ -356,6 +306,26 @@ namespace MultiWindowActionGame
         #region Window Message Processing
         protected override void WndProc(ref Message m)
         {
+            switch (m.Msg)
+            {
+                case WindowMessages.WM_NCHITTEST:
+                    // タイトルバーのヒットテストを処理
+                    base.WndProc(ref m);
+                    if (m.Result.ToInt32() == WindowMessages.HTCAPTION)
+                    {
+                        m.Result = IntPtr.Zero;  // タイトルバーでのドラッグを無効化
+                    }
+                    return;
+
+                case WindowMessages.WM_NCLBUTTONDOWN:
+                    // タイトルバーでのマウス左ボタンクリックを処理
+                    if (m.WParam.ToInt32() == WindowMessages.HTCAPTION)
+                    {
+                        return;  // タイトルバーでのクリックを無視
+                    }
+                    break;
+            }
+
             var result = WindowMessageHandler.HandleWindowMessage(this, m);
 
             if (result.Handled)

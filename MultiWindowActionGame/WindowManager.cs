@@ -60,6 +60,13 @@ public class WindowManager : IWindowObserver
     {
         return parentChildRelations.TryGetValue(child, out var parent) ? parent : null;
     }
+    public IReadOnlyList<GameWindow> GetAllWindows()
+    {
+        lock (windowLock)
+        {
+            return windows.ToList();
+        }
+    }
     public void CheckPotentialParentWindow(GameWindow operatedWindow)
     {
         lock (windowLock)
@@ -380,29 +387,6 @@ public class WindowManager : IWindowObserver
         else
         {
             window.Strategy.DrawStrategyMark(g, window.CollisionBounds, isHovered);
-        }
-    }
-    public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
-    {
-        if (!MainGame.IsDebugMode) return;
-
-        lock (windowLock)
-        {
-            foreach (var window in windows)
-            {
-                g.DrawRectangle(new Pen(Color.Blue, 1), window.CollisionBounds);
-
-                if (window.Parent != null)
-                {
-                    DrawParentChildConnection(g, window);
-                }
-
-                Rectangle intersection = Rectangle.Intersect(window.CollisionBounds, playerBounds);
-                if (!intersection.IsEmpty)
-                {
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(100, Color.Red)), intersection);
-                }
-            }
         }
     }
     private void DrawParentChildConnection(Graphics g, GameWindow childWindow)

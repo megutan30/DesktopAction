@@ -1,26 +1,11 @@
 ﻿// ボタンの基底クラス
+using MultiWindowActionGame;
 using System.Runtime.InteropServices;
 
 public abstract class GameButton : Form
 {
     protected Rectangle bounds;
     protected bool isHovered;
-    private const int GWL_EXSTYLE = -20;
-    private const int WS_EX_LAYERED = 0x80000;
-    private const int WS_EX_TRANSPARENT = 0x20;
-    private const int WS_EX_TOPMOST = 0x8;
-    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    private const uint SWP_NOMOVE = 0x0002;
-    private const uint SWP_NOSIZE = 0x0001;
-
-    [DllImport("user32.dll")]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
     public Rectangle Bounds => bounds;
 
     protected GameButton(Point location, Size size)
@@ -35,11 +20,11 @@ public abstract class GameButton : Form
     }
     private void SetWindowProperties()
     {
-        int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
-        exStyle |= WS_EX_TRANSPARENT;
-        exStyle |= WS_EX_TOPMOST;
-        SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
-        SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
+        exStyle |= WindowMessages.WS_EX_TRANSPARENT;
+        exStyle |= WindowMessages.WS_EX_TOPMOST;
+        WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
+        WindowMessages.SetWindowPos(this.Handle, WindowMessages.HWND_TOPMOST, 0, 0, 0, 0, WindowMessages.SWP_NOMOVE | WindowMessages.SWP_NOSIZE);
     }
     private void InitializeButton()
     {
