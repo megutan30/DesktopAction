@@ -303,8 +303,35 @@ namespace MultiWindowActionGame
             Point currentMousePos = window.PointToClient(Cursor.Position);
             var movement = CalculateMovement(window, currentMousePos);
 
+            // 移動前に子オブジェクトの位置を保存
+            var childrenBeforeMove = window.Children.ToDictionary(
+                child => child,
+                child => child.Bounds.Location
+            );
+
+            // 移動を適用
             movementEffect.UpdateMovement(movement);
             WindowEffectManager.Instance.ApplyEffects(window);
+
+            // 移動後に子オブジェクトの位置を更新
+            foreach (var child in window.Children)
+            {
+                var originalPos = childrenBeforeMove[child];
+                var newPos = new Point(
+                    originalPos.X + (int)movement.X,
+                    originalPos.Y + (int)movement.Y
+                );
+                child.UpdateTargetPosition(newPos);
+            }
+
+            // 子オブジェクトの移動可能領域を更新
+            foreach (var child in window.Children)
+            {
+                if (child is PlayerForm player)
+                {
+                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(window));
+                }
+            }
         }
         private Vector2 CalculateMovement(GameWindow window, Point currentMousePos)
         {
