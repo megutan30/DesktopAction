@@ -130,9 +130,12 @@ namespace MultiWindowActionGame
         protected override void OnMouseDown(GameWindow window)
         {
             StartResizing(window);
+            window.Capture = true;
         }
+
         protected override void OnMouseUp(GameWindow window)
         {
+            window.Capture = false;
             StopResizing();
         }
         public override void Update(GameWindow window, float deltaTime)
@@ -194,25 +197,19 @@ namespace MultiWindowActionGame
         }
         public override void HandleWindowMessage(GameWindow window, Message m)
         {
-            switch (m.Msg)
-            {
-                case 0x0201: // WM_LBUTTONDOWN
-                    StartResizing(window);
-                    break;
-
-                case 0x0202: // WM_LBUTTONUP
-                    StopResizing();
-                    break;
-            }
+            base.HandleWindowMessage(window, m);
         }
         private void StartResizing(GameWindow window)
         {
+            if (isResizing) return;  // 既にリサイズ中なら開始しない
             isResizing = true;
             lastMousePos = window.PointToClient(Cursor.Position);
             originalSize = window.CollisionBounds.Size;
         }
+
         private void StopResizing()
         {
+            if (!isResizing) return;  // リサイズ中でなければ何もしない
             isResizing = false;
             resizeEffect.ResetAll();
         }
@@ -286,9 +283,11 @@ namespace MultiWindowActionGame
         protected override void OnMouseDown(GameWindow window)
         {
             StartDragging(window);
+            window.Capture = true;
         }
         protected override void OnMouseUp(GameWindow window)
         {
+            window.Capture = false;
             StopDragging();
         }
         public override void Update(GameWindow window, float deltaTime)
@@ -384,28 +383,29 @@ namespace MultiWindowActionGame
         {
             switch (m.Msg)
             {
-                case WindowMessages.WM_NCHITTEST:
-                    m.Result = (IntPtr)WindowMessages.HTCAPTION;
+                case WindowMessages.WM_LBUTTONDOWN:
+                    OnMouseDown(window);
                     break;
-
-                case 0x0201: // WM_LBUTTONDOWN
-                    StartDragging(window);
+                case WindowMessages.WM_LBUTTONUP:
+                    OnMouseUp(window);
                     break;
-
-                case 0x0202: // WM_LBUTTONUP
-                    StopDragging();
+                case WindowMessages.WM_MOUSEMOVE:
+                    OnMouseMove(window);
                     break;
             }
         }
         private void StartDragging(GameWindow window)
         {
+            if (isDragging) return;  // 既にドラッグ中なら開始しない
             isDragging = true;
             ResetBlockFlags();
             lastMousePos = window.PointToClient(Cursor.Position);
             lastValidPosition = window.Location;
         }
+
         private void StopDragging()
         {
+            if (!isDragging) return;  // ドラッグ中でなければ何もしない
             isDragging = false;
             ResetBlockFlags();
             movementEffect.UpdateMovement(Vector2.Zero);
