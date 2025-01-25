@@ -120,7 +120,7 @@ namespace MultiWindowActionGame
 
         private void HandleKeyInput()
         {
-            if ((Input.IsKeyDown(Keys.Space) || Input.IsKeyDown(Keys.Up))|| (Input.IsKeyDown(Keys.W)  && IsGrounded))
+            if (IsGrounded && (Input.IsKeyDown(Keys.Space) || Input.IsKeyDown(Keys.Up) || Input.IsKeyDown(Keys.W)))
             {
                 Jump();
             }
