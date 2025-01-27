@@ -164,6 +164,12 @@ namespace MultiWindowActionGame
 
             if (!NoEntryZoneManager.Instance.IntersectsWithAnyZone(proposedBounds))
             {
+                var player = MainGame.GetPlayer();
+                if (player != null)
+                {
+                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
+                }
+
                 ApplyScaleToHierarchy(window, scale);
                 WindowEffectManager.Instance.ApplyEffects(window);
             }
