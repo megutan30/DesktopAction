@@ -24,7 +24,6 @@ namespace MultiWindowActionGame
         EffectType Type { get; }
         bool IsActive { get; }
         void Apply(IEffectTarget target);
-        //void PropagateToChildren(IEffectTarget target);
     }
     public enum EffectType
     {
@@ -102,6 +101,7 @@ namespace MultiWindowActionGame
             {
                 referenceSize[target] = target is GameWindow window ? window.Size :
                                       target is PlayerForm player ? player.Bounds.Size :
+                                      target is Goal goal ? goal.Size :
                                       Size.Empty;
             }
             targetScales[target] = newScale;

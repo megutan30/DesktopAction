@@ -4,24 +4,16 @@ using System.Runtime.InteropServices;
 
 namespace MultiWindowActionGame
 {
-    public class PlayerForm : Form, IEffectTarget, IDrawable
+    public class PlayerForm : BaseEffectTarget
     {
         private GameSettings.PlayerSettings settings;
-
-        private Rectangle bounds;
         private IPlayerState currentState;
         private GameWindow? lastValidParent;
         private DateTime? minimizedTime;
         private float verticalVelocity = 0;
         private Region movableRegion;
-        private bool isHovered;
         private Size originalSize;
-
-        public Rectangle Bounds => bounds;
-        public GameWindow? Parent { get; private set; }
         public GameWindow? LastValidParent => lastValidParent;
-        public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
-        public bool IsMinimized { get; private set; }
         public bool IsGrounded { get; private set; }
         public float VerticalVelocity => verticalVelocity;
         public TimeSpan TimeSinceMinimized =>
@@ -92,13 +84,11 @@ namespace MultiWindowActionGame
 
             this.Paint += OnPaint;
         }
-
         private void PlayerForm_Load(object? sender, EventArgs e)
         {
             SetWindowProperties();
             WindowManager.Instance.UpdateFormZOrder(this, WindowManager.ZOrderPriority.Player);
         }
-
         private void SetWindowProperties()
         {
             int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
@@ -106,8 +96,7 @@ namespace MultiWindowActionGame
             exStyle |= WindowMessages.WS_EX_TRANSPARENT;
             WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
         }
-
-        public async Task UpdateAsync(float deltaTime)
+        public override async Task UpdateAsync(float deltaTime)
         {
             if (IsMinimized) return;
 
@@ -117,7 +106,6 @@ namespace MultiWindowActionGame
             await HandleMovement(deltaTime);
             CheckGrounded();
         }
-
         private void HandleKeyInput()
         {
             if (IsGrounded && (Input.IsKeyDown(Keys.Space) || Input.IsKeyDown(Keys.Up) || Input.IsKeyDown(Keys.W)))
@@ -125,7 +113,6 @@ namespace MultiWindowActionGame
                 Jump();
             }
         }
-
         private Vector2 CalculateMovement(float deltaTime)
         {
             Vector2 movement = Vector2.Zero;
@@ -142,14 +129,12 @@ namespace MultiWindowActionGame
             movement.Y += verticalVelocity * deltaTime;
             return movement;
         }
-
         private void Jump()
         {
             verticalVelocity = -settings.JumpForce;
             IsGrounded = false;
             SetState(new JumpingState());
         }
-
         private void ApplyGravity(float deltaTime)
         {
             if (!IsGrounded)
@@ -161,7 +146,6 @@ namespace MultiWindowActionGame
                 verticalVelocity = 0;
             }
         }
-
         private async Task HandleMovement(float deltaTime)
         {
             Vector2 movement = CalculateMovement(deltaTime);
@@ -200,13 +184,11 @@ namespace MultiWindowActionGame
 
             UpdatePosition(proposedBounds.Location);
         }
-
         private void OnEnterWindow(GameWindow window)
         {
             // 新しいウィンドウに入った時のサイズを基準として保存
             originalSize = bounds.Size;
         }
-
         private Rectangle HandleWindowCollisions(Rectangle newBounds)
         {
             var adjustedBounds = newBounds;
@@ -239,7 +221,6 @@ namespace MultiWindowActionGame
 
             return adjustedBounds;
         }
-
         private void CheckGrounded()
         {
             if (currentState is JumpingState) return;
@@ -384,7 +365,6 @@ namespace MultiWindowActionGame
                 HandleGrounding(Program.mainForm.ClientSize.Height, wasGrounded);
             }
         }
-
         private void HandleGrounding(int groundY, bool wasGrounded)
         {
             IsGrounded = true;
@@ -397,7 +377,6 @@ namespace MultiWindowActionGame
                 SetState(new NormalState());
             }
         }
-
         private void OnPaint(object? sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -411,13 +390,10 @@ namespace MultiWindowActionGame
             // 状態に応じた描画
             currentState.Draw(this, e.Graphics);
         }
-
-        // IDrawable実装
-        public void Draw(Graphics g)
+        public override void Draw(Graphics g)
         {
         }
-
-        public void SetParent(GameWindow? newParent)
+        public override void SetParent(GameWindow? newParent)
         {
             if (Parent != null)
             {
@@ -439,13 +415,11 @@ namespace MultiWindowActionGame
                 movableRegion = new Region();
             }
         }
-
         public void UpdateMovableRegion(Region newRegion)
         {
             movableRegion.Dispose();
             movableRegion = newRegion;
         }
-
         public void ResetPosition(Point position)
         {
             bounds.Location = position;
@@ -460,31 +434,17 @@ namespace MultiWindowActionGame
             this.Size = size;
             originalSize = size;
         }
-
-        // IEffectTarget実装
-        public void AddChild(IEffectTarget child)
-        {
-            Children.Add(child);
-        }
-
-        public void RemoveChild(IEffectTarget child)
-        {
-            Children.Remove(child);
-        }
-
-        public void UpdateTargetPosition(Point newPosition)
+        public override void UpdateTargetPosition(Point newPosition)
         {
             bounds.Location = newPosition;
             this.Location = newPosition;
         }
-
-        public void UpdateTargetSize(Size newSize)
+        public override void UpdateTargetSize(Size newSize)
         {
             bounds.Size = newSize;
             this.Size = newSize;
             AdjustPositionAfterResize(newSize);
         }
-
         private void AdjustPositionAfterResize(Size newSize)
         {
             using (var validRegion = GetValidRegion())
@@ -515,7 +475,6 @@ namespace MultiWindowActionGame
                 UpdateMovableRegion(validRegion.Clone());
             }
         }
-
         private Region GetValidRegion()
         {
             if (Parent != null)
@@ -530,8 +489,7 @@ namespace MultiWindowActionGame
             }
             return new Region();
         }
-
-        public void OnMinimize()
+        public override void OnMinimize()
         {
             IsMinimized = true;
             minimizedTime = DateTime.Now;
@@ -544,8 +502,7 @@ namespace MultiWindowActionGame
                 Parent = null;
             }
         }
-
-        public void OnRestore()
+        public override void OnRestore()
         {
             IsMinimized = false;
             this.WindowState = FormWindowState.Normal;
@@ -563,13 +520,11 @@ namespace MultiWindowActionGame
                 SetParent(newParent);
             }
         }
-
         private void UpdatePosition(Point newPosition)
         {
             bounds.Location = newPosition;
             this.Location = newPosition;
         }
-
         public void SetState(IPlayerState newState)
         {
             currentState = newState;
@@ -703,13 +658,7 @@ namespace MultiWindowActionGame
             return adjustedBounds;
         }
 
-        public bool CanReceiveEffect(IWindowEffect effect)
-        {
-            if (Parent == null) return false;
-            return true;
-        }
-
-        public void ApplyEffect(IWindowEffect effect)
+        public override void ApplyEffect(IWindowEffect effect)
         {
             if (!CanReceiveEffect(effect)) return;
 

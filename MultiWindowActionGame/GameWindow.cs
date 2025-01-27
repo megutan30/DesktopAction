@@ -7,7 +7,7 @@ using System.Diagnostics;
 
 namespace MultiWindowActionGame
 {
-    public class GameWindow : Form, IWindowSubject, IEffectTarget
+    public class GameWindow : BaseEffectTarget, IWindowSubject
     {
         public Rectangle ClientBounds { get; private set; }
         public Rectangle AdjustedBounds { get; private set; }
@@ -15,10 +15,8 @@ namespace MultiWindowActionGame
         public bool CanExit { get; set; } = true;
         public Size OriginalSize { get; private set; }
         public IWindowStrategy Strategy { get; private set; }
-        public Rectangle Bounds => AdjustedBounds;
+        public override Rectangle Bounds => AdjustedBounds;
         public Rectangle FullBounds => new Rectangle(Location, Size);
-        public GameWindow? Parent { get; private set; }
-        public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
 
         private new const int Margin = 0;
         protected IWindowStrategy strategy;
@@ -27,56 +25,15 @@ namespace MultiWindowActionGame
         public Guid Id { get; } = Guid.NewGuid();
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
-        public bool IsMinimized {  get; private set; }
         public bool HasActiveEffects => effects.Any(e => e.IsActive);
 
-        #region Win32 API Constants and Imports
+        public Rectangle CollisionBounds => new(
+            AdjustedBounds.X,
+            Location.Y,
+            AdjustedBounds.Size.Width,
+            AdjustedBounds.Size.Height + (RectangleToScreen(ClientRectangle).Y - Location.Y)
+        );
 
-        public Rectangle CollisionBounds
-        {
-            get
-            {
-                // タイトルバーの高さを含める
-                int titleBarHeight = RectangleToScreen(ClientRectangle).Y - Location.Y;
-                return new Rectangle(
-                    AdjustedBounds.X,
-                    Location.Y,
-                    AdjustedBounds.Size.Width,
-                    AdjustedBounds.Size.Height + titleBarHeight
-                );
-            }
-        }
-        #endregion
-        public void OnMinimize()
-        {
-            IsMinimized = true;
-
-            // 子要素の最小化
-            foreach (var child in Children.ToList())
-            {
-                child.OnMinimize();
-                RemoveChild(child);
-            }
-
-            // 親との関係を解除
-            if (Parent != null)
-            {
-                Parent.RemoveChild(this);
-            }
-
-            WindowState = FormWindowState.Minimized;
-        }
-        public void OnRestore()
-        {
-            IsMinimized = false;
-            WindowState = FormWindowState.Normal;
-            Show();
-
-            // 親子関係のチェック
-            WindowManager.Instance.CheckPotentialParentWindow(this);
-            WindowManager.Instance.HandleWindowActivation(this);
-            WindowManager.Instance.CheckPotentialParentWindow(this);
-        }
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
@@ -118,37 +75,71 @@ namespace MultiWindowActionGame
         }
 
         #region IEffectTarget Implementation
-        public void AddChild(IEffectTarget child)
-        {
-            Children.Add(child);
-            if (child is GameWindow window)
-            {
-                window.Parent = this;
-            }
-        }
         public IEnumerable<IWindowEffect> GetActiveEffects()
         {
             return effects.Where(e => e.IsActive).ToList();
         }
-        public void RemoveChild(IEffectTarget child)
+        public override void SetParent(GameWindow? newParent)
         {
-            if (Children.Remove(child))
+            if (base.Parent != null)
             {
-                if (child is GameWindow window)
-                {
-                    window.Parent = null;
-                }
+                base.Parent.RemoveChild(this);
+            }
+            base.Parent = newParent;
+            newParent?.AddChild(this);
+        }
+        public override void OnMinimize()
+        {
+            IsMinimized = true;
+
+            foreach (var child in Children.ToList())
+            {
+                child.OnMinimize();
+                RemoveChild(child);
+            }
+
+            if (base.Parent != null)
+            {
+                base.Parent.RemoveChild(this);
+            }
+
+            WindowState = FormWindowState.Minimized;
+        }
+        public override void OnRestore()
+        {
+            IsMinimized = false;
+            WindowState = FormWindowState.Normal;
+            Show();
+
+            WindowManager.Instance.CheckPotentialParentWindow(this);
+            WindowManager.Instance.HandleWindowActivation(this);
+            WindowManager.Instance.CheckPotentialParentWindow(this);
+        }
+        public override void AddChild(IEffectTarget child)
+        {
+            Children.Add(child);
+            if (child is GameWindow window && window.Parent != this)
+            {
+                window.SetParent(this);
             }
         }
-        public void UpdateTargetSize(Size newSize)
+        public override void RemoveChild(IEffectTarget child)
+        {
+            base.RemoveChild(child);
+            if (child is GameWindow window)
+            {
+                window.Parent = null;
+            }
+        }
+        public override void UpdateTargetSize(Size newSize)
         {
             this.Size = newSize;
         }
-        public void UpdateTargetPosition(Point newPosition)
+        public override void UpdateTargetPosition(Point newPosition)
         {
             this.Location = newPosition;
         }
-        public bool CanReceiveEffect(IWindowEffect effect)
+        public override bool CanReceiveEffect(IWindowEffect effect)
         {
             // 親からのエフェクトは常に受け入れる
             if (Parent != null)
@@ -174,7 +165,7 @@ namespace MultiWindowActionGame
             WindowEffectManager.Instance.ClearEffects();
             base.OnHandleDestroyed(e);
         }
-        public void ApplyEffect(IWindowEffect effect)
+        public override void ApplyEffect(IWindowEffect effect)
         {
             if (!CanReceiveEffect(effect)) return;
             WindowEffectManager.Instance.AddEffect(effect);
@@ -203,13 +194,13 @@ namespace MultiWindowActionGame
         #endregion
 
         #region IUpdatable and IDrawable Implementation
-        public async Task UpdateAsync(float deltaTime)
+        public override async Task UpdateAsync(float deltaTime)
         {
             strategy.Update(this, deltaTime);
             strategy.HandleInput(this);
             UpdateBounds();
         }
-        public void Draw(Graphics g)
+        public override void Draw(Graphics g)
         {
             // 親がある場合、親の色に基づいたアウトラインを描画
             if (Parent != null)

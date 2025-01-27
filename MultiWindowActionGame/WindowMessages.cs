@@ -16,7 +16,8 @@ namespace MultiWindowActionGame
         public const int WM_MOUSEACTIVATE = 0x0021;
         public const int MA_NOACTIVATE = 3;
         public const int WM_NCLBUTTONDOWN = 0x00A1;
-
+        public const int WM_LBUTTONDOWN_ANYWHERE = 0x0201;  // マウスボタンを押したとき
+        public const int WM_LBUTTONUP_ANYWHERE = 0x0202;    // マウスボタンを離したとき
         // ヒットテスト関連
         public const int WM_NCHITTEST = 0x0084;
         public const int HTCAPTION = 2;
@@ -40,7 +41,6 @@ namespace MultiWindowActionGame
         public const int WS_EX_TRANSPARENT = 0x20;
         public const int WS_EX_TOPMOST = 0x8;
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT

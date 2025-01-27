@@ -125,6 +125,11 @@ namespace MultiWindowActionGame
                 {
                     await windowManager.UpdateAsync(GameTime.DeltaTime);
                 }
+                // ゴールの更新を追加
+                if (StageManager.Instance.CurrentGoal != null)
+                {
+                    await StageManager.Instance.CurrentGoal.UpdateAsync(GameTime.DeltaTime);
+                }
                 if (player != null && StageManager.Instance.CheckGoal(player))
                 {
                     Debug.WriteLine("Goal!");
