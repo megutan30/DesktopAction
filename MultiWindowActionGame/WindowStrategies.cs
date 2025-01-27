@@ -164,12 +164,6 @@ namespace MultiWindowActionGame
 
             if (!NoEntryZoneManager.Instance.IntersectsWithAnyZone(proposedBounds))
             {
-                var player = MainGame.GetPlayer();
-                if (player != null)
-                {
-                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
-                }
-
                 ApplyScaleToHierarchy(window, scale);
                 WindowEffectManager.Instance.ApplyEffects(window);
             }
@@ -327,15 +321,6 @@ namespace MultiWindowActionGame
                     originalPos.Y + (int)movement.Y
                 );
                 child.UpdateTargetPosition(newPos);
-            }
-
-            // 子オブジェクトの移動可能領域を更新
-            foreach (var child in window.Children)
-            {
-                if (child is PlayerForm player)
-                {
-                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(window));
-                }
             }
         }
         private Vector2 CalculateMovement(GameWindow window, Point currentMousePos)

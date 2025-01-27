@@ -118,6 +118,11 @@ public static class WindowMessageHandler
     private static void HandleMouseMove(GameWindow window)
     {
         // 必要に応じてマウス移動時の処理を追加
+        var player = MainGame.GetPlayer();
+        if (player?.Parent == null) return;
+
+        var region = WindowManager.Instance.CalculateMovableRegion(player.Parent);
+        player.UpdateMovableRegion(region);
     }
 
     private static void HandleMinimize(GameWindow window)

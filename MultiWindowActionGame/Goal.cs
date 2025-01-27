@@ -9,7 +9,7 @@ public class Goal : BaseEffectTarget
 
     [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
+    private GameWindow? lastValidParent;
     public Goal(Point location, bool isInFront)
     {
         this.isInFront = isInFront;
@@ -110,12 +110,32 @@ public class Goal : BaseEffectTarget
     public override void OnMinimize()
     {
         IsMinimized = true;
-        Hide();
+        this.WindowState = FormWindowState.Minimized;
+
+        if (Parent != null)
+        {
+            lastValidParent = Parent;
+            Parent.RemoveChild(this);
+            Parent = null;
+        }
     }
     public override void OnRestore()
     {
         IsMinimized = false;
-        Show();
+        this.WindowState = FormWindowState.Normal;
+        this.BringToFront();
+
+        if (lastValidParent != null &&
+            !lastValidParent.IsMinimized &&
+            lastValidParent.AdjustedBounds.IntersectsWith(bounds))
+        {
+            SetParent(lastValidParent);
+        }
+        else
+        {
+            var newParent = WindowManager.Instance.GetTopWindowAt(bounds, null);
+            SetParent(newParent);
+        }
     }
     public override async Task UpdateAsync(float deltaTime)
     {
