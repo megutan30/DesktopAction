@@ -404,6 +404,18 @@ public class WindowManager : IWindowObserver
             g.DrawLine(pen, childCenter, parentCenter);
         }
     }
+    public IReadOnlyList<GameButton> GetAllButtons()
+    {
+        lock (windowLock)
+        {
+            // formsByPriorityからZOrderPriority.Buttonのものを取得
+            if (formsByPriority.TryGetValue(ZOrderPriority.Button, out var buttonForms))
+            {
+                return buttonForms.OfType<GameButton>().ToList();
+            }
+            return new List<GameButton>();
+        }
+    }
     public GameWindow? GetWindowAt(Rectangle bounds, GameWindow? currentWindow = null)
     {
         lock (windowLock)

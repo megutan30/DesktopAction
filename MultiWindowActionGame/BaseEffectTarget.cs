@@ -77,5 +77,6 @@ namespace MultiWindowActionGame
         public abstract void OnRestore();
         public abstract void Draw(Graphics g);
         public abstract Task UpdateAsync(float deltaTime);
+        public abstract Size GetOriginalSize();
     }
 }

@@ -1,7 +1,7 @@
 ﻿using MultiWindowActionGame;
 using System.Runtime.InteropServices;
 
-public class NoEntryZone : Form, IEffectTarget
+public class NoEntryZone : Form
 {
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_LAYERED = 0x80000;
@@ -125,7 +125,7 @@ public class NoEntryZone : Form, IEffectTarget
 
     public void AddChild(IEffectTarget child) => Children.Add(child);
     public void RemoveChild(IEffectTarget child) => Children.Remove(child);
-    public bool CanReceiveEffect(IWindowEffect effect) => false;
+    public bool CanReceivedEffect(IWindowEffect effect) => false;
     public void ApplyEffect(IWindowEffect effect) { }
     public void OnMinimize() { }
     public void OnRestore() { }

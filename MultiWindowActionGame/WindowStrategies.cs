@@ -202,10 +202,6 @@ namespace MultiWindowActionGame
             {
                 var childOriginalSize = originalSizes[child];
                 resizeEffect.UpdateScale(child, scale, childOriginalSize);
-                if (child is GameWindow childWindow)
-                {
-                    ApplyScaleToHierarchy(childWindow, scale);
-                }
             }
         }
 
@@ -230,18 +226,13 @@ namespace MultiWindowActionGame
             if (isResizing) return;
             isResizing = true;
             lastMousePos = window.PointToClient(Cursor.Position);
-            originalSize = window.CollisionBounds.Size;
+            originalSize = window.Size;
             currentScale = new SizeF(1.0f, 1.0f);
 
             // リサイズ開始時に、すべての子要素の元のサイズを記録
             foreach (var child in window.Children)
             {
-                // 現在のスケールで割って元のサイズを計算
-                var originalChildSize = new Size(
-                    (int)(child.Bounds.Width / currentScale.Width),
-                    (int)(child.Bounds.Height / currentScale.Height)
-                );
-                originalSizes[child] = originalChildSize;
+                originalSizes[child] = child.GetOriginalSize();
             }
         }
 
@@ -249,7 +240,7 @@ namespace MultiWindowActionGame
         {
             if (!isResizing) return;
             isResizing = false;
-            originalSizes.Clear();  // originalSizesをクリア
+            originalSizes.Clear();
             currentScale = new SizeF(1.0f, 1.0f);
             resizeEffect.ResetAll();
         }
@@ -329,26 +320,9 @@ namespace MultiWindowActionGame
             Point currentMousePos = window.PointToClient(Cursor.Position);
             var movement = CalculateMovement(window, currentMousePos);
 
-            // 移動前に子オブジェクトの位置を保存
-            var childrenBeforeMove = window.Children.ToDictionary(
-                child => child,
-                child => child.Bounds.Location
-            );
-
-            // 移動を適用
+            // 移動の適用
             movementEffect.UpdateMovement(movement);
             WindowEffectManager.Instance.ApplyEffects(window);
-
-            // 移動後に子オブジェクトの位置を更新
-            foreach (var child in window.Children)
-            {
-                var originalPos = childrenBeforeMove[child];
-                var newPos = new Point(
-                    originalPos.X + (int)movement.X,
-                    originalPos.Y + (int)movement.Y
-                );
-                child.UpdateTargetPosition(newPos);
-            }
         }
         private Vector2 CalculateMovement(GameWindow window, Point currentMousePos)
         {

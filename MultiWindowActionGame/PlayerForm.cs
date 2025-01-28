@@ -520,6 +520,7 @@ namespace MultiWindowActionGame
                 SetParent(newParent);
             }
         }
+        public override Size GetOriginalSize() => Bounds.Size;
         private void UpdatePosition(Point newPosition)
         {
             bounds.Location = newPosition;

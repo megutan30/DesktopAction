@@ -5,11 +5,6 @@ using System.Runtime.InteropServices;
 public class Goal : BaseEffectTarget
 {
     private bool isInFront;
-    [DllImport("user32.dll")]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
     private GameWindow? lastValidParent;
     public Goal(Point location, bool isInFront)
     {
@@ -26,10 +21,10 @@ public class Goal : BaseEffectTarget
     }
     private void SetWindowProperties()
     {
-        int exStyle = GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
+        int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
         exStyle |= WindowMessages.WS_EX_LAYERED;
         exStyle |= WindowMessages.WS_EX_TRANSPARENT;
-        SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
+        WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
     }
     private void InitializeGoal(Point location)
     {
@@ -98,6 +93,7 @@ public class Goal : BaseEffectTarget
         }
     }
     private Rectangle lastCheckedBounds;
+    public override Size GetOriginalSize() => Bounds.Size;
     public override void UpdateTargetPosition(Point newPosition)
     {
         this.Location = newPosition;

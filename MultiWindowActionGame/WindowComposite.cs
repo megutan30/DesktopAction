@@ -17,6 +17,7 @@ namespace MultiWindowActionGame
         void UpdateTargetPosition(Point newPositon);
         void OnMinimize();
         void OnRestore();
+        Size GetOriginalSize();
         bool IsMinimized { get; }
     }
     public interface IWindowEffect

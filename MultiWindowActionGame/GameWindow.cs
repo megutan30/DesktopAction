@@ -79,6 +79,7 @@ namespace MultiWindowActionGame
         {
             return effects.Where(e => e.IsActive).ToList();
         }
+        public override Size GetOriginalSize() => Size;
         public override void SetParent(GameWindow? newParent)
         {
             if (base.Parent != null)

@@ -31,8 +31,9 @@ public class StageManager
             Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
                 (WindowType.NormalBlack, new Point(100, 600), new Size(500, 200),null),
-                (WindowType.Movable, new Point(550, 610), new Size(200, 200),null),
+                (WindowType.Movable, new Point(550, 110), new Size(500, 500),null),
                 (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
+                (WindowType.NormalBlack, new Point(700, 200), new Size(200, 200),null),
                 (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 2"),
             },
             GoalPosition = new Point(1300, 700),
@@ -84,7 +85,27 @@ public class StageManager
             ToTitaleButtonPosition = new Point(85, 90),
             RetryButtonPosition = new Point(295, 90),
         });
+        //Stage2
+        //ムーバル
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.NormalBlack, new Point(100, 600), new Size(500, 200),null),
+                (WindowType.Movable, new Point(550, 610), new Size(200, 200),null),
+                (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 2"),
+            },
+            GoalPosition = new Point(1300, 700),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(150, 650),
+            NoEntryZones = new List<(Point, Size)>
+            {
+            },
 
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
         //Stage3
         //リサイズウィンドウ
         stages.Add(new StageData
