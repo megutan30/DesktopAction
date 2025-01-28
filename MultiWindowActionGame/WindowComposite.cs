@@ -94,16 +94,9 @@ namespace MultiWindowActionGame
         private readonly Dictionary<IEffectTarget, SizeF> targetScales = new();
         private readonly Dictionary<IEffectTarget, Size> referenceSize = new();
         public override EffectType Type => EffectType.Resize;
-
-        public void UpdateScale(IEffectTarget target, SizeF newScale)
+        public void UpdateScale(IEffectTarget target, SizeF newScale, Size baseSize)
         {
-            if (!referenceSize.ContainsKey(target))
-            {
-                referenceSize[target] = target is GameWindow window ? window.Size :
-                                      target is PlayerForm player ? player.Bounds.Size :
-                                      target is Goal goal ? goal.Size :
-                                      Size.Empty;
-            }
+            referenceSize[target] = baseSize;
             targetScales[target] = newScale;
             IsActive = true;
         }

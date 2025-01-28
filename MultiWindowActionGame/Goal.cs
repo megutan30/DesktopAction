@@ -1,4 +1,5 @@
 ﻿using MultiWindowActionGame;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
 public class Goal : BaseEffectTarget
@@ -58,20 +59,29 @@ public class Goal : BaseEffectTarget
             e.Graphics.FillRectangle(brush, ClientRectangle);
         }
 
-        // "G"の描画
-        using (Font font = new Font("Arial", Height * 0.8f, FontStyle.Bold))
+        string text = "G";
+        // フォームの縦横比に合わせてアスペクト比を調整
+        using (var matrix = new Matrix())
         {
-            string text = "G";
+            // フォームのサイズに基づいて初期フォントサイズを計算（幅を基準に）
+            float fontSize = Bounds.Width * 0.8f;
+            using (Font font = new Font("Arial", fontSize, FontStyle.Bold))
+            {
+                // テキストのサイズを取得
+                SizeF textSize = e.Graphics.MeasureString(text, font);
 
-            // 文字列のサイズを測定
-            SizeF textSize = e.Graphics.MeasureString(text, font);
+                // 拡大縮小率を計算
+                float scaleX = Bounds.Width / textSize.Width;
+                float scaleY = Bounds.Height / textSize.Height;
 
-            // 中央に配置するための位置を計算
-            float x = (Bounds.Width - textSize.Width) / 2;
-            float y = (Bounds.Height - textSize.Height) / 2;
+                // グラフィックスの変換を設定
+                e.Graphics.TranslateTransform(Bounds.Width / 2, Bounds.Height / 2);
+                e.Graphics.ScaleTransform(scaleX, scaleY);
+                e.Graphics.TranslateTransform(-textSize.Width / 2, -textSize.Height / 2);
 
-            // 文字を描画
-            e.Graphics.DrawString(text, font, Brushes.Gold, x, y);
+                // 描画
+                e.Graphics.DrawString(text, font, Brushes.Gold, 0, 0);
+            }
         }
     }
     private void UpdateParentIfNeeded()

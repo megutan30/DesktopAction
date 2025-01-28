@@ -122,11 +122,15 @@ namespace MultiWindowActionGame
         private bool isResizing = false;
         private Point lastMousePos;
         private Size originalSize;
+        private readonly Dictionary<IEffectTarget, Size> originalSizes = new();
+        private SizeF currentScale = new(1.0f, 1.0f);  // 現在のスケールを保持
+
         public ResizableWindowStrategy()
         {
             resizeEffect = new ResizeEffect();
             WindowEffectManager.Instance.AddEffect(resizeEffect);
         }
+
         protected override void OnMouseDown(GameWindow window)
         {
             StartResizing(window);
@@ -138,6 +142,7 @@ namespace MultiWindowActionGame
             window.Capture = false;
             StopResizing();
         }
+
         public override void Update(GameWindow window, float deltaTime)
         {
             if (isResizing)
@@ -145,6 +150,7 @@ namespace MultiWindowActionGame
                 UpdateResize(window);
             }
         }
+
         private void UpdateResize(GameWindow window)
         {
             Point currentMousePos = window.PointToClient(Cursor.Position);
@@ -164,22 +170,45 @@ namespace MultiWindowActionGame
 
             if (!NoEntryZoneManager.Instance.IntersectsWithAnyZone(proposedBounds))
             {
+                var player = MainGame.GetPlayer();
+                if (player != null)
+                {
+                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
+                }
+
                 ApplyScaleToHierarchy(window, scale);
                 WindowEffectManager.Instance.ApplyEffects(window);
             }
         }
+
         private void ApplyScaleToHierarchy(GameWindow window, SizeF scale)
         {
-            resizeEffect.UpdateScale(window, scale);
             foreach (var child in window.Children)
             {
-                resizeEffect.UpdateScale(child, scale);
+                if (!originalSizes.ContainsKey(child))
+                {
+                    // 新しい子要素の元のサイズを記録する際、現在のスケールで割り戻す
+                    originalSizes[child] = new Size(
+                        (int)(child.Bounds.Width / currentScale.Width),
+                        (int)(child.Bounds.Height / currentScale.Height)
+                    );
+                }
+            }
+
+            currentScale = scale;  // 現在のスケールを更新
+            resizeEffect.UpdateScale(window, scale, originalSize);
+
+            foreach (var child in window.Children)
+            {
+                var childOriginalSize = originalSizes[child];
+                resizeEffect.UpdateScale(child, scale, childOriginalSize);
                 if (child is GameWindow childWindow)
                 {
                     ApplyScaleToHierarchy(childWindow, scale);
                 }
             }
         }
+
         private Size CalculateNewSize(GameWindow window, Point currentMousePos)
         {
             int dx = currentMousePos.X - lastMousePos.X;
@@ -195,29 +224,43 @@ namespace MultiWindowActionGame
                 proposedSize
             );
         }
-        public override void HandleWindowMessage(GameWindow window, Message m)
-        {
-            base.HandleWindowMessage(window, m);
-        }
+
         private void StartResizing(GameWindow window)
         {
-            if (isResizing) return;  // 既にリサイズ中なら開始しない
+            if (isResizing) return;
             isResizing = true;
             lastMousePos = window.PointToClient(Cursor.Position);
             originalSize = window.CollisionBounds.Size;
+            currentScale = new SizeF(1.0f, 1.0f);
+
+            // リサイズ開始時に、すべての子要素の元のサイズを記録
+            foreach (var child in window.Children)
+            {
+                // 現在のスケールで割って元のサイズを計算
+                var originalChildSize = new Size(
+                    (int)(child.Bounds.Width / currentScale.Width),
+                    (int)(child.Bounds.Height / currentScale.Height)
+                );
+                originalSizes[child] = originalChildSize;
+            }
         }
 
         private void StopResizing()
         {
-            if (!isResizing) return;  // リサイズ中でなければ何もしない
+            if (!isResizing) return;
             isResizing = false;
+            originalSizes.Clear();  // originalSizesをクリア
+            currentScale = new SizeF(1.0f, 1.0f);
             resizeEffect.ResetAll();
         }
+
         public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
         {
             DrawResizeMark(g, bounds, isHovered ? Color.White : Color.FromArgb(128, 128, 128));
         }
+
         protected override Cursor GetStrategyCursor() => Cursors.SizeNWSE;
+
         private void DrawResizeMark(Graphics g, Rectangle bounds, Color color)
         {
             int markSize = 60;
@@ -230,6 +273,7 @@ namespace MultiWindowActionGame
                 DrawResizeArrows(g, pen, x, y, markSize);
             }
         }
+
         private void DrawResizeArrows(Graphics g, Pen pen, int x, int y, int size)
         {
             // 左上矢印
@@ -240,27 +284,10 @@ namespace MultiWindowActionGame
             DrawArrowHead(g, pen, x + size * 3 / 4, y + size * 3 / 4, x + size / 2, y + size * 3 / 4);
             DrawArrowHead(g, pen, x + size * 3 / 4, y + size * 3 / 4, x + size * 3 / 4, y + size / 2);
         }
+
         private void DrawArrowHead(Graphics g, Pen pen, int x1, int y1, int x2, int y2)
         {
             g.DrawLine(pen, x1, y1, x2, y2);
-        }
-        private void ApplyScaleToWindowAndDescendants(GameWindow window, SizeF scale)
-        {
-            // まず現在のウィンドウにスケールを設定
-            resizeEffect.UpdateScale(window, scale);
-
-
-            // 直接の子に対してスケールを設定
-            foreach (var child in window.Children)
-            {
-                resizeEffect.UpdateScale(child, scale);
-
-                // 子がウィンドウの場合、その子孫にも再帰的にスケールを設定
-                if (child is GameWindow childWindow)
-                {
-                    ApplyScaleToWindowAndDescendants(childWindow, scale);
-                }
-            }
         }
     }
     public class MovableWindowStrategy : BaseWindowStrategy
