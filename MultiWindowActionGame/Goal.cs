@@ -45,38 +45,94 @@ public class Goal : BaseEffectTarget
             SetParent(parentWindow);
         }
     }
+    public override void SetParent(GameWindow? newParent)
+    {
+        base.SetParent(newParent);
 
+        // 親が変更されたら再描画を要求
+        this.Invalidate();
+    }
     private void Goal_Paint(object? sender, PaintEventArgs e)
     {
-        // 背景を塗りつぶす
-        using (SolidBrush brush = new SolidBrush(BackColor))
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        // 背景を透明に
+        using (var brush = new SolidBrush(BackColor))
         {
-            e.Graphics.FillRectangle(brush, ClientRectangle);
+            e.Graphics.FillRectangle(brush, Bounds);
         }
 
-        string text = "G";
-        // フォームの縦横比に合わせてアスペクト比を調整
-        using (var matrix = new Matrix())
+        // フォームの縦横比に基づいてフォントサイズを計算
+        float baseFontSize = Math.Min(Bounds.Width, Bounds.Height) * 1f;
+        using (var font = new Font("Arial", baseFontSize, FontStyle.Bold))
         {
-            // フォームのサイズに基づいて初期フォントサイズを計算（幅を基準に）
-            float fontSize = Bounds.Width * 0.8f;
-            using (Font font = new Font("Arial", fontSize, FontStyle.Bold))
+            var text = "G";
+            var size = e.Graphics.MeasureString(text, font);
+
+            // フォームの縦横比に合わせてスケーリング
+            float scaleX = Bounds.Width / size.Width;
+            float scaleY = Bounds.Height / size.Height;
+
+            // 変換行列を設定
+            e.Graphics.TranslateTransform(Bounds.Width / 2, Bounds.Height / 2);
+            e.Graphics.ScaleTransform(scaleX, scaleY);
+            e.Graphics.TranslateTransform(-size.Width / 2, -size.Height / 2);
+
+            // 親ウィンドウに基づいてアウトライン色を設定
+            Color outlineColor;
+            if (Parent != null)
             {
-                // テキストのサイズを取得
-                SizeF textSize = e.Graphics.MeasureString(text, font);
+                // 親の背景色の明るさを計算
+                float brightness = (Parent.BackColor.R * 0.299f +
+                                  Parent.BackColor.G * 0.587f +
+                                  Parent.BackColor.B * 0.114f) / 255f;
 
-                // 拡大縮小率を計算
-                float scaleX = Bounds.Width / textSize.Width;
-                float scaleY = Bounds.Height / textSize.Height;
-
-                // グラフィックスの変換を設定
-                e.Graphics.TranslateTransform(Bounds.Width / 2, Bounds.Height / 2);
-                e.Graphics.ScaleTransform(scaleX, scaleY);
-                e.Graphics.TranslateTransform(-textSize.Width / 2, -textSize.Height / 2);
-
-                // 描画
-                e.Graphics.DrawString(text, font, Brushes.Gold, 0, 0);
+                if (brightness < 0.5f)
+                {
+                    // 暗い背景の場合は明るい色のアウトライン
+                    outlineColor = Color.FromArgb(
+                        Math.Min(255, Parent.BackColor.R + 100),
+                        Math.Min(255, Parent.BackColor.G + 100),
+                        Math.Min(255, Parent.BackColor.B + 100)
+                    );
+                }
+                else
+                {
+                    // 明るい背景の場合は暗い色のアウトライン
+                    outlineColor = Color.FromArgb(
+                        Math.Max(0, Parent.BackColor.R - 50),
+                        Math.Max(0, Parent.BackColor.G - 50),
+                        Math.Max(0, Parent.BackColor.B - 50)
+                    );
+                }
             }
+            else
+            {
+                outlineColor = Color.Black;
+            }
+
+            // アウトラインの太さを調整（スケールを考慮）
+            float offset = baseFontSize * 0.04f / Math.Max(scaleX, scaleY);
+
+            // アウトラインを描画（8方向）
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    if (x != 0 || y != 0)
+                    {
+                        e.Graphics.DrawString(text, font, new SolidBrush(outlineColor),
+                            x * offset,
+                            y * offset);
+                    }
+                }
+            }
+
+            // メインの文字を描画
+            e.Graphics.DrawString(text, font, Brushes.Gold, 0, 0);
+
+            // 変換をリセット
+            e.Graphics.ResetTransform();
         }
     }
     private void UpdateParentIfNeeded()

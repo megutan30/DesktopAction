@@ -180,9 +180,9 @@ namespace MultiWindowActionGame
                 WindowEffectManager.Instance.ApplyEffects(window);
             }
         }
-
         private void ApplyScaleToHierarchy(GameWindow window, SizeF scale)
         {
+            // 現在のウィンドウの子をすべて処理
             foreach (var child in window.Children)
             {
                 if (!originalSizes.ContainsKey(child))
@@ -193,18 +193,46 @@ namespace MultiWindowActionGame
                         (int)(child.Bounds.Height / currentScale.Height)
                     );
                 }
-            }
 
-            currentScale = scale;  // 現在のスケールを更新
-            resizeEffect.UpdateScale(window, scale, originalSize);
-
-            foreach (var child in window.Children)
-            {
+                // 子要素にスケールを適用
                 var childOriginalSize = originalSizes[child];
                 resizeEffect.UpdateScale(child, scale, childOriginalSize);
+
+                // 孫以降の処理：子がGameWindowの場合は再帰的に処理
+                if (child is GameWindow childWindow)
+                {
+                    ApplyScaleToChildrenRecursive(childWindow, scale);
+                }
             }
+
+            // 現在のウィンドウにスケールを適用
+            currentScale = scale;
+            resizeEffect.UpdateScale(window, scale, originalSize);
         }
 
+        // 再帰的に子孫すべてにスケールを適用する新しいメソッド
+        private void ApplyScaleToChildrenRecursive(GameWindow window, SizeF scale)
+        {
+            foreach (var child in window.Children)
+            {
+                if (!originalSizes.ContainsKey(child))
+                {
+                    originalSizes[child] = new Size(
+                        (int)(child.Bounds.Width / currentScale.Width),
+                        (int)(child.Bounds.Height / currentScale.Height)
+                    );
+                }
+
+                var childOriginalSize = originalSizes[child];
+                resizeEffect.UpdateScale(child, scale, childOriginalSize);
+
+                // さらに子がある場合は再帰的に処理
+                if (child is GameWindow childWindow)
+                {
+                    ApplyScaleToChildrenRecursive(childWindow, scale);
+                }
+            }
+        }
         private Size CalculateNewSize(GameWindow window, Point currentMousePos)
         {
             int dx = currentMousePos.X - lastMousePos.X;
@@ -564,7 +592,6 @@ namespace MultiWindowActionGame
     public class TextDisplayWindowStrategy : BaseWindowStrategy
     {
         private readonly string displayText;
-        private const float DEFAULT_FONT_SIZE_RATIO = 0.2f;
 
         public TextDisplayWindowStrategy(string text)
         {

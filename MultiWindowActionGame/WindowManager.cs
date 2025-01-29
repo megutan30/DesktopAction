@@ -1,4 +1,5 @@
 ﻿using MultiWindowActionGame;
+using System.Drawing.Drawing2D;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using static MultiWindowActionGame.GameWindow;
@@ -29,9 +30,9 @@ public class WindowManager : IWindowObserver
         Player = 2,
         Bottom = 3,
         Goal = 4,
-        Button = 4,
-        WindowMark = 5,
-        Window = 6,
+        Button = 5,
+        WindowMark = 6,
+        Window = 7,
     }
     private readonly Dictionary<IntPtr, ZOrderPriority> handlePriorities = new();
     private readonly SortedDictionary<ZOrderPriority, List<Form>> formsByPriority = new();
@@ -229,8 +230,6 @@ public class WindowManager : IWindowObserver
             windows.Clear();
         }
     }
-
-
     public HashSet<IEffectTarget> GetContainedTargets(GameWindow window)
     {
         return new HashSet<IEffectTarget>(
@@ -239,17 +238,63 @@ public class WindowManager : IWindowObserver
                 .Select(kv => kv.Key)
         );
     }
-
     public IEnumerable<IEffectTarget> GetAllComponents()
     {
         lock (windowLock)
         {
-            var components = new List<IEffectTarget>(windows);
-            if (player != null)
+            var components = new List<IEffectTarget>();
+
+            // ZOrderPriorityの順序に従ってコンポーネントを追加
+            foreach (var priority in Enum.GetValues<ZOrderPriority>().OrderByDescending(p => (int)p))
             {
-                components.Add(player);
+                switch (priority)
+                {
+                    case ZOrderPriority.Player:
+                        if (player != null)
+                        {
+                            components.Add(player);
+                        }
+                        break;
+
+                    case ZOrderPriority.Window:
+                        components.AddRange(windows);
+                        break;
+
+                    case ZOrderPriority.Button:
+                        components.AddRange(
+                            formsByPriority
+                                .Where(kv => kv.Key == ZOrderPriority.Button)
+                                .SelectMany(kv => kv.Value)
+                                .OfType<IEffectTarget>()
+                        );
+                        break;
+
+                    case ZOrderPriority.Goal:
+                        // ゴールの追加（もし必要な場合）
+                        components.AddRange(
+                            formsByPriority
+                                .Where(kv => kv.Key == ZOrderPriority.Goal)
+                                .SelectMany(kv => kv.Value)
+                                .OfType<IEffectTarget>()
+                        );
+                        break;
+                }
             }
+
             return components;
+        }
+    }
+
+    public IReadOnlyList<GameButton> GetAllButtons()
+    {
+        lock (windowLock)
+        {
+            // formsByPriorityからZOrderPriority.Buttonのものを取得
+            if (formsByPriority.TryGetValue(ZOrderPriority.Button, out var buttonForms))
+            {
+                return buttonForms.OfType<GameButton>().ToList();
+            }
+            return new List<GameButton>();
         }
     }
     public int GetWindowZIndex(GameWindow window)
@@ -283,11 +328,62 @@ public class WindowManager : IWindowObserver
             await window.UpdateAsync(deltaTime);
         }
     }
-
     public void Draw(Graphics g)
     {
         lock (windowLock)
         {
+            var allTargets = GetAllComponents();
+            foreach (var target in allTargets)
+            {
+                if (target.Parent != null && !(target is Goal) && !(target is PlayerForm))
+                {
+                    Color parentColor = target.Parent.BackColor;
+                    float brightness = (parentColor.R * 0.299f +
+                                      parentColor.G * 0.587f +
+                                      parentColor.B * 0.114f) / 255f;
+
+                    Color outlineColor = brightness < 0.5f ?
+                        Color.FromArgb(
+                            Math.Min(255, parentColor.R + 100),
+                            Math.Min(255, parentColor.G + 100),
+                            Math.Min(255, parentColor.B + 100)
+                        ) :
+                        Color.FromArgb(
+                            Math.Max(0, parentColor.R - 50),
+                            Math.Max(0, parentColor.G - 50),
+                            Math.Max(0, parentColor.B - 50)
+                        );
+
+                    using (Region clipRegion = new Region(target.Bounds))
+                    {
+                        // 現在のターゲットのインデックスを取得
+                        int currentIndex = allTargets.ToList().IndexOf(target);
+
+                        // より前面にある全てのターゲットとの重なりをチェック
+                        var coveringTargets = allTargets
+                            .Skip(currentIndex + 1)  // 現在のターゲットより後ろのものだけを取得
+                            .Where(t => t.Bounds.IntersectsWith(target.Bounds));
+
+                        foreach (var coveringTarget in coveringTargets)
+                        {
+                            clipRegion.Exclude(coveringTarget.Bounds);
+                        }
+
+                        Region originalClip = g.Clip;
+                        g.Clip = clipRegion;
+
+                        using (Pen outlinePen = new Pen(outlineColor, 10))
+                        {
+                            g.DrawRectangle(outlinePen, target.Bounds);
+                        }
+
+                        g.Clip = originalClip;
+                    }
+                }
+
+                target.Draw(g);
+            }
+
             foreach (var window in windows)
             {
                 DrawWindowBase(g, window);
@@ -296,33 +392,6 @@ public class WindowManager : IWindowObserver
     }
     private void DrawWindowBase(Graphics g, GameWindow window)
     {
-        // 親子関係のアウトラインなど、ウィンドウの基本的な描画
-        if (window.Parent != null)
-        {
-            Color parentColor = window.Parent.BackColor;
-            Color outlineColor = Color.FromArgb(
-                Math.Max(0, parentColor.R - 50),
-                Math.Max(0, parentColor.G - 50),
-                Math.Max(0, parentColor.B - 50)
-            );
-            using (Pen outlinePen = new Pen(outlineColor, 3))
-            {
-                g.DrawRectangle(outlinePen, window.CollisionBounds);
-            }
-        }
-
-        // デバッグ情報など他の描画
-        if (MainGame.IsDebugMode)
-        {
-            //window.DrawDebugInfo(g);
-        }
-        else
-        {
-            g.DrawString($"Window ID: {window.Id}", window.Font, Brushes.Black,
-                window.AdjustedBounds.X + 10, window.AdjustedBounds.Y + 10);
-            g.DrawString($"Type: {window.Strategy.GetType().Name}", window.Font, Brushes.Black,
-                window.AdjustedBounds.X + 10, window.AdjustedBounds.Y + 30);
-        }
     }
     public void DrawMarks(Graphics g)
     {
@@ -333,7 +402,7 @@ public class WindowManager : IWindowObserver
                 DrawWindowMark(g, window);
                 if (window.Parent != null)
                 {
-                    DrawParentChildConnection(g, window);
+                    //DrawParentChildConnection(g, window);
                 }
             }
         }
@@ -402,18 +471,6 @@ public class WindowManager : IWindowObserver
                 childWindow.Parent.Bounds.Y + childWindow.Parent.Bounds.Height / 2
             );
             g.DrawLine(pen, childCenter, parentCenter);
-        }
-    }
-    public IReadOnlyList<GameButton> GetAllButtons()
-    {
-        lock (windowLock)
-        {
-            // formsByPriorityからZOrderPriority.Buttonのものを取得
-            if (formsByPriority.TryGetValue(ZOrderPriority.Button, out var buttonForms))
-            {
-                return buttonForms.OfType<GameButton>().ToList();
-            }
-            return new List<GameButton>();
         }
     }
     public GameWindow? GetWindowAt(Rectangle bounds, GameWindow? currentWindow = null)

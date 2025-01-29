@@ -9,7 +9,7 @@ namespace MultiWindowActionGame
     // StartButtonの実装
     public class ToTitleButton : GameButton
     {
-        public ToTitleButton(Point location) : base(location, new Size(100, 40))  // Retryより少し大きめに
+        public ToTitleButton(Point location) : base(location, new Size(150, 40))
         {
         }
 

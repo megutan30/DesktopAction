@@ -27,10 +27,6 @@ namespace MultiWindowActionGame
             {
                 g.FillRectangle(Brushes.Blue, player.ClientRectangle);
             }
-            else
-            {
-                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
-            }
         }
 
         public void HandleInput(PlayerForm player)
@@ -62,10 +58,6 @@ namespace MultiWindowActionGame
             {
                 g.FillRectangle(Brushes.Green, player.ClientRectangle);
             }
-            else
-            {
-                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
-            }
         }
 
         public void HandleInput(PlayerForm player)
@@ -90,10 +82,6 @@ namespace MultiWindowActionGame
             if (MainGame.IsDebugMode)
             {
                 g.FillRectangle(Brushes.Red, player.ClientRectangle);
-            }
-            else
-            {
-                g.FillRectangle(Brushes.Blue, player.ClientRectangle);
             }
         }
 

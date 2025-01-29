@@ -50,7 +50,6 @@ public abstract class GameButton : BaseEffectTarget
             OnButtonClick();
         }
     }
-
     private void Button_Paint(object? sender, PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -83,13 +82,15 @@ public abstract class GameButton : BaseEffectTarget
     {
         // 最小サイズを設定
         var validSize = new Size(
-            Math.Max(newSize.Width, 20),  // 最小幅20px
-            Math.Max(newSize.Height, 5)  // 最小高さ20px
+            Math.Max(newSize.Width, 150),  // 最小幅20px
+            Math.Max(newSize.Height, 40)  // 最小高さ20px
         );
 
         this.Size = validSize;
         bounds.Size = validSize;
         UpdateParentIfNeeded();
+
+        this.Invalidate();
     }
     public override bool CanReceiveEffect(IWindowEffect effect)
     {
@@ -166,7 +167,6 @@ public abstract class GameButton : BaseEffectTarget
     {
         CheckParentWindow();
     }
-
     private void CheckParentWindow()
     {
         // 自身の領域を完全に含むウィンドウを探す
@@ -176,9 +176,7 @@ public abstract class GameButton : BaseEffectTarget
             SetParent(potentialParent);
         }
     }
-    public override void Draw(Graphics g)
-    {
-    }
+    public override void Draw(Graphics g) { }
     public override Size GetOriginalSize() => Bounds.Size;
     protected override void Dispose(bool disposing)
     {
