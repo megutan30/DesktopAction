@@ -379,38 +379,22 @@ namespace MultiWindowActionGame
         }
         private void OnPaint(object? sender, PaintEventArgs e)
         {
-            // プレイヤーの描画
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // 本体の描画
             using (var brush = new SolidBrush(Color.Blue))
             {
                 e.Graphics.FillRectangle(brush, ClientRectangle);
             }
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // アウトラインを描画（親がある場合）
+            // アウトラインの描画
             if (Parent != null)
             {
-                Color parentColor = Parent.BackColor;
-                float brightness = (parentColor.R * 0.299f +
-                                  parentColor.G * 0.587f +
-                                  parentColor.B * 0.114f) / 255f;
-
-                Color outlineColor = brightness < 0.5f ?
-                    Color.FromArgb(
-                        Math.Min(255, parentColor.R + 100),
-                        Math.Min(255, parentColor.G + 100),
-                        Math.Min(255, parentColor.B + 100)
-                    ) :
-                    Color.FromArgb(
-                        Math.Max(0, parentColor.R - 50),
-                        Math.Max(0, parentColor.G - 50),
-                        Math.Max(0, parentColor.B - 50)
-                    );
-
-                using (Pen outlinePen = new Pen(outlineColor, 5))
-                {
-                    e.Graphics.DrawRectangle(outlinePen, 0, 0, Width - 1, Height - 1);
-                }
+                var outlineColor = OutlineRenderer.CalculateOutlineColor(Parent.BackColor);
+                OutlineRenderer.DrawFormOutline(e.Graphics,
+                    new Rectangle(0, 0, Width - 1, Height - 1), outlineColor);
             }
+
             // 状態に応じた描画
             currentState.Draw(this, e.Graphics);
         }

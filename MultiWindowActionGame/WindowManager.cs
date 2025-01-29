@@ -17,10 +17,7 @@ public class WindowManager : IWindowObserver
 
     private readonly Dictionary<GameWindow, HashSet<IEffectTarget>> containedTargetsCache = new();
     private Dictionary<IEffectTarget, GameWindow> parentChildRelations = new Dictionary<IEffectTarget, GameWindow>();
-    private bool isCheckingParentChild = false;
-    private bool needsUpdateCache = true;
-    private Dictionary<GameWindow, GameWindow> childToParentRelations = new Dictionary<GameWindow, GameWindow>();
-    private bool isCheckingRelations = false;
+
     private OverlayForm? overlayForm;
 
     // Z-order の優先順位を定義
@@ -48,10 +45,6 @@ public class WindowManager : IWindowObserver
         overlayForm.Show();
 
         isInitialized = true;
-    }
-    public void InvalidateCache()
-    {
-        needsUpdateCache = true;
     }
     public void SetPlayer(PlayerForm player)
     {
@@ -202,7 +195,7 @@ public class WindowManager : IWindowObserver
 
     private IntPtr GetInsertAfterHandle(ZOrderPriority priority)
     {
-        return Win32.HWND_TOPMOST;
+        return WindowMessages.HWND_TOPMOST;
     }
 
     public void RegisterWindow(GameWindow window)
@@ -337,56 +330,15 @@ public class WindowManager : IWindowObserver
             {
                 if (target.Parent != null && !(target is Goal) && !(target is PlayerForm))
                 {
-                    Color parentColor = target.Parent.BackColor;
-                    float brightness = (parentColor.R * 0.299f +
-                                      parentColor.G * 0.587f +
-                                      parentColor.B * 0.114f) / 255f;
+                    int currentIndex = allTargets.ToList().IndexOf(target);
+                    var coveringTargets = allTargets
+                        .Skip(currentIndex + 1)
+                        .Where(t => t.Bounds.IntersectsWith(target.Bounds));
 
-                    Color outlineColor = brightness < 0.5f ?
-                        Color.FromArgb(
-                            Math.Min(255, parentColor.R + 100),
-                            Math.Min(255, parentColor.G + 100),
-                            Math.Min(255, parentColor.B + 100)
-                        ) :
-                        Color.FromArgb(
-                            Math.Max(0, parentColor.R - 50),
-                            Math.Max(0, parentColor.G - 50),
-                            Math.Max(0, parentColor.B - 50)
-                        );
-
-                    using (Region clipRegion = new Region(target.Bounds))
-                    {
-                        // 現在のターゲットのインデックスを取得
-                        int currentIndex = allTargets.ToList().IndexOf(target);
-
-                        // より前面にある全てのターゲットとの重なりをチェック
-                        var coveringTargets = allTargets
-                            .Skip(currentIndex + 1)  // 現在のターゲットより後ろのものだけを取得
-                            .Where(t => t.Bounds.IntersectsWith(target.Bounds));
-
-                        foreach (var coveringTarget in coveringTargets)
-                        {
-                            clipRegion.Exclude(coveringTarget.Bounds);
-                        }
-
-                        Region originalClip = g.Clip;
-                        g.Clip = clipRegion;
-
-                        using (Pen outlinePen = new Pen(outlineColor, 10))
-                        {
-                            g.DrawRectangle(outlinePen, target.Bounds);
-                        }
-
-                        g.Clip = originalClip;
-                    }
+                    OutlineRenderer.DrawClippedOutline(g, target, coveringTargets);
                 }
 
                 target.Draw(g);
-            }
-
-            foreach (var window in windows)
-            {
-                DrawWindowBase(g, window);
             }
         }
     }
@@ -826,11 +778,11 @@ public void BringWindowToFront(GameWindow window)
                         ? GetInsertAfterHandle(priorityGroup.Key)  // 優先度グループの最前面
                         : priorityGroup.Value[i + 1].Handle;       // 同じグループの前のウィンドウの後ろ
 
-                    Win32.SetWindowPos(
+                    WindowMessages.SetWindowPos(
                         form.Handle,
                         insertAfter,
                         0, 0, 0, 0,
-                        Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE
+                        WindowMessages.SWP_NOMOVE | WindowMessages.SWP_NOSIZE | WindowMessages.SWP_NOACTIVATE
                     );
                 }
             }
@@ -841,11 +793,11 @@ public void BringWindowToFront(GameWindow window)
         if (!form.IsDisposed && form.Handle != IntPtr.Zero)
         {
             IntPtr insertAfter = GetInsertAfterHandle(priority);
-            Win32.SetWindowPos(
+            WindowMessages.SetWindowPos(
                 form.Handle,
                 insertAfter,
                 0, 0, 0, 0,
-                Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE
+                WindowMessages.SWP_NOMOVE | WindowMessages.SWP_NOSIZE | WindowMessages.SWP_NOACTIVATE
             );
         }
     }
@@ -910,21 +862,5 @@ public void BringWindowToFront(GameWindow window)
                 windows.Remove(window);
             }
         }
-    }
-    public static class Win32
-    {
-        public static readonly IntPtr HWND_TOP = new IntPtr(0);
-        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-        public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
-        public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
-
-        public const uint SWP_NOMOVE = 0x0002;
-        public const uint SWP_NOSIZE = 0x0001;
-        public const uint SWP_NOACTIVATE = 0x0010;
-        public const uint SWP_SHOWWINDOW = 0x0040;
-
-        [DllImport("user32.dll")]
-        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
-            int X, int Y, int cx, int cy, uint uFlags);
     }
 }

@@ -33,6 +33,8 @@ namespace MultiWindowActionGame
         public const int HWND_TOP = 0;
         public const uint SWP_NOMOVE = 0x0002;
         public const uint SWP_NOSIZE = 0x0001;
+        public const uint SWP_NOACTIVATE = 0x0010;
+        public const uint SWP_SHOWWINDOW = 0x0040;
         public const uint MF_BYCOMMAND = 0x00000000;
         public const uint MF_GRAYED = 0x00000001;
 
@@ -40,7 +42,11 @@ namespace MultiWindowActionGame
         public const int WS_EX_LAYERED = 0x80000;
         public const int WS_EX_TRANSPARENT = 0x20;
         public const int WS_EX_TOPMOST = 0x8;
+
+
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
