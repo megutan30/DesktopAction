@@ -30,7 +30,7 @@ public abstract class GameButton : BaseEffectTarget
         this.StartPosition = FormStartPosition.Manual;
         this.Location = bounds.Location;
         this.Size = bounds.Size;
-        this.ShowInTaskbar = false;
+        this.ShowInTaskbar = true;
 
         // マウスイベントの設定
         this.MouseEnter += (s, e) => { isHovered = true; this.Invalidate(); };

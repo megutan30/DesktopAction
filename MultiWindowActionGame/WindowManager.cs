@@ -54,6 +54,7 @@ public class WindowManager : IWindowObserver
     {
         return parentChildRelations.TryGetValue(child, out var parent) ? parent : null;
     }
+
     public IReadOnlyList<GameWindow> GetAllWindows()
     {
         lock (windowLock)
@@ -555,58 +556,58 @@ public class WindowManager : IWindowObserver
                 .FirstOrDefault();
         }
     }
-public void BringWindowToFront(GameWindow window)
-{
-    lock (windowLock)
+    public void BringWindowToFront(GameWindow window)
     {
-        // 親がある場合は、同じ親を持つウィンドウ間でのみ順序を変更
-        if (window.Parent != null)
+        lock (windowLock)
         {
-            var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
-            foreach (var sibling in siblings)
+            // 親がある場合は、同じ親を持つウィンドウ間でのみ順序を変更
+            if (window.Parent != null)
             {
-                windows.Remove(sibling);
-            }
-            siblings.Remove(window);
-            siblings.Add(window);  // 最後（最前面）に移動
-            windows.AddRange(siblings);
-        }
-        else
-        {
-            // 親がない場合は、ルートレベルのウィンドウ間で順序を変更
-            var windowGroup = new List<GameWindow> { window };
-            windowGroup.AddRange(window.GetAllDescendants());  // 子孫も含める
-
-            // グループ全体を一度削除
-            foreach (var groupWindow in windowGroup)
-            {
-                windows.Remove(groupWindow);
-            }
-
-            // グループ全体を最前面に移動
-            windows.AddRange(windowGroup);
-        }
-
-        // 同じ優先度内での順序も更新
-        if (handlePriorities.TryGetValue(window.Handle, out var priority))
-        {
-            if (formsByPriority.ContainsKey(priority))
-            {
-                var forms = formsByPriority[priority];
-                foreach (var groupWindow in CollectRelatedWindows(window))
+                var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
+                foreach (var sibling in siblings)
                 {
-                    if (forms.Contains(groupWindow))
+                    windows.Remove(sibling);
+                }
+                siblings.Remove(window);
+                siblings.Add(window);  // 最後（最前面）に移動
+                windows.AddRange(siblings);
+            }
+            else
+            {
+                // 親がない場合は、ルートレベルのウィンドウ間で順序を変更
+                var windowGroup = new List<GameWindow> { window };
+                windowGroup.AddRange(window.GetAllDescendants());  // 子孫も含める
+
+                // グループ全体を一度削除
+                foreach (var groupWindow in windowGroup)
+                {
+                    windows.Remove(groupWindow);
+                }
+
+                // グループ全体を最前面に移動
+                windows.AddRange(windowGroup);
+            }
+
+            // 同じ優先度内での順序も更新
+            if (handlePriorities.TryGetValue(window.Handle, out var priority))
+            {
+                if (formsByPriority.ContainsKey(priority))
+                {
+                    var forms = formsByPriority[priority];
+                    foreach (var groupWindow in CollectRelatedWindows(window))
                     {
-                        forms.Remove(groupWindow);
-                        forms.Add(groupWindow);
+                        if (forms.Contains(groupWindow))
+                        {
+                            forms.Remove(groupWindow);
+                            forms.Add(groupWindow);
+                        }
                     }
                 }
             }
-        }
 
-        UpdateWindowGroupZOrder();
+            UpdateWindowGroupZOrder();
+        }
     }
-}
 
     public void UpdateDisplay()
     {

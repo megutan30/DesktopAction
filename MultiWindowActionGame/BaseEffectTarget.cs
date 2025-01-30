@@ -70,7 +70,6 @@ namespace MultiWindowActionGame
                 UpdateTargetSize(newSize);
             }
         }
-
         public abstract void UpdateTargetPosition(Point newPosition);
         public abstract void UpdateTargetSize(Size newSize);
         public abstract void OnMinimize();

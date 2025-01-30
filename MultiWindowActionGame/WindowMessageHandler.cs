@@ -20,6 +20,15 @@ public static class WindowMessageHandler
 
     public static MessageHandleResult HandleWindowMessage(GameWindow window, Message m)
     {
+        if (m.Msg == WindowMessages.WM_ACTIVATE && !window.IsInitializing)
+        {
+            if (m.WParam.ToInt32() != 0)
+            {
+                HandleLeftButtonDown(window);
+                HandleLeftButtonUp(window);
+                return MessageHandleResult.Success;
+            }
+        }
         // ストラテジーにメッセージを渡す前に共通処理を実行
         var commonResult = HandleCommonMessages(window, m);
         if (commonResult.Handled)
@@ -106,7 +115,6 @@ public static class WindowMessageHandler
     private static void HandleLeftButtonDown(GameWindow window)
     {
         WindowManager.Instance.BringWindowToFront(window);
-        window.BringToFront();
     }
 
     private static void HandleLeftButtonUp(GameWindow window)

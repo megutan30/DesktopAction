@@ -17,7 +17,7 @@ namespace MultiWindowActionGame
         public IWindowStrategy Strategy { get; private set; }
         public override Rectangle Bounds => AdjustedBounds;
         public Rectangle FullBounds => new Rectangle(Location, Size);
-
+        public bool IsInitializing { get; private set; } = true;
         private new const int Margin = 0;
         protected IWindowStrategy strategy;
         private List<IWindowObserver> observers = new List<IWindowObserver>();
@@ -41,6 +41,7 @@ namespace MultiWindowActionGame
         }
         public GameWindow(Point location, Size size, IWindowStrategy strategy)
         {
+            IsInitializing = true;
             this.strategy = strategy;
             this.Strategy = strategy;
             this.OriginalSize = size;
@@ -53,6 +54,7 @@ namespace MultiWindowActionGame
 
             Debug.WriteLine($"Created window with ID: {Id}, Location: {Location}, Size: {Size}");
             this.Show();
+            IsInitializing = false;
         }
         private void InitializeWindow(Point location, Size size)
         {

@@ -10,6 +10,7 @@ namespace MultiWindowActionGame
     public static class WindowMessages
     {
         // マウス関連
+        public const int WM_ACTIVATE = 0x0006;
         public const int WM_MOUSEMOVE = 0x0200;
         public const int WM_LBUTTONDOWN = 0x0201;
         public const int WM_LBUTTONUP = 0x0202;
