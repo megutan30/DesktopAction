@@ -52,22 +52,30 @@ namespace MultiWindowActionGame
             }
         }
         public static void DrawClippedOutline(Graphics g, IEffectTarget target,
-            IEnumerable<IEffectTarget> coveringTargets)
+          IEnumerable<IEffectTarget> coveringTargets, Rectangle outlineBounds)
         {
             if (target.Parent == null) return;
 
-            using (var clipRegion = new Region(target.Bounds))
+            using (var clipRegion = new Region(outlineBounds))
             {
                 foreach (var coveringTarget in coveringTargets)
                 {
-                    clipRegion.Exclude(coveringTarget.Bounds);
+                    // 被っているターゲットもGameWindowの場合はCollisionBoundsを使用
+                    if (coveringTarget is GameWindow coveringWindow)
+                    {
+                        clipRegion.Exclude(coveringWindow.CollisionBounds);
+                    }
+                    else
+                    {
+                        clipRegion.Exclude(coveringTarget.Bounds);
+                    }
                 }
 
                 var originalClip = g.Clip;
                 g.Clip = clipRegion;
 
                 var outlineColor = CalculateOutlineColor(target.Parent.BackColor);
-                DrawFormOutline(g, target.Bounds, outlineColor);
+                DrawFormOutline(g, outlineBounds, outlineColor);
 
                 g.Clip = originalClip;
             }

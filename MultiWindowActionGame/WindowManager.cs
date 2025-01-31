@@ -336,7 +336,15 @@ public class WindowManager : IWindowObserver
                         .Skip(currentIndex + 1)
                         .Where(t => t.Bounds.IntersectsWith(target.Bounds));
 
-                    OutlineRenderer.DrawClippedOutline(g, target, coveringTargets);
+                    // GameWindowの場合はCollisionBoundsを使用
+                    if (target is GameWindow window)
+                    {
+                        OutlineRenderer.DrawClippedOutline(g, target, coveringTargets, window.CollisionBounds);
+                    }
+                    else
+                    {
+                        OutlineRenderer.DrawClippedOutline(g, target, coveringTargets, target.Bounds);
+                    }
                 }
 
                 target.Draw(g);
