@@ -35,7 +35,7 @@ namespace MultiWindowActionGame
             }
 
             GameTime.Start();
-            StageManager.Instance.StartStage(0);
+            StageManager.Instance.StartStageAsync(0);
         }
 
         public void InitializePlayer(Point startPosition)

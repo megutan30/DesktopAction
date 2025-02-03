@@ -15,7 +15,14 @@ public class StageManager
     private RetryButton? currentRetryButton;
     private StartButton? currentStartButton;
     private ToTitleButton? currentToTitaleButton;
-
+    private enum StageInitializationState
+    {
+        NotStarted,
+        WindowsInitialized,
+        UIInitialized,
+        PlayerInitialized,
+        Completed
+    }
     private StageManager()
     {
         InitializeStages();
@@ -310,8 +317,7 @@ public class StageManager
             IsTitleStage = true
         });
     }
-
-    public void StartStage(int stageNumber)
+    public async Task StartStageAsync(int stageNumber)
     {
         if (stageNumber < 0 || stageNumber >= stages.Count) return;
 
@@ -326,13 +332,14 @@ public class StageManager
         currentStage = stageNumber;
         var stageData = stages[currentStage];
 
-        // 1. まず最もZ-orderが低いウィンドウを生成
+        // 1. ウィンドウを生成
         foreach (var windowData in stageData.Windows)
         {
             WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size, windowData.text);
         }
 
-        // ウィンドウのZ-orderを確実に更新
+        // ウィンドウの初期化を待つ
+        await Task.Delay(50);
         WindowManager.Instance.UpdateWindowGroupZOrder();
 
         // 2. 不可侵領域の生成
@@ -341,44 +348,35 @@ public class StageManager
             NoEntryZoneManager.Instance.AddZone(zoneData.location, zoneData.size);
         }
 
-        // 3. ボタンとゴールを生成（中間のZ-order）
-        if (stageData.IsTitleStage)
+        // 3. UI要素の生成
+        if (!stageData.IsTitleStage)
         {
-            // タイトル画面の場合は確実にゴールを閉じる
-            if (currentGoal != null)
-            {
-                currentGoal.Close();
-                currentGoal = null;
-            }
-        }
-        else
-        {
-            // 通常ステージの場合は新しくゴールを生成
             currentGoal = new Goal(stageData.GoalPosition, stageData.GoalInFront);
             currentGoal.Show();
         }
 
+        // ボタンの生成
         if (stageData.RetryButtonPosition.HasValue)
         {
             currentRetryButton = new RetryButton(stageData.RetryButtonPosition.Value);
             currentRetryButton.Show();
         }
-
         if (stageData.StartButtonPosition.HasValue)
         {
             currentStartButton = new StartButton(stageData.StartButtonPosition.Value);
             currentStartButton.Show();
         }
-
         if (stageData.ToTitaleButtonPosition.HasValue)
         {
             currentToTitaleButton = new ToTitleButton(stageData.ToTitaleButtonPosition.Value);
             currentToTitaleButton.Show();
         }
 
+        // UI要素の初期化を待つ
+        await Task.Delay(50);
         WindowManager.Instance.UpdateWindowGroupZOrder();
 
-        // 4. 最後にプレイヤーを生成（最高のZ-order）
+        // 4. プレイヤーの生成/リセット
         var player = MainGame.GetPlayer();
         if (player == null)
         {
@@ -388,7 +386,26 @@ public class StageManager
         {
             player.ResetSize(new Size(40, 40));
             player.ResetPosition(stageData.PlayerStartPosition);
+            await Task.Delay(50);
             player.Show();
+        }
+
+        // 5. 最終確認
+        if (player != null)
+        {
+            // プレイヤーの初期位置での親ウィンドウをチェック
+            var intersectingWindows = WindowManager.Instance
+                .GetIntersectingWindows(player.Bounds)
+                .OrderByDescending(w => WindowManager.Instance.GetWindowZIndex(w));
+
+            foreach (var window in intersectingWindows)
+            {
+                if (window.AdjustedBounds.Contains(player.Bounds))
+                {
+                    player.SetParent(window);
+                    break;
+                }
+            }
         }
 
         // 最終的なZ-order更新
@@ -396,11 +413,11 @@ public class StageManager
     }
     public void RestartCurrentStage()
     {
-        StartStage(currentStage);
+        StartStageAsync(currentStage);
     }
     public void ToTitleStage()
     {
-        StartStage(0);
+        StartStageAsync(0);
     }
     public StageData GetStage(int stageNumber)
     {
@@ -459,7 +476,7 @@ public class StageManager
                 player.ResetPosition(nextStageData.PlayerStartPosition);
             }
 
-            StartStage(nextStageNumber);
+            StartStageAsync(nextStageNumber);
         }
     }
 }
