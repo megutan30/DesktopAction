@@ -70,6 +70,18 @@ namespace MultiWindowActionGame
                 UpdateTargetSize(newSize);
             }
         }
+        protected override void WndProc(ref Message m)
+        {
+            var result = WindowMessageHandler.HandleWindowMessage(this, m);
+            if (!result.Handled)
+            {
+                base.WndProc(ref m);
+            }
+            else
+            {
+                m.Result = result.Result;
+            }
+        }
         public abstract void UpdateTargetPosition(Point newPosition);
         public abstract void UpdateTargetSize(Size newSize);
         public abstract void OnMinimize();

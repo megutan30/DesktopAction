@@ -412,7 +412,7 @@ public class StageManager
     }
     public bool CheckGoal(PlayerForm player)
     {
-        if (currentGoal == null) return false;
+        if (currentGoal == null||currentGoal.IsMinimized) return false;
         // デバッグ情報を出力
         if (MainGame.IsDebugMode)
         {

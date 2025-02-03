@@ -169,6 +169,7 @@ public class Goal : BaseEffectTarget
         bounds.Size = validSize;
         UpdateParentIfNeeded();
     }
+
     public override void OnMinimize()
     {
         IsMinimized = true;

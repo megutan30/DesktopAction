@@ -18,32 +18,72 @@ public static class WindowMessageHandler
         public static MessageHandleResult WithResult(IntPtr result) => new(true, result);
     }
 
-    public static MessageHandleResult HandleWindowMessage(GameWindow window, Message m)
+    public static MessageHandleResult HandleWindowMessage(BaseEffectTarget target, Message m)
     {
-        if (m.Msg == WindowMessages.WM_ACTIVATE && !window.IsInitializing)
+        if (target is GameWindow window)
         {
-            if (m.WParam.ToInt32() != 0)
+            // GameWindow特有の処理
+            if (m.Msg == WindowMessages.WM_ACTIVATE && !window.IsInitializing)
             {
-                HandleLeftButtonDown(window);
-                HandleLeftButtonUp(window);
-                return MessageHandleResult.Success;
+                if (m.WParam.ToInt32() != 0)
+                {
+                    HandleLeftButtonDown(window);
+                    HandleLeftButtonUp(window);
+                    return MessageHandleResult.Success;
+                }
+            }
+
+            // ストラテジーにメッセージを渡す前に共通処理を実行
+            var commonResult = HandleCommonMessages(window, m);
+            if (commonResult.Handled)
+            {
+                return commonResult;
+            }
+
+            // ストラテジー固有の処理
+            window.Strategy.HandleWindowMessage(window, m);
+
+            // ストラテジー処理後の共通処理
+            var postResult = HandlePostStrategyMessages(window, m);
+            if (postResult.Handled)
+            {
+                return postResult;
             }
         }
-        // ストラテジーにメッセージを渡す前に共通処理を実行
-        var commonResult = HandleCommonMessages(window, m);
-        if (commonResult.Handled)
+        else
         {
-            return commonResult;
+            // BaseEffectTarget共通の処理
+            var result = HandleBaseEffectTargetMessages(target, m);
+            if (result.Handled)
+            {
+                return result;
+            }
         }
 
-        // ストラテジー固有の処理
-        window.Strategy.HandleWindowMessage(window, m);
+        return MessageHandleResult.NotHandled;
+    }
 
-        // ストラテジー処理後の共通処理
-        var postResult = HandlePostStrategyMessages(window, m);
-        if (postResult.Handled)
+    private static MessageHandleResult HandleBaseEffectTargetMessages(BaseEffectTarget target, Message m)
+    {
+        if (m.Msg == WindowMessages.WM_MOUSEACTIVATE)
         {
-            return postResult;
+            return new MessageHandleResult(true, (IntPtr)WindowMessages.MA_NOACTIVATE);
+        }
+
+        if (m.Msg == WindowMessages.WM_SYSCOMMAND)
+        {
+            int command = m.WParam.ToInt32() & 0xFFF0;
+            switch (command)
+            {
+                case WindowMessages.SC_MINIMIZE:
+                    target.OnMinimize();
+                    return MessageHandleResult.Success;
+                case WindowMessages.SC_RESTORE:
+                    target.OnRestore();
+                    return MessageHandleResult.Success;
+                case WindowMessages.SC_CLOSE:
+                    return MessageHandleResult.Success;
+            }
         }
 
         return MessageHandleResult.NotHandled;
@@ -125,7 +165,6 @@ public static class WindowMessageHandler
 
     private static void HandleMouseMove(GameWindow window)
     {
-        // 必要に応じてマウス移動時の処理を追加
         var player = MainGame.GetPlayer();
         if (player?.Parent == null) return;
 
