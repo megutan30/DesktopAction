@@ -26,7 +26,8 @@ namespace MultiWindowActionGame
         public event EventHandler<EventArgs> WindowMoved;
         public event EventHandler<SizeChangedEventArgs> WindowResized;
         public bool HasActiveEffects => effects.Any(e => e.IsActive);
-
+        private TaskCompletionSource<bool> initializationTcs = new TaskCompletionSource<bool>();
+        public Task InitializationTask => initializationTcs.Task;
         public Rectangle CollisionBounds => new(
             AdjustedBounds.X,
             Location.Y,
@@ -162,6 +163,11 @@ namespace MultiWindowActionGame
                 default:
                     return false;
             }
+        }
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            initializationTcs.SetResult(true);
         }
         protected override void OnHandleDestroyed(EventArgs e)
         {

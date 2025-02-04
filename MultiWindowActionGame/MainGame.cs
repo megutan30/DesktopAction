@@ -22,7 +22,7 @@ namespace MultiWindowActionGame
         {
             settings = GameSettings.Instance.Gameplay;
         }
-        public void Initialize()
+        public async Task Initialize()
         {
             instance = this;
             WindowManager.Instance.Initialize();
@@ -35,9 +35,8 @@ namespace MultiWindowActionGame
             }
 
             GameTime.Start();
-            StageManager.Instance.StartStageAsync(0);
+            await StageManager.Instance.StartStageAsync(0);
         }
-
         public void InitializePlayer(Point startPosition)
         {
             if (player == null)

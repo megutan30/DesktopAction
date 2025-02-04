@@ -46,6 +46,12 @@ public class WindowManager : IWindowObserver
 
         isInitialized = true;
     }
+    public async Task InitializeWindowsAsync(IEnumerable<GameWindow> windows)
+    {
+        var tasks = windows.Select(w => w.InitializationTask);
+        await Task.WhenAll(tasks);
+        UpdateWindowGroupZOrder();
+    }
     public void SetPlayer(PlayerForm player)
     {
         this.player = player;

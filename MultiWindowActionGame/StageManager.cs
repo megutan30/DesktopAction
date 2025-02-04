@@ -321,76 +321,122 @@ public class StageManager
     {
         if (stageNumber < 0 || stageNumber >= stages.Count) return;
 
-        // 現在のステージをクリア
-        WindowManager.Instance.ClearWindows();
-        currentGoal?.Close();
-        NoEntryZoneManager.Instance.ClearZones();
-        currentRetryButton?.Close();
-        currentStartButton?.Close();
-        currentToTitaleButton?.Close();
-
+        await ClearCurrentStage();
         currentStage = stageNumber;
         var stageData = stages[currentStage];
 
-        // 1. ウィンドウを生成
+        // 段階的な初期化
+        await InitializeWindows(stageData);
+        await InitializeUIElements(stageData);
+        await InitializePlayer(stageData);
+        await FinalizeStageSetup();
+    }
+    private async Task ClearCurrentStage()
+    {
+        await Task.Factory.FromAsync(
+            Program.mainForm.BeginInvoke(new Action(() =>
+            {
+                WindowManager.Instance.ClearWindows();
+                NoEntryZoneManager.Instance.ClearZones();
+                currentGoal?.Close();
+                currentRetryButton?.Close();
+                currentStartButton?.Close();
+                currentToTitaleButton?.Close();
+            })),
+            Program.mainForm.EndInvoke
+        );
+    }
+    private async Task InitializeWindows(StageData stageData)
+    {
+        var createdWindows = new List<GameWindow>();
+
+        // ウィンドウの生成
         foreach (var windowData in stageData.Windows)
         {
-            WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size, windowData.text);
+            var window = WindowFactory.CreateWindow(windowData.type, windowData.location, windowData.size, windowData.text);
+            createdWindows.Add(window);
         }
 
-        // ウィンドウの初期化を待つ
-        await Task.Delay(50);
-        WindowManager.Instance.UpdateWindowGroupZOrder();
+        // 初期化完了を待機
+        await WindowManager.Instance.InitializeWindowsAsync(createdWindows);
 
-        // 2. 不可侵領域の生成
+        // 不可侵領域の設定
         foreach (var zoneData in stageData.NoEntryZones)
         {
             NoEntryZoneManager.Instance.AddZone(zoneData.location, zoneData.size);
         }
+    }
+    private async Task InitializeUIElements(StageData stageData)
+    {
+        var uiInitTasks = new List<TaskCompletionSource<bool>>();
 
-        // 3. UI要素の生成
+        // ゴールの初期化
         if (!stageData.IsTitleStage)
         {
+            var goalTcs = new TaskCompletionSource<bool>();
             currentGoal = new Goal(stageData.GoalPosition, stageData.GoalInFront);
+            currentGoal.Load += (s, e) => goalTcs.SetResult(true);
             currentGoal.Show();
+            uiInitTasks.Add(goalTcs);
         }
 
-        // ボタンの生成
+        // リトライボタンの初期化
         if (stageData.RetryButtonPosition.HasValue)
         {
+            var retryTcs = new TaskCompletionSource<bool>();
             currentRetryButton = new RetryButton(stageData.RetryButtonPosition.Value);
+            currentRetryButton.Load += (s, e) => retryTcs.SetResult(true);
             currentRetryButton.Show();
+            uiInitTasks.Add(retryTcs);
         }
+
+        // スタートボタンの初期化
         if (stageData.StartButtonPosition.HasValue)
         {
+            var startTcs = new TaskCompletionSource<bool>();
             currentStartButton = new StartButton(stageData.StartButtonPosition.Value);
+            currentStartButton.Load += (s, e) => startTcs.SetResult(true);
             currentStartButton.Show();
+            uiInitTasks.Add(startTcs);
         }
+
+        // タイトルボタンの初期化
         if (stageData.ToTitaleButtonPosition.HasValue)
         {
+            var titleTcs = new TaskCompletionSource<bool>();
             currentToTitaleButton = new ToTitleButton(stageData.ToTitaleButtonPosition.Value);
+            currentToTitaleButton.Load += (s, e) => titleTcs.SetResult(true);
             currentToTitaleButton.Show();
+            uiInitTasks.Add(titleTcs);
         }
 
-        // UI要素の初期化を待つ
-        await Task.Delay(50);
+        await Task.WhenAll(uiInitTasks.Select(t => t.Task));
         WindowManager.Instance.UpdateWindowGroupZOrder();
-
-        // 4. プレイヤーの生成/リセット
+    }
+    private async Task InitializePlayer(StageData stageData)
+    {
+        var playerTcs = new TaskCompletionSource<bool>();
         var player = MainGame.GetPlayer();
+
         if (player == null)
         {
             MainGame.Instance.InitializePlayer(stageData.PlayerStartPosition);
+            player = MainGame.GetPlayer();
         }
         else
         {
             player.ResetSize(new Size(40, 40));
             player.ResetPosition(stageData.PlayerStartPosition);
-            await Task.Delay(50);
-            player.Show();
         }
 
-        // 5. 最終確認
+        player.Load += (s, e) => playerTcs.SetResult(true);
+        player.Show();
+
+        await playerTcs.Task;
+    }
+    private async Task FinalizeStageSetup()
+    {
+        var player = MainGame.GetPlayer();
         if (player != null)
         {
             // プレイヤーの初期位置での親ウィンドウをチェック
@@ -408,16 +454,15 @@ public class StageManager
             }
         }
 
-        // 最終的なZ-order更新
         WindowManager.Instance.UpdateWindowGroupZOrder();
     }
-    public void RestartCurrentStage()
+    public async void RestartCurrentStage()
     {
-        StartStageAsync(currentStage);
+        await StartStageAsync(currentStage);
     }
-    public void ToTitleStage()
+    public async void ToTitleStage()
     {
-        StartStageAsync(0);
+        await StartStageAsync(0);
     }
     public StageData GetStage(int stageNumber)
     {
