@@ -429,6 +429,20 @@ public class StageManager
             player.ResetPosition(stageData.PlayerStartPosition);
         }
 
+        // 生成時に親子関係をチェック
+        var intersectingWindows = WindowManager.Instance
+            .GetIntersectingWindows(player.Bounds)
+            .OrderByDescending(w => WindowManager.Instance.GetWindowZIndex(w));
+
+        foreach (var window in intersectingWindows)
+        {
+            if (window.AdjustedBounds.Contains(player.Bounds))
+            {
+                player.SetParent(window);
+                break;
+            }
+        }
+
         player.Load += (s, e) => playerTcs.SetResult(true);
         player.Show();
 
