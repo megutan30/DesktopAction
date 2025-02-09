@@ -387,7 +387,8 @@ public class WindowManager : IWindowObserver
 
         // マウスの現在位置を取得
         Point mousePos = Cursor.Position;
-        bool isHovered = window.ClientRectangle.Contains(window.PointToClient(mousePos));
+        bool isHovered = window.RectangleToScreen(window.ClientRectangle).Contains(mousePos) ||
+                         new Rectangle(window.Location, new Size(window.Width, window.RectangleToScreen(window.ClientRectangle).Y - window.Location.Y)).Contains(mousePos);
 
         // 前面のウィンドウがマウス位置と重なっているかチェック
         if (isHovered)

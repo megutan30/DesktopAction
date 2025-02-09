@@ -292,38 +292,66 @@ namespace MultiWindowActionGame
             switch (m.Msg)
             {
                 case WindowMessages.WM_NCHITTEST:
-                    // タイトルバーのヒットテストを処理
                     base.WndProc(ref m);
                     if (m.Result.ToInt32() == WindowMessages.HTCAPTION)
                     {
-                        m.Result = IntPtr.Zero;  // タイトルバーでのドラッグを無効化
+                        // マウスの位置を取得してカーソル更新とマークの処理を行う
+                        Point screenPoint = new Point(
+                            (int)(m.LParam.ToInt64() & 0xFFFF),
+                            (int)((m.LParam.ToInt64() >> 16) & 0xFFFF)
+                        );
+                        Point clientPoint = this.PointToClient(screenPoint);
+                        this.Invalidate(); // マークの再描画を要求
+
+                        m.Result = (IntPtr)WindowMessages.HTCLIENT;
                     }
                     return;
 
                 case WindowMessages.WM_NCLBUTTONDOWN:
-                    // タイトルバーでのマウス左ボタンクリックを処理
                     if (m.WParam.ToInt32() == WindowMessages.HTCAPTION)
                     {
-                        return;  // タイトルバーでのクリックを無視
+                        Point screenPoint = new Point(
+                            (int)(m.LParam.ToInt64() & 0xFFFF),
+                            (int)((m.LParam.ToInt64() >> 16) & 0xFFFF)
+                        );
+                        Point clientPoint = this.PointToClient(screenPoint);
+
+                        // 親子関係の更新のためにWindowManagerに通知
+                        WindowManager.Instance.BringWindowToFront(this);
+                        WindowManager.Instance.CheckPotentialParentWindow(this);
+
+                        // クリックイベントをシミュレート
+                        Message newMsg = new Message
+                        {
+                            Msg = WindowMessages.WM_LBUTTONDOWN,
+                            WParam = m.WParam,
+                            LParam = (IntPtr)((clientPoint.Y << 16) | clientPoint.X)
+                        };
+                        this.Strategy.HandleWindowMessage(this, newMsg);
+                        return;
                     }
+                    break;
+
+                case WindowMessages.WM_NCMOUSEMOVE:
+                    // タイトルバー上でのマウス移動も処理
+                    Point mousePoint = new Point(
+                        (int)(m.LParam.ToInt64() & 0xFFFF),
+                        (int)((m.LParam.ToInt64() >> 16) & 0xFFFF)
+                    );
+                    Point clientMousePoint = this.PointToClient(mousePoint);
+                    Strategy.UpdateCursor(this, clientMousePoint);
+                    this.Invalidate(); // マークの再描画を要求
                     break;
             }
 
             var result = WindowMessageHandler.HandleWindowMessage(this, m);
-
-            if (result.Handled)
-            {
-                m.Result = result.Result;
-            }
-            else
+            if (!result.Handled)
             {
                 base.WndProc(ref m);
             }
-
-            // カーソルの更新処理を追加
-            if (m.Msg == WindowMessages.WM_MOUSEMOVE)
+            else
             {
-                Strategy.UpdateCursor(this, PointToClient(Cursor.Position));
+                m.Result = result.Result;
             }
         }
         private void UpdateMovableRegionForDescendants(GameWindow window)
