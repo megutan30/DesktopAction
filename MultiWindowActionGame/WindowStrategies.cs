@@ -187,11 +187,7 @@ namespace MultiWindowActionGame
             {
                 if (!originalSizes.ContainsKey(child))
                 {
-                    // 新しい子要素の元のサイズを記録する際、現在のスケールで割り戻す
-                    originalSizes[child] = new Size(
-                        (int)(child.Bounds.Width / currentScale.Width),
-                        (int)(child.Bounds.Height / currentScale.Height)
-                    );
+                    originalSizes[window] = window.GetOriginalSize();
                 }
 
                 // 子要素にスケールを適用
@@ -217,10 +213,7 @@ namespace MultiWindowActionGame
             {
                 if (!originalSizes.ContainsKey(child))
                 {
-                    originalSizes[child] = new Size(
-                        (int)(child.Bounds.Width / currentScale.Width),
-                        (int)(child.Bounds.Height / currentScale.Height)
-                    );
+                    originalSizes[child] = child.GetOriginalSize();
                 }
 
                 var childOriginalSize = originalSizes[child];

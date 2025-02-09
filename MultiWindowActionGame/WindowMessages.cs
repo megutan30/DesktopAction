@@ -43,7 +43,7 @@ namespace MultiWindowActionGame
         public const int WS_EX_LAYERED = 0x80000;
         public const int WS_EX_TRANSPARENT = 0x20;
         public const int WS_EX_TOPMOST = 0x8;
-
+        public const int DWMWA_CAPTION_COLOR = 35;
 
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
@@ -79,6 +79,10 @@ namespace MultiWindowActionGame
         public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
         [DllImport("user32.dll")]
         public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+        public static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string? pszSubIdList);
         [DllImport("user32.dll")]
         public static extern bool SetWindowPos(
             IntPtr hWnd,
