@@ -357,9 +357,6 @@ public class WindowManager : IWindowObserver
             }
         }
     }
-    private void DrawWindowBase(Graphics g, GameWindow window)
-    {
-    }
     public void DrawMarks(Graphics g)
     {
         lock (windowLock)
@@ -578,14 +575,36 @@ public class WindowManager : IWindowObserver
             // 親がある場合は、同じ親を持つウィンドウ間でのみ順序を変更
             if (window.Parent != null)
             {
+                // 同じ親を持つウィンドウとその子孫を含むグループを作成
                 var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
+                var nonSiblings = windows.Where(w => w.Parent != window.Parent).ToList();
+
+                // 各兄弟ウィンドウとその子孫を一時的に除外
+                var siblingGroups = new List<List<GameWindow>>();
                 foreach (var sibling in siblings)
                 {
-                    windows.Remove(sibling);
+                    var group = new List<GameWindow> { sibling };
+                    group.AddRange(sibling.GetAllDescendants());
+                    siblingGroups.Add(group);
+
+                    foreach (var groupWindow in group)
+                    {
+                        windows.Remove(groupWindow);
+                    }
                 }
-                siblings.Remove(window);
-                siblings.Add(window);  // 最後（最前面）に移動
-                windows.AddRange(siblings);
+
+                // クリックされたウィンドウのグループを最後に移動
+                var clickedGroup = siblingGroups.Find(g => g[0] == window);
+                siblingGroups.Remove(clickedGroup);
+                siblingGroups.Add(clickedGroup);
+
+                // 適切な位置に全てのグループを戻す
+                var insertIndex = nonSiblings.FindIndex(w => w == window.Parent) + 1;
+                foreach (var group in siblingGroups)
+                {
+                    windows.InsertRange(insertIndex, group);
+                    insertIndex += group.Count;
+                }
             }
             else
             {
@@ -623,7 +642,6 @@ public class WindowManager : IWindowObserver
             UpdateWindowGroupZOrder();
         }
     }
-
     public void UpdateDisplay()
     {
         overlayForm?.UpdateOverlay();
@@ -660,7 +678,6 @@ public class WindowManager : IWindowObserver
             AddWindowAndChildren(child, orderedWindows);
         }
     }
-
     public Region CalculateMovableRegion(GameWindow currentWindow)
     {
         Region movableRegion = new Region(currentWindow.AdjustedBounds);
@@ -684,7 +701,6 @@ public class WindowManager : IWindowObserver
 
         return movableRegion;
     }
-
     private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
         var settings = GameSettings.Instance.Gameplay;
@@ -695,8 +711,6 @@ public class WindowManager : IWindowObserver
                (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
                 rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
     }
-
-
     public GameWindow? GetNearestWindow(Rectangle bounds)
     {
         GameWindow? nearestWindow = null;
@@ -717,67 +731,12 @@ public class WindowManager : IWindowObserver
 
         return nearestWindow;
     }
-
     private float DistanceToWindow(Rectangle bounds, Rectangle windowBounds)
     {
         // ウィンドウとの最短距離を計算
         float dx = Math.Max(0, Math.Max(windowBounds.Left - bounds.Right, bounds.Left - windowBounds.Right));
         float dy = Math.Max(0, Math.Max(windowBounds.Top - bounds.Bottom, bounds.Top - windowBounds.Bottom));
         return (float)Math.Sqrt(dx * dx + dy * dy);
-    }
-    public void HandleWindowActivation(GameWindow window)
-    {
-        lock (windowLock)
-        {
-            // プレイヤーが関連するウィンドウの場合は特別処理
-            if (player != null && (window == player.Parent ||
-                window.GetAllDescendants().Contains(player.Parent)))
-            {
-                UpdateFormZOrder(player, ZOrderPriority.Player);
-            }
-
-            // 既に最前面の場合は何もしない
-            if (windows.IndexOf(window) == windows.Count - 1) return;
-
-            // 親がある場合と、親がない場合で処理を分ける
-            if (window.Parent != null)
-            {
-                // 同じ親を持つウィンドウ（兄弟）間での順序変更のみを行う
-                var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
-                var nonSiblings = windows.Where(w => w.Parent != window.Parent).ToList();
-
-                // 兄弟ウィンドウを一時的に除外
-                foreach (var sibling in siblings)
-                {
-                    windows.Remove(sibling);
-                }
-
-                // クリックされたウィンドウを最後に追加
-                siblings.Remove(window);
-                siblings.Add(window);
-
-                // 適切な位置に兄弟ウィンドウを戻す
-                var insertIndex = nonSiblings.FindIndex(w => w == window.Parent) + 1;
-                windows.InsertRange(insertIndex, siblings);
-            }
-            else
-            {
-                // ルートウィンドウの場合は、子孫を含めて移動
-                var windowGroup = CollectRelatedWindows(window);
-
-                // グループ全体を一時的に削除
-                foreach (var groupWindow in windowGroup)
-                {
-                    windows.Remove(groupWindow);
-                }
-
-                // グループ全体を最前面に追加（相対的な順序を維持）
-                windows.AddRange(windowGroup);
-            }
-
-            // Z-orderの更新
-            UpdateWindowGroupZOrder();
-        }
     }
     public void UpdateWindowGroupZOrder()
     {
@@ -817,44 +776,12 @@ public class WindowManager : IWindowObserver
             );
         }
     }
-
-    private void ReorderSiblingWindows(GameWindow clickedWindow)
-    {
-        if (clickedWindow.Parent == null) return;
-
-        lock (windowLock)
-        {
-            // クリックされたウィンドウとその子孫をすべて取得
-            var clickedWindowGroup = new List<GameWindow> { clickedWindow };
-            clickedWindowGroup.AddRange(clickedWindow.GetAllDescendants());
-
-            // 現在のウィンドウグループを一時的にリストから削除
-            foreach (var window in clickedWindowGroup)
-            {
-                windows.Remove(window);
-            }
-
-            // 最前面のウィンドウのインデックスを取得
-            int maxZIndex = windows.Count;
-
-            // クリックされたウィンドウグループを最前面に配置
-            foreach (var window in clickedWindowGroup.OrderBy(w => windows.IndexOf(w)))
-            {
-                windows.Insert(maxZIndex, window);
-                window.BringToFront();
-            }
-
-            Console.WriteLine($"Reordered window {clickedWindow.Id} within siblings. New Z-index: {windows.IndexOf(clickedWindow)}");
-        }
-    }
-
     private List<GameWindow> CollectRelatedWindows(GameWindow root)
     {
         var result = new List<GameWindow>();
         CollectRelatedWindowsRecursive(root, result);
         return result;
     }
-
     private void CollectRelatedWindowsRecursive(GameWindow window, List<GameWindow> collection)
     {
         // 自身を追加

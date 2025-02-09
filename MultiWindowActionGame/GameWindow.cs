@@ -73,7 +73,6 @@ namespace MultiWindowActionGame
             this.Load += GameWindow_Load;
             this.Move += GameWindow_Move;
             this.Resize += GameWindow_Resize;
-            this.Click += GameWindow_Click;
             UpdateBounds();
         }
 
@@ -114,9 +113,6 @@ namespace MultiWindowActionGame
             IsMinimized = false;
             WindowState = FormWindowState.Normal;
             Show();
-
-            WindowManager.Instance.CheckPotentialParentWindow(this);
-            WindowManager.Instance.HandleWindowActivation(this);
             WindowManager.Instance.CheckPotentialParentWindow(this);
         }
         public override void AddChild(IEffectTarget child)
@@ -231,7 +227,7 @@ namespace MultiWindowActionGame
             // 最小化状態からの復元ではない通常のアクティブ化の場合
             if (!IsMinimized && WindowState != FormWindowState.Minimized)
             {
-                WindowManager.Instance.HandleWindowActivation(this);
+                //WindowManager.Instance.HandleWindowActivation(this);
                 WindowManager.Instance.CheckPotentialParentWindow(this);
             }
         }
@@ -241,10 +237,6 @@ namespace MultiWindowActionGame
             WindowResized?.Invoke(this, new SizeChangedEventArgs(this.Size));
             NotifyObservers(WindowChangeType.Resized);
             strategy.HandleResize(this);
-        }
-        private void GameWindow_Click(object? sender, EventArgs e)
-        {
-            WindowManager.Instance.BringWindowToFront(this);
         }
         private void UpdateBounds()
         {
@@ -372,10 +364,7 @@ namespace MultiWindowActionGame
                 }
             }
         }
-        public new void BringToFront()
-        {
-            WindowManager.Instance.BringWindowToFront(this);
-        }
+
         #endregion
         protected override void Dispose(bool disposing)
         {
