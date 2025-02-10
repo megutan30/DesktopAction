@@ -182,19 +182,21 @@ namespace MultiWindowActionGame
         }
         private void ApplyScaleToHierarchy(GameWindow window, SizeF scale)
         {
-            // 現在のウィンドウの子をすべて処理
+            // 新しく入ってきた子の処理
             foreach (var child in window.Children)
             {
                 if (!originalSizes.ContainsKey(child))
                 {
-                    originalSizes[window] = window.GetOriginalSize();
+                    // リサイズ中の場合は現在のスケールで補正した値を元のサイズとして記録
+                    originalSizes[child] = new Size(
+                        (int)(child.GetOriginalSize().Width / scale.Width),
+                        (int)(child.GetOriginalSize().Height / scale.Height)
+                    );
                 }
 
-                // 子要素にスケールを適用
                 var childOriginalSize = originalSizes[child];
                 resizeEffect.UpdateScale(child, scale, childOriginalSize);
 
-                // 孫以降の処理：子がGameWindowの場合は再帰的に処理
                 if (child is GameWindow childWindow)
                 {
                     ApplyScaleToChildrenRecursive(childWindow, scale);
