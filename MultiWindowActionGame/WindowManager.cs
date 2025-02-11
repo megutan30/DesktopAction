@@ -678,28 +678,44 @@ public class WindowManager : IWindowObserver
             AddWindowAndChildren(child, orderedWindows);
         }
     }
-    public Region CalculateMovableRegion(GameWindow currentWindow)
+    public Region CalculateMovableRegion(GameWindow? currentWindow)
     {
-        Region movableRegion = new Region(currentWindow.AdjustedBounds);
-
-        lock (windowLock)
+        // currentWindowがnullの場合（プレイヤーがウィンドウの外にいる場合）、
+        // メインフォームの領域を返す
+        if (currentWindow == null && Program.mainForm != null)
         {
-            var topLevelWindows = windows.Where(w => w.Parent == null && w != currentWindow);
-            foreach (var window in topLevelWindows)
+            return new Region(new Rectangle(0, 0,
+                Program.mainForm.ClientSize.Width,
+                Program.mainForm.ClientSize.Height));
+        }
+
+        // currentWindowが有効な場合は既存の処理を実行
+        if (currentWindow != null)
+        {
+            Region movableRegion = new Region(currentWindow.AdjustedBounds);
+
+            lock (windowLock)
             {
-                if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
-                    IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
+                var topLevelWindows = windows.Where(w => w.Parent == null && w != currentWindow);
+                foreach (var window in topLevelWindows)
                 {
-                    movableRegion.Union(window.AdjustedBounds);
-                    foreach (var child in window.GetAllDescendants())
+                    if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
+                        IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
                     {
-                        movableRegion.Union(child.AdjustedBounds);
+                        movableRegion.Union(window.AdjustedBounds);
+                        foreach (var child in window.GetAllDescendants())
+                        {
+                            movableRegion.Union(child.AdjustedBounds);
+                        }
                     }
                 }
             }
+
+            return movableRegion;
         }
 
-        return movableRegion;
+        // どちらの条件も満たさない場合は空のリージョンを返す
+        return new Region();
     }
     private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {

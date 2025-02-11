@@ -43,11 +43,11 @@ public class StageManager
             },
             GoalPosition = new Point(1300, 700),
             GoalInFront = true,
-            PlayerStartPosition = new Point(150, 650),
+            PlayerStartPosition = new Point(0, 650),
             NoEntryZones = new List<(Point, Size)>
             {
-                (new Point(860, 0), new Size(100, 400)),
-                (new Point(860, 500), new Size(100, 400)),
+                //(new Point(860, 0), new Size(100, 400)),
+                //(new Point(860, 500), new Size(100, 400)),
             },
             ToTitaleButtonPosition = new Point(85, 90),
             RetryButtonPosition = new Point(295, 90),
@@ -68,7 +68,8 @@ public class StageManager
                 // 必要に応じて他のウィンドウを追加
             },
             PlayerStartPosition = new Point(730, 650),
-            StartButtonPosition = new Point(680, 400),
+            StartButtonPosition = new Point(680, 400),     // 少し左に移動
+            ExitButtonPosition = new Point(680, 500), 
             IsTitleStage = true,
         });
 
@@ -114,6 +115,29 @@ public class StageManager
             RetryButtonPosition = new Point(295, 90),
         });
         //Stage3
+        //ゴール移動
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.NormalBlack, new Point(100, 600), new Size(300, 200),null),
+                (WindowType.Movable, new Point(1200, 100), new Size(200, 200),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 3"),
+            },
+            GoalPosition = new Point(1300, 200),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(150, 650),
+            NoEntryZones = new List<(Point, Size)>
+            {
+                (new Point(660, 300), new Size(100, 600)),
+                (new Point(960, 0), new Size(100, 600)),
+                (new Point(960, 0), new Size(100, 600)),
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
+        //Stage3
         //リサイズウィンドウ
         stages.Add(new StageData
         {
@@ -122,7 +146,7 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(100, 200), new Size(500, 200),null),
                 (WindowType.Resizable, new Point(580, 200), new Size(200, 200),null),
                  (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
-                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 3"),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 4"),
             },
             GoalPosition = new Point(1300, 700),
             GoalInFront = true,
@@ -134,23 +158,20 @@ public class StageManager
             ToTitaleButtonPosition = new Point(85, 90),
             RetryButtonPosition = new Point(295, 90),
         });
-        //Stage4
-        //不可侵領域
+        //リサイズウィンドウ2
         stages.Add(new StageData
         {
             Windows = new List<(WindowType type, Point location, Size size, string? text)>
             {
-                (WindowType.NormalBlack, new Point(100, 600), new Size(300, 200),null),
-                (WindowType.Movable, new Point(380, 580), new Size(200, 200),null),
-                (WindowType.NormalBlack, new Point(1000, 600), new Size(500, 200),null),
+                (WindowType.Resizable, new Point(580, 500), new Size(200, 200),null),
+                (WindowType.NormalBlack, new Point(580, 100), new Size(200, 550),null),
                 (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 4"),
             },
-            GoalPosition = new Point(1300, 700),
+            GoalPosition = new Point(600, 250),
             GoalInFront = true,
-            PlayerStartPosition = new Point(150, 650),
+            PlayerStartPosition = new Point(600, 500),
             NoEntryZones = new List<(Point, Size)>
             {
-                (new Point(660, 500), new Size(100, 400)),
             },
 
             ToTitaleButtonPosition = new Point(85, 90),
@@ -241,6 +262,25 @@ public class StageManager
                 (WindowType.NormalBlack, new Point(800, 300), new Size(500, 200),null),
                 (WindowType.Movable, new Point(150, 310), new Size(500, 500),null),
                 (WindowType.NormalBlack, new Point(300, 400), new Size(200, 200),null),
+                (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 7"),
+            },
+            GoalPosition = new Point(375, 450),
+            GoalInFront = true,
+            PlayerStartPosition = new Point(250, 650),
+            NoEntryZones = new List<(Point, Size)>
+            {
+            },
+
+            ToTitaleButtonPosition = new Point(85, 90),
+            RetryButtonPosition = new Point(295, 90),
+        });
+        //親子関係3
+        //ムーバル
+        stages.Add(new StageData
+        {
+            Windows = new List<(WindowType type, Point location, Size size, string? text)>
+            {
+                (WindowType.Movable, new Point(150, 310), new Size(500, 500),null),
                 (WindowType.TextDisplay, new Point(500, 50), new Size(300, 100), "Stage 7"),
             },
             GoalPosition = new Point(375, 450),
@@ -437,7 +477,16 @@ public class StageManager
             currentToTitaleButton.Show();
             uiInitTasks.Add(titleTcs);
         }
-
+        
+        // 終了ボタンの初期化
+        if (stageData.ExitButtonPosition.HasValue)
+        {
+            var exitTcs = new TaskCompletionSource<bool>();
+            var exitButton = new ExitButton(stageData.ExitButtonPosition.Value);
+            exitButton.Load += (s, e) => exitTcs.SetResult(true);
+            exitButton.Show();
+            uiInitTasks.Add(exitTcs);
+        }
         await Task.WhenAll(uiInitTasks.Select(t => t.Task));
         WindowManager.Instance.UpdateWindowGroupZOrder();
     }
@@ -577,6 +626,7 @@ public class StageData
     public List<(Point location, Size size)> NoEntryZones { get; set; } = new List<(Point, Size)>();
     public Point? RetryButtonPosition { get; set; }
     public Point? StartButtonPosition { get; set; }
+    public Point? ExitButtonPosition { get; set; }
     public Point? ToTitaleButtonPosition { get; set; }
     public bool IsTitleStage { get; set; }
 }
