@@ -529,8 +529,6 @@ namespace MultiWindowActionGame
             WindowEffectManager.Instance.AddEffect(minimizeEffect);
             WindowEffectManager.Instance.ApplyEffects(window);
         }
-
-        // 最小化状態の復元も効果的に処理
         public override void HandleWindowMessage(GameWindow window, Message m)
         {
             switch (m.Msg)
@@ -544,6 +542,14 @@ namespace MultiWindowActionGame
                     else if (command == WindowMessages.SC_RESTORE)
                     {
                         window.OnRestore();
+                        // 復帰後に親子関係をチェック
+                        WindowManager.Instance.CheckPotentialParentWindow(window);
+                        // プレイヤーの場合は移動可能領域も更新
+                        var player = MainGame.GetPlayer();
+                        if (player?.Parent != null)
+                        {
+                            player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
+                        }
                     }
                     break;
                 default:
