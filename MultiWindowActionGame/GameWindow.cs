@@ -81,7 +81,10 @@ namespace MultiWindowActionGame
         {
             return effects.Where(e => e.IsActive).ToList();
         }
-        public override Size GetOriginalSize() => Size;
+        public override Size GetOriginalSize()
+        {
+            return CollisionBounds.Size;
+        }
         public override void SetParent(GameWindow? newParent)
         {
             if (base.Parent != null)
@@ -133,7 +136,18 @@ namespace MultiWindowActionGame
         }
         public override void UpdateTargetSize(Size newSize)
         {
-            this.Size = newSize;
+            // フォームの実際のサイズを、CollisionBoundsのサイズと同じになるように調整
+            Rectangle currentCollision = this.CollisionBounds;
+            Rectangle currentForm = new Rectangle(this.Location, this.Size);
+
+            // フォームの装飾部分のサイズを計算
+            int widthDiff = currentForm.Width - currentCollision.Width;
+            int heightDiff = currentForm.Height - currentCollision.Height;
+
+            this.Size = new Size(
+                newSize.Width + widthDiff,
+                newSize.Height + heightDiff
+            );
         }
         public override void UpdateTargetPosition(Point newPosition)
         {
@@ -207,6 +221,7 @@ namespace MultiWindowActionGame
         }
         public override void Draw(Graphics g)
         {
+
         }
         #endregion
         
