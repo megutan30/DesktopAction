@@ -1,5 +1,7 @@
 ﻿using MultiWindowActionGame;
+using System.Drawing.Drawing2D;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using static MultiWindowActionGame.GameWindow;
 
 public class WindowManager : IWindowObserver
@@ -15,21 +17,40 @@ public class WindowManager : IWindowObserver
 
     private readonly Dictionary<GameWindow, HashSet<IEffectTarget>> containedTargetsCache = new();
     private Dictionary<IEffectTarget, GameWindow> parentChildRelations = new Dictionary<IEffectTarget, GameWindow>();
-    private bool isCheckingParentChild = false;
-    private bool needsUpdateCache = true;
-    private Dictionary<GameWindow, GameWindow> childToParentRelations = new Dictionary<GameWindow, GameWindow>();
-    private bool isCheckingRelations = false;
+
+    private OverlayForm? overlayForm;
+
+    // Z-order の優先順位を定義
+    public enum ZOrderPriority
+    {
+        DebugLayer = 1,
+        Player = 2,
+        Bottom = 3,
+        Goal = 4,
+        Button = 5,
+        WindowMark = 6,
+        Window = 7,
+    }
+    private readonly Dictionary<IntPtr, ZOrderPriority> handlePriorities = new();
+    private readonly SortedDictionary<ZOrderPriority, List<Form>> formsByPriority = new();
 
     private WindowManager() { }
 
     public void Initialize()
     {
         if (isInitialized) return;
+
+        overlayForm = new OverlayForm(this);
+        RegisterFormOrder(overlayForm, ZOrderPriority.DebugLayer);
+        overlayForm.Show();
+
         isInitialized = true;
     }
-    public void InvalidateCache()
+    public async Task InitializeWindowsAsync(IEnumerable<GameWindow> windows)
     {
-        needsUpdateCache = true;
+        var tasks = windows.Select(w => w.InitializationTask);
+        await Task.WhenAll(tasks);
+        UpdateWindowGroupZOrder();
     }
     public void SetPlayer(PlayerForm player)
     {
@@ -38,6 +59,14 @@ public class WindowManager : IWindowObserver
     public GameWindow? GetParentWindow(IEffectTarget child)
     {
         return parentChildRelations.TryGetValue(child, out var parent) ? parent : null;
+    }
+
+    public IReadOnlyList<GameWindow> GetAllWindows()
+    {
+        lock (windowLock)
+        {
+            return windows.ToList();
+        }
     }
     public void CheckPotentialParentWindow(GameWindow operatedWindow)
     {
@@ -142,6 +171,40 @@ public class WindowManager : IWindowObserver
             }
         }
     }
+    public void RegisterFormOrder(Form form, ZOrderPriority priority)
+    {
+        lock (windowLock)
+        {
+            handlePriorities[form.Handle] = priority;
+            if (!formsByPriority.ContainsKey(priority))
+            {
+                formsByPriority[priority] = new List<Form>();
+            }
+            formsByPriority[priority].Add(form);
+            UpdateFormZOrder(form, priority);  // 登録時に即座にZ-orderを設定
+        }
+    }
+    public void UnregisterFormOrder(Form form)
+    {
+        lock (windowLock)
+        {
+            // フォームがまだ破棄されていない場合のみ処理を行う
+            if (!form.IsDisposed && handlePriorities.TryGetValue(form.Handle, out var priority))
+            {
+                handlePriorities.Remove(form.Handle);
+                if (formsByPriority.ContainsKey(priority))
+                {
+                    formsByPriority[priority].Remove(form);
+                }
+            }
+        }
+    }
+
+    private IntPtr GetInsertAfterHandle(ZOrderPriority priority)
+    {
+        return WindowMessages.HWND_TOPMOST;
+    }
+
     public void RegisterWindow(GameWindow window)
     {
         lock (windowLock)
@@ -167,8 +230,6 @@ public class WindowManager : IWindowObserver
             windows.Clear();
         }
     }
-
-
     public HashSet<IEffectTarget> GetContainedTargets(GameWindow window)
     {
         return new HashSet<IEffectTarget>(
@@ -177,17 +238,63 @@ public class WindowManager : IWindowObserver
                 .Select(kv => kv.Key)
         );
     }
-
     public IEnumerable<IEffectTarget> GetAllComponents()
     {
         lock (windowLock)
         {
-            var components = new List<IEffectTarget>(windows);
-            if (player != null)
+            var components = new List<IEffectTarget>();
+
+            // ZOrderPriorityの順序に従ってコンポーネントを追加
+            foreach (var priority in Enum.GetValues<ZOrderPriority>().OrderByDescending(p => (int)p))
             {
-                components.Add(player);
+                switch (priority)
+                {
+                    case ZOrderPriority.Player:
+                        if (player != null)
+                        {
+                            components.Add(player);
+                        }
+                        break;
+
+                    case ZOrderPriority.Window:
+                        components.AddRange(windows);
+                        break;
+
+                    case ZOrderPriority.Button:
+                        components.AddRange(
+                            formsByPriority
+                                .Where(kv => kv.Key == ZOrderPriority.Button)
+                                .SelectMany(kv => kv.Value)
+                                .OfType<IEffectTarget>()
+                        );
+                        break;
+
+                    case ZOrderPriority.Goal:
+                        // ゴールの追加（もし必要な場合）
+                        components.AddRange(
+                            formsByPriority
+                                .Where(kv => kv.Key == ZOrderPriority.Goal)
+                                .SelectMany(kv => kv.Value)
+                                .OfType<IEffectTarget>()
+                        );
+                        break;
+                }
             }
+
             return components;
+        }
+    }
+
+    public IReadOnlyList<GameButton> GetAllButtons()
+    {
+        lock (windowLock)
+        {
+            // formsByPriorityからZOrderPriority.Buttonのものを取得
+            if (formsByPriority.TryGetValue(ZOrderPriority.Button, out var buttonForms))
+            {
+                return buttonForms.OfType<GameButton>().ToList();
+            }
+            return new List<GameButton>();
         }
     }
     public int GetWindowZIndex(GameWindow window)
@@ -221,55 +328,49 @@ public class WindowManager : IWindowObserver
             await window.UpdateAsync(deltaTime);
         }
     }
-
     public void Draw(Graphics g)
+    {
+        lock (windowLock)
+        {
+            var allTargets = GetAllComponents();
+            foreach (var target in allTargets)
+            {
+                if (target.Parent != null && !(target is Goal) && !(target is PlayerForm))
+                {
+                    int currentIndex = allTargets.ToList().IndexOf(target);
+                    var coveringTargets = allTargets
+                        .Skip(currentIndex + 1)
+                        .Where(t => t.Bounds.IntersectsWith(target.Bounds));
+
+                    // GameWindowの場合はCollisionBoundsを使用
+                    if (target is GameWindow window)
+                    {
+                        OutlineRenderer.DrawClippedOutline(g, target, coveringTargets, window.CollisionBounds);
+                    }
+                    else
+                    {
+                        OutlineRenderer.DrawClippedOutline(g, target, coveringTargets, target.Bounds);
+                    }
+                }
+
+                target.Draw(g);
+            }
+        }
+    }
+    public void DrawMarks(Graphics g)
     {
         lock (windowLock)
         {
             foreach (var window in windows)
             {
-                DrawWindowBase(g, window);
-            }
-
-            foreach (var window in windows)
-            {
                 DrawWindowMark(g, window);
+                if (window.Parent != null)
+                {
+                    //DrawParentChildConnection(g, window);
+                }
             }
         }
     }
-    private void DrawWindowBase(Graphics g, GameWindow window)
-    {
-        // 親子関係のアウトラインなど、ウィンドウの基本的な描画
-        if (window.Parent != null)
-        {
-            Color parentColor = window.Parent.BackColor;
-            Color outlineColor = Color.FromArgb(
-                Math.Max(0, parentColor.R - 50),
-                Math.Max(0, parentColor.G - 50),
-                Math.Max(0, parentColor.B - 50)
-            );
-
-            DrawParentChildConnection(g, window);
-            using (Pen outlinePen = new Pen(outlineColor, 3))
-            {
-                g.DrawRectangle(outlinePen, window.CollisionBounds);
-            }
-        }
-
-        // デバッグ情報など他の描画
-        if (MainGame.IsDebugMode)
-        {
-            //window.DrawDebugInfo(g);
-        }
-        else
-        {
-            g.DrawString($"Window ID: {window.Id}", window.Font, Brushes.Black,
-                window.AdjustedBounds.X + 10, window.AdjustedBounds.Y + 10);
-            g.DrawString($"Type: {window.Strategy.GetType().Name}", window.Font, Brushes.Black,
-                window.AdjustedBounds.X + 10, window.AdjustedBounds.Y + 30);
-        }
-    }
-
     private void DrawWindowMark(Graphics g, GameWindow window)
     {
         Rectangle markBounds = window.CollisionBounds;
@@ -278,19 +379,20 @@ public class WindowManager : IWindowObserver
         var coveringWindows = windows
             .Where(w => w != window &&
                        windows.IndexOf(w) > windows.IndexOf(window) &&
-                       w.AdjustedBounds.IntersectsWith(markBounds))
+                       w.CollisionBounds.IntersectsWith(markBounds))
             .ToList();
 
         // マウスの現在位置を取得
         Point mousePos = Cursor.Position;
-        bool isHovered = window.ClientRectangle.Contains(window.PointToClient(mousePos));
+        bool isHovered = window.RectangleToScreen(window.ClientRectangle).Contains(mousePos) ||
+                         new Rectangle(window.Location, new Size(window.Width, window.RectangleToScreen(window.ClientRectangle).Y - window.Location.Y)).Contains(mousePos);
 
         // 前面のウィンドウがマウス位置と重なっているかチェック
         if (isHovered)
         {
             foreach (var coveringWindow in coveringWindows)
             {
-                if (coveringWindow.AdjustedBounds.Contains(mousePos))
+                if (coveringWindow.CollisionBounds.Contains(mousePos))
                 {
                     isHovered = false;
                     break;
@@ -304,44 +406,21 @@ public class WindowManager : IWindowObserver
             {
                 foreach (var coveringWindow in coveringWindows)
                 {
-                    clipRegion.Exclude(coveringWindow.AdjustedBounds);
+                    clipRegion.Exclude(coveringWindow.CollisionBounds);
                 }
 
                 Region originalClip = g.Clip;
                 g.Clip = clipRegion;
 
                 // isHoveredの結果に基づいてマークを描画
-                window.Strategy.DrawStrategyMark(g, window.AdjustedBounds, isHovered);
+                window.Strategy.DrawStrategyMark(g, window.CollisionBounds, isHovered);
 
                 g.Clip = originalClip;
             }
         }
         else
         {
-            window.Strategy.DrawStrategyMark(g, window.AdjustedBounds, isHovered);
-        }
-    }
-    public void DrawDebugInfo(Graphics g, Rectangle playerBounds)
-    {
-        if (!MainGame.IsDebugMode) return;
-
-        lock (windowLock)
-        {
-            foreach (var window in windows)
-            {
-                g.DrawRectangle(new Pen(Color.Blue, 1), window.AdjustedBounds);
-
-                if (window.Parent != null)
-                {
-                    DrawParentChildConnection(g, window);
-                }
-
-                Rectangle intersection = Rectangle.Intersect(window.AdjustedBounds, playerBounds);
-                if (!intersection.IsEmpty)
-                {
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(100, Color.Red)), intersection);
-                }
-            }
+            window.Strategy.DrawStrategyMark(g, window.CollisionBounds, isHovered);
         }
     }
     private void DrawParentChildConnection(Graphics g, GameWindow childWindow)
@@ -358,20 +437,6 @@ public class WindowManager : IWindowObserver
             );
             g.DrawLine(pen, childCenter, parentCenter);
         }
-    }
-    private void DrawWindowDebugInfo(Graphics g, GameWindow window, bool isChild = false)
-    {
-        // デバッグ情報の描画処理
-        Color borderColor = isChild ? Color.Yellow : Color.Blue;
-        g.DrawRectangle(new Pen(borderColor, 1), window.AdjustedBounds);
-
-        string info = $"ID: {window.Id} Z: {windows.IndexOf(window)}";
-        if (isChild)
-        {
-            info += $" Parent: {window.Parent?.Id}";
-        }
-        g.DrawString(info, SystemFonts.DefaultFont, Brushes.Red,
-            window.Location.X + 5, window.Location.Y + 5);
     }
     public GameWindow? GetWindowAt(Rectangle bounds, GameWindow? currentWindow = null)
     {
@@ -505,7 +570,81 @@ public class WindowManager : IWindowObserver
     }
     public void BringWindowToFront(GameWindow window)
     {
+        lock (windowLock)
+        {
+            // 親がある場合は、同じ親を持つウィンドウ間でのみ順序を変更
+            if (window.Parent != null)
+            {
+                // 同じ親を持つウィンドウとその子孫を含むグループを作成
+                var siblings = windows.Where(w => w.Parent == window.Parent).ToList();
+                var nonSiblings = windows.Where(w => w.Parent != window.Parent).ToList();
 
+                // 各兄弟ウィンドウとその子孫を一時的に除外
+                var siblingGroups = new List<List<GameWindow>>();
+                foreach (var sibling in siblings)
+                {
+                    var group = new List<GameWindow> { sibling };
+                    group.AddRange(sibling.GetAllDescendants());
+                    siblingGroups.Add(group);
+
+                    foreach (var groupWindow in group)
+                    {
+                        windows.Remove(groupWindow);
+                    }
+                }
+
+                // クリックされたウィンドウのグループを最後に移動
+                var clickedGroup = siblingGroups.Find(g => g[0] == window);
+                siblingGroups.Remove(clickedGroup);
+                siblingGroups.Add(clickedGroup);
+
+                // 適切な位置に全てのグループを戻す
+                var insertIndex = nonSiblings.FindIndex(w => w == window.Parent) + 1;
+                foreach (var group in siblingGroups)
+                {
+                    windows.InsertRange(insertIndex, group);
+                    insertIndex += group.Count;
+                }
+            }
+            else
+            {
+                // 親がない場合は、ルートレベルのウィンドウ間で順序を変更
+                var windowGroup = new List<GameWindow> { window };
+                windowGroup.AddRange(window.GetAllDescendants());  // 子孫も含める
+
+                // グループ全体を一度削除
+                foreach (var groupWindow in windowGroup)
+                {
+                    windows.Remove(groupWindow);
+                }
+
+                // グループ全体を最前面に移動
+                windows.AddRange(windowGroup);
+            }
+
+            // 同じ優先度内での順序も更新
+            if (handlePriorities.TryGetValue(window.Handle, out var priority))
+            {
+                if (formsByPriority.ContainsKey(priority))
+                {
+                    var forms = formsByPriority[priority];
+                    foreach (var groupWindow in CollectRelatedWindows(window))
+                    {
+                        if (forms.Contains(groupWindow))
+                        {
+                            forms.Remove(groupWindow);
+                            forms.Add(groupWindow);
+                        }
+                    }
+                }
+            }
+
+            UpdateWindowGroupZOrder();
+        }
+    }
+    public void UpdateDisplay()
+    {
+        overlayForm?.UpdateOverlay();
     }
     public void UpdateWindowOrders()
     {
@@ -539,31 +678,45 @@ public class WindowManager : IWindowObserver
             AddWindowAndChildren(child, orderedWindows);
         }
     }
-
-    public Region CalculateMovableRegion(GameWindow currentWindow)
+    public Region CalculateMovableRegion(GameWindow? currentWindow)
     {
-        Region movableRegion = new Region(currentWindow.AdjustedBounds);
-
-        lock (windowLock)
+        // currentWindowがnullの場合（プレイヤーがウィンドウの外にいる場合）、
+        // メインフォームの領域を返す
+        if (currentWindow == null && Program.mainForm != null)
         {
-            var topLevelWindows = windows.Where(w => w.Parent == null && w != currentWindow);
-            foreach (var window in topLevelWindows)
+            return new Region(new Rectangle(0, 0,
+                Program.mainForm.ClientSize.Width,
+                Program.mainForm.ClientSize.Height));
+        }
+
+        // currentWindowが有効な場合は既存の処理を実行
+        if (currentWindow != null)
+        {
+            Region movableRegion = new Region(currentWindow.AdjustedBounds);
+
+            lock (windowLock)
             {
-                if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
-                    IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
+                var topLevelWindows = windows.Where(w => w.Parent == null && w != currentWindow);
+                foreach (var window in topLevelWindows)
                 {
-                    movableRegion.Union(window.AdjustedBounds);
-                    foreach (var child in window.GetAllDescendants())
+                    if (window.AdjustedBounds.IntersectsWith(currentWindow.AdjustedBounds) ||
+                        IsAdjacentTo(window.AdjustedBounds, currentWindow.AdjustedBounds))
                     {
-                        movableRegion.Union(child.AdjustedBounds);
+                        movableRegion.Union(window.AdjustedBounds);
+                        foreach (var child in window.GetAllDescendants())
+                        {
+                            movableRegion.Union(child.AdjustedBounds);
+                        }
                     }
                 }
             }
+
+            return movableRegion;
         }
 
-        return movableRegion;
+        // どちらの条件も満たさない場合は空のリージョンを返す
+        return new Region();
     }
-
     private bool IsAdjacentTo(Rectangle rect1, Rectangle rect2)
     {
         var settings = GameSettings.Instance.Gameplay;
@@ -574,8 +727,6 @@ public class WindowManager : IWindowObserver
                (rect1.Left <= rect2.Right && rect2.Left <= rect1.Right &&
                 rect1.Top <= rect2.Bottom && rect2.Top <= rect1.Bottom);
     }
-
-
     public GameWindow? GetNearestWindow(Rectangle bounds)
     {
         GameWindow? nearestWindow = null;
@@ -596,7 +747,6 @@ public class WindowManager : IWindowObserver
 
         return nearestWindow;
     }
-
     private float DistanceToWindow(Rectangle bounds, Rectangle windowBounds)
     {
         // ウィンドウとの最短距離を計算
@@ -604,97 +754,50 @@ public class WindowManager : IWindowObserver
         float dy = Math.Max(0, Math.Max(windowBounds.Top - bounds.Bottom, bounds.Top - windowBounds.Bottom));
         return (float)Math.Sqrt(dx * dx + dy * dy);
     }
-
-    public async Task BringWindowToFrontAsync(GameWindow window)
+    public void UpdateWindowGroupZOrder()
     {
-        lock (windowLock)
+        // 優先度ごとに処理
+        foreach (var priorityGroup in formsByPriority.Reverse())
         {
-            windows.Remove(window);
-            windows.Add(window);
-        }
-        await Task.Run(() => window.BringToFront());
-    }
-
-    public void HandleWindowActivation(GameWindow window)
-    {
-        lock (windowLock)
-        {
-            // プレイヤーが関連するウィンドウの場合は特別処理
-            if (player != null && (window == player.Parent ||
-                window.GetAllDescendants().Contains(player.Parent)))
+            // 同じ優先度内では、後ろのものから順に配置（新しく追加されたものが前面に来る）
+            for (int i = priorityGroup.Value.Count - 1; i >= 0; i--)
             {
-                player.BringToFront();
-            }
+                var form = priorityGroup.Value[i];
+                if (!form.IsDisposed && form.Handle != IntPtr.Zero)
+                {
+                    IntPtr insertAfter = i == priorityGroup.Value.Count - 1
+                        ? GetInsertAfterHandle(priorityGroup.Key)  // 優先度グループの最前面
+                        : priorityGroup.Value[i + 1].Handle;       // 同じグループの前のウィンドウの後ろ
 
-            if (windows.IndexOf(window) == windows.Count - 1) return;
-
-            if (window.Parent != null)
-            {
-                ReorderSiblingWindows(window);
-                return;
-            }
-
-            var currentOrder = CollectRelatedWindows(window)
-                .OrderBy(w => windows.IndexOf(w))
-                .ToList();
-
-            var orderDiffs = new Dictionary<GameWindow, int>();
-            for (int i = 0; i < currentOrder.Count; i++)
-            {
-                orderDiffs[currentOrder[i]] = i;
-            }
-
-            foreach (var relatedWindow in currentOrder)
-            {
-                windows.Remove(relatedWindow);
-            }
-
-            int baseIndex = windows.Count;
-            foreach (var relatedWindow in currentOrder)
-            {
-                int newIndex = baseIndex + orderDiffs[relatedWindow];
-                windows.Insert(Math.Min(newIndex, windows.Count), relatedWindow);
-                relatedWindow.BringToFront();
+                    WindowMessages.SetWindowPos(
+                        form.Handle,
+                        insertAfter,
+                        0, 0, 0, 0,
+                        WindowMessages.SWP_NOMOVE | WindowMessages.SWP_NOSIZE | WindowMessages.SWP_NOACTIVATE
+                    );
+                }
             }
         }
     }
-    private void ReorderSiblingWindows(GameWindow clickedWindow)
+    public void UpdateFormZOrder(Form form, ZOrderPriority priority)
     {
-        if (clickedWindow.Parent == null) return;
-
-        lock (windowLock)
+        if (!form.IsDisposed && form.Handle != IntPtr.Zero)
         {
-            // クリックされたウィンドウとその子孫をすべて取得
-            var clickedWindowGroup = new List<GameWindow> { clickedWindow };
-            clickedWindowGroup.AddRange(clickedWindow.GetAllDescendants());
-
-            // 現在のウィンドウグループを一時的にリストから削除
-            foreach (var window in clickedWindowGroup)
-            {
-                windows.Remove(window);
-            }
-
-            // 最前面のウィンドウのインデックスを取得
-            int maxZIndex = windows.Count;
-
-            // クリックされたウィンドウグループを最前面に配置
-            foreach (var window in clickedWindowGroup.OrderBy(w => windows.IndexOf(w)))
-            {
-                windows.Insert(maxZIndex, window);
-                window.BringToFront();
-            }
-
-            Console.WriteLine($"Reordered window {clickedWindow.Id} within siblings. New Z-index: {windows.IndexOf(clickedWindow)}");
+            IntPtr insertAfter = GetInsertAfterHandle(priority);
+            WindowMessages.SetWindowPos(
+                form.Handle,
+                insertAfter,
+                0, 0, 0, 0,
+                WindowMessages.SWP_NOMOVE | WindowMessages.SWP_NOSIZE | WindowMessages.SWP_NOACTIVATE
+            );
         }
     }
-
     private List<GameWindow> CollectRelatedWindows(GameWindow root)
     {
         var result = new List<GameWindow>();
         CollectRelatedWindowsRecursive(root, result);
         return result;
     }
-
     private void CollectRelatedWindowsRecursive(GameWindow window, List<GameWindow> collection)
     {
         // 自身を追加

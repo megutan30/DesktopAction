@@ -8,7 +8,7 @@ namespace MultiWindowActionGame
 {
     public class RetryButton : GameButton
     {
-        public RetryButton(Point location) : base(location, new Size(80, 30))
+        public RetryButton(Point location) : base(location, new Size(150, 40))
         {
         }
 

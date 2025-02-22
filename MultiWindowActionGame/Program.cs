@@ -17,14 +17,6 @@ namespace MultiWindowActionGame
         [DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x80000;
-        private const int WS_EX_TRANSPARENT = 0x20;
-        private const int WS_EX_TOPMOST = 0x8;
-        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-        private const uint SWP_NOMOVE = 0x0002;
-        private const uint SWP_NOSIZE = 0x0001;
-
         [STAThread]
         static async Task Main()
         {
@@ -40,10 +32,9 @@ namespace MultiWindowActionGame
                 BackColor = System.Drawing.Color.Black,
                 TransparencyKey = System.Drawing.Color.Black,
                 Text ="Game"
-                
             };
 
-            SetWindowProperties(mainForm);
+            WindowManager.Instance.RegisterFormOrder(mainForm, WindowManager.ZOrderPriority.Bottom);
 
             MainGame game = new MainGame();
             game.Initialize();
@@ -53,35 +44,6 @@ namespace MultiWindowActionGame
             Application.Run(mainForm);
 
             await gameLoopTask; 
-        }
-     
-        private static void SetWindowProperties(Form form)
-        {
-            int exStyle = GetWindowLong(form.Handle, GWL_EXSTYLE);
-            exStyle |= WS_EX_LAYERED;
-            exStyle |= WS_EX_TRANSPARENT;
-            exStyle |= WS_EX_TOPMOST;
-            SetWindowLong(form.Handle, GWL_EXSTYLE, exStyle);
-            SetWindowPos(form.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-
-        public static void EnsureTopMost()
-        {
-            if (mainForm != null && !mainForm.IsDisposed)
-            {
-                if (mainForm.InvokeRequired)
-                {
-                    mainForm.Invoke(new Action(EnsureTopMost));
-                }
-                else
-                {
-                    if (mainForm.Handle != IntPtr.Zero)
-                    {
-                        SetWindowPos(mainForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE);
-                    }
-                }
-            }
         }
     }
 }

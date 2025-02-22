@@ -1,33 +1,16 @@
 ﻿// ボタンの基底クラス
+using MultiWindowActionGame;
 using System.Runtime.InteropServices;
 
-public abstract class GameButton : Form
+public abstract class GameButton : BaseEffectTarget
 {
-    protected Rectangle bounds;
     protected bool isHovered;
-    private const int GWL_EXSTYLE = -20;
-    private const int WS_EX_LAYERED = 0x80000;
-    private const int WS_EX_TRANSPARENT = 0x20;
-    private const int WS_EX_TOPMOST = 0x8;
-    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    private const uint SWP_NOMOVE = 0x0002;
-    private const uint SWP_NOSIZE = 0x0001;
-
-    [DllImport("user32.dll")]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-    public Rectangle Bounds => bounds;
-
+    private GameWindow? lastValidParent;
     protected GameButton(Point location, Size size)
     {
         bounds = new Rectangle(location, size);
         InitializeButton();
-        this.Load += GameButton_Load;
+        WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Button);
     }
     private void GameButton_Load(object? sender, EventArgs e)
     {
@@ -35,18 +18,11 @@ public abstract class GameButton : Form
     }
     private void SetWindowProperties()
     {
-        int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
-        exStyle |= WS_EX_TRANSPARENT;
-        exStyle |= WS_EX_TOPMOST;
-        SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
-        SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    }
-    public void EnsureTopMost()
-    {
-        if (this.Handle != IntPtr.Zero)
-        {
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
+        int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
+        exStyle |= WindowMessages.WS_EX_TRANSPARENT;
+        exStyle |= WindowMessages.WS_EX_TOPMOST;
+        WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
+        WindowMessages.SetWindowPos(this.Handle, WindowMessages.HWND_TOPMOST, 0, 0, 0, 0, WindowMessages.SWP_NOMOVE | WindowMessages.SWP_NOSIZE);
     }
     private void InitializeButton()
     {
@@ -54,7 +30,7 @@ public abstract class GameButton : Form
         this.StartPosition = FormStartPosition.Manual;
         this.Location = bounds.Location;
         this.Size = bounds.Size;
-        this.ShowInTaskbar = false;
+        this.ShowInTaskbar = true;
 
         // マウスイベントの設定
         this.MouseEnter += (s, e) => { isHovered = true; this.Invalidate(); };
@@ -74,7 +50,6 @@ public abstract class GameButton : Form
             OnButtonClick();
         }
     }
-
     private void Button_Paint(object? sender, PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -93,5 +68,126 @@ public abstract class GameButton : Form
         }
 
         DrawButtonContent(e.Graphics);
+    }
+
+    private Rectangle lastCheckedBounds;
+    public override void UpdateTargetPosition(Point newPosition)
+    {
+        this.Location = newPosition;
+        bounds.Location = newPosition;
+        UpdateParentIfNeeded();
+    }
+
+    public override void UpdateTargetSize(Size newSize)
+    {
+        // 最小サイズを設定
+        var validSize = new Size(
+            Math.Max(newSize.Width, 150),  // 最小幅20px
+            Math.Max(newSize.Height, 40)  // 最小高さ20px
+        );
+
+        this.Size = validSize;
+        bounds.Size = validSize;
+        UpdateParentIfNeeded();
+
+        this.Invalidate();
+    }
+    public override bool CanReceiveEffect(IWindowEffect effect)
+    {
+        if (Parent == null) return false;
+        return true;
+    }
+
+    private void UpdateParentIfNeeded()
+    {
+        // 自身の位置とサイズに変更があった場合のみチェック
+        if (lastCheckedBounds != bounds)
+        {
+            var potentialParent = WindowManager.Instance.GetWindowFullyContaining(bounds);
+            if (potentialParent != Parent)
+            {
+                SetParent(potentialParent);
+            }
+            lastCheckedBounds = bounds;
+        }
+    }
+    public override void OnMinimize()
+    {
+        IsMinimized = true;
+        this.WindowState = FormWindowState.Minimized;
+
+        if (Parent != null)
+        {
+            lastValidParent = Parent;
+            Parent.RemoveChild(this);
+            Parent = null;
+        }
+    }
+    public override void OnRestore()
+    {
+        IsMinimized = false;
+        this.WindowState = FormWindowState.Normal;
+        this.BringToFront();
+
+        if (lastValidParent != null &&
+            !lastValidParent.IsMinimized &&
+            lastValidParent.AdjustedBounds.IntersectsWith(bounds))
+        {
+            SetParent(lastValidParent);
+        }
+        else
+        {
+            var newParent = WindowManager.Instance.GetTopWindowAt(bounds, null);
+            SetParent(newParent);
+        }
+    }
+    public override void ApplyEffect(IWindowEffect effect)
+    {
+        if (!CanReceiveEffect(effect)) return;
+
+        if (effect is MovementEffect moveEffect)
+        {
+            var newPos = new Point(
+                bounds.X + (int)moveEffect.CurrentMovement.X,
+                bounds.Y + (int)moveEffect.CurrentMovement.Y
+            );
+            UpdateTargetPosition(newPos);
+        }
+        else if (effect is ResizeEffect resizeEffect)
+        {
+            var scale = resizeEffect.GetCurrentScale(this);
+            var newSize = new Size(
+                (int)(bounds.Width * scale.Width),
+                (int)(bounds.Height * scale.Height)
+            );
+            UpdateTargetSize(newSize);
+        }
+    }
+    public override async Task UpdateAsync(float deltaTime)
+    {
+        CheckParentWindow();
+    }
+    private void CheckParentWindow()
+    {
+        // 自身の領域を完全に含むウィンドウを探す
+        var potentialParent = WindowManager.Instance.GetWindowFullyContaining(bounds);
+        if (potentialParent != Parent)
+        {
+            SetParent(potentialParent);
+        }
+    }
+    public override void Draw(Graphics g) { }
+    public override Size GetOriginalSize() => Bounds.Size;
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // フォームが破棄される前にWindowManagerから登録解除
+            if (!IsDisposed)
+            {
+                WindowManager.Instance.UnregisterFormOrder(this);
+            }
+        }
+        base.Dispose(disposing);
     }
 }

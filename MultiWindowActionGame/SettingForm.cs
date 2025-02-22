@@ -27,6 +27,7 @@ namespace MultiWindowActionGame
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.StartPosition = FormStartPosition.CenterScreen;
+            this.TopMost = true;
 
             tabControl = new TabControl
             {

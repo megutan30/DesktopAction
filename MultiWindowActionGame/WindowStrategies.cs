@@ -16,274 +16,350 @@ namespace MultiWindowActionGame
         void UpdateCursor(GameWindow window, Point clientMousePos);
         void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered);
     }
-
-    public class NormalWindowStrategy : IWindowStrategy
+    public abstract class BaseWindowStrategy : IWindowStrategy
     {
-        public void Update(GameWindow window, float deltaTime) { }
-        public void HandleInput(GameWindow window) { }
-        public void HandleResize(GameWindow window) { }
-        public void HandleWindowMessage(GameWindow window, Message m) { }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
-        public void UpdateCursor(GameWindow window, Point clientMousePos)
-        {
-            window.Cursor = Cursors.Default;
-        }
-    }
-
-    public class ResizableWindowStrategy : IWindowStrategy
-    {
-        private readonly ResizeEffect resizeEffect = new ResizeEffect();
-        private bool isResizing = false;
-        private Point lastMousePos;
-        private Size originalSize;
-        private bool isInitialized = false;
-        private readonly WindowSettings settings;
-        public ResizableWindowStrategy()
+        // 共通のフィールド
+        protected bool isActive = false;
+        protected readonly WindowSettings settings;
+        protected BaseWindowStrategy()
         {
             settings = GameSettings.Instance.Window;
         }
 
-        public void Update(GameWindow window, float deltaTime)
+        // 基本実装を提供するメソッド
+        public virtual void Update(GameWindow window, float deltaTime) { }
+        public virtual void HandleInput(GameWindow window) { }
+        public virtual void HandleResize(GameWindow window)
         {
-            if (isResizing)
-            {
-                ApplyResizeEffect(window);
-            }
+            window.Invalidate();
         }
-        public void HandleInput(GameWindow window) { }
-
-        public void HandleResize(GameWindow window)
-        {
-            // リサイズ後の処理が必要な場合はここに実装します
-            //window.OnWindowResized()
-        }
-
-        public void HandleWindowMessage(GameWindow window, Message m)
+        public virtual void HandleWindowMessage(GameWindow window, Message m)
         {
             switch (m.Msg)
             {
-                case 0x0201: // WM_LBUTTONDOWN
-                    StartResizing(window);
+                case WindowMessages.WM_LBUTTONDOWN:
+                    OnMouseDown(window);
                     break;
-
-                case 0x0202: // WM_LBUTTONUP
-                    StopResizing();
+                case WindowMessages.WM_LBUTTONUP:
+                    OnMouseUp(window);
+                    break;
+                case WindowMessages.WM_MOUSEMOVE:
+                    OnMouseMove(window);
                     break;
             }
         }
-        private void StartResizing(GameWindow window)
+
+        // 新しい共通メソッド
+        protected virtual void OnMouseDown(GameWindow window) { }
+        protected virtual void OnMouseUp(GameWindow window) { }
+        protected virtual void OnMouseMove(GameWindow window) { }
+
+        // カーソル管理の共通実装
+        public virtual void UpdateCursor(GameWindow window, Point clientMousePos)
         {
-            isResizing = true;
-            lastMousePos = window.PointToClient(Cursor.Position);
-            originalSize = window.CollisionBounds.Size;
+            window.Cursor = GetStrategyCursor();
         }
 
-        private void StopResizing()
+        // 各ストラテジーで実装が必要なメソッド
+        public abstract void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered);
+        protected abstract Cursor GetStrategyCursor();
+    }
+    public static class StrategyMarkUtility
+    {
+        public const int DEFAULT_MARK_SIZE = 60;
+
+        public static void DrawMarkBackground(Graphics g, Rectangle bounds, int markSize, Color color)
         {
-            isResizing = false;
-            resizeEffect.ResetAll();
+            int x = bounds.X + (bounds.Width - markSize) / 2;
+            int y = bounds.Y + (bounds.Height - markSize) / 2;
+
+            using (var brush = new SolidBrush(Color.FromArgb(50, color)))
+            {
+                g.FillRectangle(brush, x, y, markSize, markSize);
+            }
         }
-        private void ApplyResizeEffect(GameWindow window)
+
+        public static Point GetMarkCenter(Rectangle bounds, int markSize)
+        {
+            return new Point(
+                bounds.X + (bounds.Width - markSize) / 2,
+                bounds.Y + (bounds.Height - markSize) / 2
+            );
+        }
+
+        public static Color GetMarkColor(bool isHovered)
+        {
+            return isHovered ? Color.White : Color.FromArgb(128, 128, 128);
+        }
+
+        public static void DrawArrowHead(Graphics g, Pen pen, Point start, Point end, int headSize = 10)
+        {
+            float angle = (float)Math.Atan2(end.Y - start.Y, end.X - start.X);
+            float arrowAngle = (float)(Math.PI / 6); // 30度
+
+            PointF p1 = new PointF(
+                end.X - headSize * (float)Math.Cos(angle + arrowAngle),
+                end.Y - headSize * (float)Math.Sin(angle + arrowAngle)
+            );
+
+            PointF p2 = new PointF(
+                end.X - headSize * (float)Math.Cos(angle - arrowAngle),
+                end.Y - headSize * (float)Math.Sin(angle - arrowAngle)
+            );
+
+            g.DrawLine(pen, end, p1);
+            g.DrawLine(pen, end, p2);
+        }
+    }
+    public class NormalWindowStrategy : BaseWindowStrategy
+    {
+        public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
+        protected override Cursor GetStrategyCursor() => Cursors.Default;
+    }
+    public class ResizableWindowStrategy : BaseWindowStrategy
+    {
+        private readonly ResizeEffect resizeEffect;
+        private bool isResizing = false;
+        private Point lastMousePos;
+        private Size originalSize;
+        private readonly Dictionary<IEffectTarget, Size> originalSizes = new();
+        private SizeF currentScale = new(1.0f, 1.0f);  // 現在のスケールを保持
+
+        public ResizableWindowStrategy()
+        {
+            resizeEffect = new ResizeEffect();
+            WindowEffectManager.Instance.AddEffect(resizeEffect);
+        }
+
+        protected override void OnMouseDown(GameWindow window)
+        {
+            StartResizing(window);
+            window.Capture = true;
+        }
+
+        protected override void OnMouseUp(GameWindow window)
+        {
+            window.Capture = false;
+            StopResizing();
+        }
+
+        public override void Update(GameWindow window, float deltaTime)
+        {
+            if (isResizing)
+            {
+                UpdateResize(window);
+            }
+        }
+
+        private void UpdateResize(GameWindow window)
         {
             Point currentMousePos = window.PointToClient(Cursor.Position);
             Size newSize = CalculateNewSize(window, currentMousePos);
 
-            // 現在のサイズと同じ場合は何もしない
-            if (newSize == window.Size)
-            {
-                return;
-            }
-            // このウィンドウのスケールを計算
-            SizeF scale = new SizeF(
+            if (newSize == window.Size) return;
+
+            SizeF scale = new(
                 (float)newSize.Width / originalSize.Width,
                 (float)newSize.Height / originalSize.Height
             );
 
-            // 実際のリサイズ前に境界チェック
-            Rectangle proposedBounds = new Rectangle(
+            Rectangle proposedBounds = new(
                 window.CollisionBounds.Location,
                 newSize
             );
+
             if (!NoEntryZoneManager.Instance.IntersectsWithAnyZone(proposedBounds))
             {
-                ApplyScaleToWindowAndDescendants(window, scale);
-                window.ApplyEffect(resizeEffect);
+                var player = MainGame.GetPlayer();
+                if (player != null)
+                {
+                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
+                }
+
+                ApplyScaleToHierarchy(window, scale);
+                WindowEffectManager.Instance.ApplyEffects(window);
             }
         }
-
-        private void ApplyScaleToWindowAndDescendants(GameWindow window, SizeF scale)
+        private void ApplyScaleToHierarchy(GameWindow window, SizeF scale)
         {
-            // まず現在のウィンドウにスケールを設定
-            resizeEffect.UpdateScale(window, scale);
-
-
-            // 直接の子に対してスケールを設定
+            // 新しく入ってきた子の処理
             foreach (var child in window.Children)
             {
-                resizeEffect.UpdateScale(child, scale);
+                if (!originalSizes.ContainsKey(child))
+                {
+                    // リサイズ中の場合は現在のスケールで補正した値を元のサイズとして記録
+                    originalSizes[child] = new Size(
+                        (int)(child.GetOriginalSize().Width / scale.Width),
+                        (int)(child.GetOriginalSize().Height / scale.Height)
+                    );
+                }
 
-                // 子がウィンドウの場合、その子孫にも再帰的にスケールを設定
+                var childOriginalSize = originalSizes[child];
+                resizeEffect.UpdateScale(child, scale, childOriginalSize);
+
                 if (child is GameWindow childWindow)
                 {
-                    ApplyScaleToWindowAndDescendants(childWindow, scale);
+                    ApplyScaleToChildrenRecursive(childWindow, scale);
+                }
+            }
+
+            // 現在のウィンドウにスケールを適用
+            currentScale = scale;
+            resizeEffect.UpdateScale(window, scale, originalSize);
+        }
+
+        // 再帰的に子孫すべてにスケールを適用する新しいメソッド
+        private void ApplyScaleToChildrenRecursive(GameWindow window, SizeF scale)
+        {
+            foreach (var child in window.Children)
+            {
+                if (!originalSizes.ContainsKey(child))
+                {
+                    originalSizes[child] = child.GetOriginalSize();
+                }
+
+                var childOriginalSize = originalSizes[child];
+                resizeEffect.UpdateScale(child, scale, childOriginalSize);
+
+                // さらに子がある場合は再帰的に処理
+                if (child is GameWindow childWindow)
+                {
+                    ApplyScaleToChildrenRecursive(childWindow, scale);
                 }
             }
         }
-
         private Size CalculateNewSize(GameWindow window, Point currentMousePos)
         {
             int dx = currentMousePos.X - lastMousePos.X;
             int dy = currentMousePos.Y - lastMousePos.Y;
 
-            // originalSizeを基準にした新しいサイズを計算
-            Size proposedSize = new Size(
+            Size proposedSize = new(
                 Math.Max(originalSize.Width + dx, settings.MinimumSize.Width),
                 Math.Max(originalSize.Height + dy, settings.MinimumSize.Height)
             );
 
-            // 不可侵領域との衝突をチェックする前のサイズを保存
-            Size newSize = proposedSize;
-
-            // 不可侵領域を考慮した有効なサイズを取得
-            newSize = NoEntryZoneManager.Instance.GetValidSize(
-                new Rectangle(window.CollisionBounds.Location, originalSize),  // 開始時の大きさを基準に判定
-                newSize
+            return NoEntryZoneManager.Instance.GetValidSize(
+                new Rectangle(window.CollisionBounds.Location, originalSize),
+                proposedSize
             );
-
-            return newSize;
         }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+
+        private void StartResizing(GameWindow window)
         {
-            // マークの大きさと位置を計算
+            if (isResizing) return;
+            isResizing = true;
+            lastMousePos = window.PointToClient(Cursor.Position);
+            originalSize = window.Size;
+            currentScale = new SizeF(1.0f, 1.0f);
+
+            // リサイズ開始時に、すべての子要素の元のサイズを記録
+            foreach (var child in window.Children)
+            {
+                originalSizes[child] = child.GetOriginalSize();
+            }
+        }
+
+        private void StopResizing()
+        {
+            if (!isResizing) return;
+            isResizing = false;
+            originalSizes.Clear();
+            currentScale = new SizeF(1.0f, 1.0f);
+            resizeEffect.ResetAll();
+        }
+
+        public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        {
+            DrawResizeMark(g, bounds, isHovered ? Color.White : Color.FromArgb(128, 128, 128));
+        }
+
+        protected override Cursor GetStrategyCursor() => Cursors.SizeNWSE;
+
+        private void DrawResizeMark(Graphics g, Rectangle bounds, Color color)
+        {
             int markSize = 60;
             int x = bounds.X + (bounds.Width - markSize) / 2;
             int y = bounds.Y + (bounds.Height - markSize) / 2;
 
-            using (var pen = new Pen(isHovered ? Color.White : Color.FromArgb(128, 128, 128), 2))
+            using (var pen = new Pen(color, 2))
             {
-                // 中心から右下への線
                 g.DrawLine(pen, x + markSize / 4, y + markSize / 4, x + markSize * 3 / 4, y + markSize * 3 / 4);
-
-                // 左上矢印
-                g.DrawLine(pen, x + markSize / 4, y + markSize / 4, x + markSize / 2, y + markSize / 4);
-                g.DrawLine(pen, x + markSize / 4, y + markSize / 4, x + markSize / 4, y + markSize / 2);
-
-                // 右下矢印
-                g.DrawLine(pen, x + markSize * 3 / 4, y + markSize * 3 / 4, x + markSize / 2, y + markSize * 3 / 4);
-                g.DrawLine(pen, x + markSize * 3 / 4, y + markSize * 3 / 4, x + markSize * 3 / 4, y + markSize / 2);
+                DrawResizeArrows(g, pen, x, y, markSize);
             }
         }
-        public void UpdateCursor(GameWindow window, Point clientMousePos)
+
+        private void DrawResizeArrows(Graphics g, Pen pen, int x, int y, int size)
         {
-            window.Cursor = Cursors.SizeNWSE;
-        }
-    }
-    public class MovableWindowStrategy : IWindowStrategy
-    {
-        private readonly MovementEffect movementEffect = new MovementEffect();
-        private bool isDragging = false;
-        private Point lastMousePos;
-        private const int WM_NCHITTEST = 0x84;
-        private const int HTCAPTION = 2;
-        private bool isBlockedRight = false;  // 右方向への移動が制限されているか
-        private bool isBlockedLeft = false;   // 左方向への移動が制限されているか
-        private bool isBlockedDown = false;   // 下方向への移動が制限されているか
-        private bool isBlockedUp = false;     // 上方向への移動が制限されているか
-        private Point lastValidPosition;  // 最後の有効な位置
-        public MovementEffect MovementEffect => movementEffect;
-        private readonly WindowSettings settings;
-        public MovableWindowStrategy()
-        {
-            settings = GameSettings.Instance.Window;
+            // 左上矢印
+            DrawArrowHead(g, pen, x + size / 4, y + size / 4, x + size / 2, y + size / 4);
+            DrawArrowHead(g, pen, x + size / 4, y + size / 4, x + size / 4, y + size / 2);
+
+            // 右下矢印
+            DrawArrowHead(g, pen, x + size * 3 / 4, y + size * 3 / 4, x + size / 2, y + size * 3 / 4);
+            DrawArrowHead(g, pen, x + size * 3 / 4, y + size * 3 / 4, x + size * 3 / 4, y + size / 2);
         }
 
-        public void Update(GameWindow window, float deltaTime)
+        private void DrawArrowHead(Graphics g, Pen pen, int x1, int y1, int x2, int y2)
+        {
+            g.DrawLine(pen, x1, y1, x2, y2);
+        }
+    }
+    public class MovableWindowStrategy : BaseWindowStrategy
+    {
+        private readonly MovementEffect movementEffect = new MovementEffect();
+        private Point lastMousePos;
+        private bool isDragging = false;
+        private Point lastValidPosition;
+
+        private bool isBlockedRight = false;
+        private bool isBlockedLeft = false;
+        private bool isBlockedDown = false;
+        private bool isBlockedUp = false;
+
+        public MovableWindowStrategy()
+        {
+            movementEffect = new MovementEffect();
+            WindowEffectManager.Instance.AddEffect(movementEffect);
+        }
+        protected override void OnMouseDown(GameWindow window)
+        {
+            StartDragging(window);
+            window.Capture = true;
+        }
+        protected override void OnMouseUp(GameWindow window)
+        {
+            window.Capture = false;
+            StopDragging();
+        }
+        public override void Update(GameWindow window, float deltaTime)
         {
             if (isDragging)
             {
-                ApplyMovementEffect(window);
+                UpdateMovement(window);
             }
         }
-
-        public void HandleInput(GameWindow window) { }
-        public void HandleResize(GameWindow window) { }
-        public void HandleWindowMessage(GameWindow window, Message m)
-        {
-            switch (m.Msg)
-            {
-                case WM_NCHITTEST:
-                    m.Result = (IntPtr)HTCAPTION;
-                    break;
-
-                case 0x0201: // WM_LBUTTONDOWN
-                    StartDragging(window);
-                    break;
-
-                case 0x0202: // WM_LBUTTONUP
-                    StopDragging();
-                    break;
-            }
-        }
-        private void StartDragging(GameWindow window)
-        {
-            isDragging = true;
-            ResetBlockFlags();
-            lastMousePos = window.PointToClient(Cursor.Position);
-            lastValidPosition = window.Location;
-        }
-        private void ResetBlockFlags()
-        {
-            isBlockedRight = false;
-            isBlockedLeft = false;
-            isBlockedDown = false;
-            isBlockedUp = false;
-        }
-
-        private void StopDragging()
-        {
-            isDragging = false;
-            ResetBlockFlags();
-            movementEffect.UpdateMovement(Vector2.Zero);
-        }
-
-        private void ApplyMovementEffect(GameWindow window)
+        private void UpdateMovement(GameWindow window)
         {
             Point currentMousePos = window.PointToClient(Cursor.Position);
+            var movement = CalculateMovement(window, currentMousePos);
+
+            // 移動の適用
+            movementEffect.UpdateMovement(movement);
+            WindowEffectManager.Instance.ApplyEffects(window);
+        }
+        private Vector2 CalculateMovement(GameWindow window, Point currentMousePos)
+        {
             int deltaX = currentMousePos.X - lastMousePos.X;
             int deltaY = currentMousePos.Y - lastMousePos.Y;
 
-            // 現在の位置で不可侵領域との接触をチェック
-            Rectangle currentBounds = window.CollisionBounds;
-            Rectangle rightCheck = new Rectangle(
-                currentBounds.X + 1, currentBounds.Y,
-                currentBounds.Width, currentBounds.Height
-            );
-            Rectangle leftCheck = new Rectangle(
-                currentBounds.X - 1, currentBounds.Y,
-                currentBounds.Width, currentBounds.Height
-            );
-            Rectangle downCheck = new Rectangle(
-                currentBounds.X, currentBounds.Y + 1,
-                currentBounds.Width, currentBounds.Height
-            );
-            Rectangle upCheck = new Rectangle(
-                currentBounds.X, currentBounds.Y - 1,
-                currentBounds.Width, currentBounds.Height
-            );
+            UpdateBlockFlags(window);
 
-            // 各方向の接触状態を更新
-            isBlockedRight = NoEntryZoneManager.Instance.IntersectsWithAnyZone(rightCheck);
-            isBlockedLeft = NoEntryZoneManager.Instance.IntersectsWithAnyZone(leftCheck);
-            isBlockedDown = NoEntryZoneManager.Instance.IntersectsWithAnyZone(downCheck);
-            isBlockedUp = NoEntryZoneManager.Instance.IntersectsWithAnyZone(upCheck);
-
-            // 移動方向に基づいてブロックをチェック
-            Vector2 movement = new Vector2(
+            Vector2 movement = new(
                 (deltaX > 0 && isBlockedRight) || (deltaX < 0 && isBlockedLeft) ? 0 : deltaX,
                 (deltaY > 0 && isBlockedDown) || (deltaY < 0 && isBlockedUp) ? 0 : deltaY
             );
 
-            Rectangle proposedBounds = new Rectangle(
+            Rectangle proposedBounds = new(
                 window.CollisionBounds.X + (int)movement.X,
                 window.CollisionBounds.Y + (int)movement.Y,
                 window.CollisionBounds.Width,
@@ -295,23 +371,135 @@ namespace MultiWindowActionGame
                 proposedBounds
             );
 
-            movement = new Vector2(
+            return new Vector2(
                 validBounds.X - window.CollisionBounds.X,
                 validBounds.Y - window.CollisionBounds.Y
             );
-
-            if (movement != Vector2.Zero)
+        }
+        private void UpdateBlockFlags(GameWindow window)
+        {
+            var bounds = window.CollisionBounds;
+            isBlockedRight = CheckCollision(bounds, 1, 0);
+            isBlockedLeft = CheckCollision(bounds, -1, 0);
+            isBlockedDown = CheckCollision(bounds, 0, 1);
+            isBlockedUp = CheckCollision(bounds, 0, -1);
+        }
+        private bool CheckCollision(Rectangle bounds, int dx, int dy)
+        {
+            Rectangle checkBounds = new(
+                bounds.X + dx,
+                bounds.Y + dy,
+                bounds.Width,
+                bounds.Height
+            );
+            return NoEntryZoneManager.Instance.IntersectsWithAnyZone(checkBounds);
+        }
+        public override void HandleWindowMessage(GameWindow window, Message m)
+        {
+            switch (m.Msg)
             {
-                lastValidPosition = new Point(
-                    lastValidPosition.X + (int)movement.X,
-                    lastValidPosition.Y + (int)movement.Y
-                );
+                case WindowMessages.WM_LBUTTONDOWN:
+                    OnMouseDown(window);
+                    break;
+                case WindowMessages.WM_LBUTTONUP:
+                    OnMouseUp(window);
+                    break;
+                case WindowMessages.WM_MOUSEMOVE:
+                    OnMouseMove(window);
+                    break;
+            }
+        }
+        private void StartDragging(GameWindow window)
+        {
+            if (isDragging) return;  // 既にドラッグ中なら開始しない
+            isDragging = true;
+            ResetBlockFlags();
+            lastMousePos = window.PointToClient(Cursor.Position);
+            lastValidPosition = window.Location;
+        }
+
+        private void StopDragging()
+        {
+            if (!isDragging) return;  // ドラッグ中でなければ何もしない
+            isDragging = false;
+            ResetBlockFlags();
+            movementEffect.UpdateMovement(Vector2.Zero);
+        }
+        public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        {
+            DrawMovementMark(g, bounds, isHovered ? Color.White : Color.FromArgb(128, 128, 128));
+        }
+        protected override Cursor GetStrategyCursor() => Cursors.SizeAll;
+        private void DrawMovementMark(Graphics g, Rectangle bounds, Color color)
+        {
+            int markSize = 60;
+            int x = bounds.X + (bounds.Width - markSize) / 2;
+            int y = bounds.Y + (bounds.Height - markSize) / 2;
+
+            using (var pen = new Pen(color, 2))
+            {
+                // 移動マークの描画
+                DrawArrows(g, pen, x, y, markSize);
+            }
+        }
+        private void DrawArrows(Graphics g, Pen pen, int x, int y, int size)
+        {
+            // 中心の十字
+            g.DrawLine(pen, x + size / 2, y, x + size / 2, y + size);
+            g.DrawLine(pen, x, y + size / 2, x + size, y + size / 2);
+
+            // 矢印の描画
+            DrawArrowHead(g, pen, x + size / 2, y, false);            // 上
+            DrawArrowHead(g, pen, x + size / 2, y + size, true);      // 下
+            DrawArrowHead(g, pen, x, y + size / 2, false, true);      // 左
+            DrawArrowHead(g, pen, x + size, y + size / 2, true, true); // 右
+        }
+        private void DrawArrowHead(Graphics g, Pen pen, int x, int y, bool isReversed, bool isHorizontal = false)
+        {
+            int size = 10;
+            if (isHorizontal)
+            {
+                g.DrawLine(pen, x, y, x + (isReversed ? -size : size), y - size);
+                g.DrawLine(pen, x, y, x + (isReversed ? -size : size), y + size);
+            }
+            else
+            {
+                g.DrawLine(pen, x, y, x - size, y + (isReversed ? -size : size));
+                g.DrawLine(pen, x, y, x + size, y + (isReversed ? -size : size));
+            }
+        }
+        private void ResetBlockFlags()
+        {
+            isBlockedRight = false;
+            isBlockedLeft = false;
+            isBlockedDown = false;
+            isBlockedUp = false;
+        }
+    }
+    public class DeletableWindowStrategy : BaseWindowStrategy
+    {
+        public override void HandleInput(GameWindow window)
+        {
+            if (Input.IsKeyDown(Keys.Delete))
+            {
+                RemoveAndClose(window);
+            }
+        }
+        private void RemoveAndClose(GameWindow window)
+        {
+            // 子要素の解放
+            foreach (var child in window.Children.ToList())
+            {
+                window.RemoveChild(child);
             }
 
-            movementEffect.UpdateMovement(movement);
-            window.ApplyEffect(movementEffect);
+            // 親からの削除
+            window.Parent?.RemoveChild(window);
+
+            window.Close();
+            window.NotifyObservers(WindowChangeType.Deleted);
         }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+        public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
         {
             int markSize = 60;
             int x = bounds.X + (bounds.Width - markSize) / 2;
@@ -319,147 +507,110 @@ namespace MultiWindowActionGame
 
             using (var pen = new Pen(isHovered ? Color.White : Color.FromArgb(128, 128, 128), 2))
             {
-                // 中心の十字
-                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 2, y + markSize);  // 縦線
-                g.DrawLine(pen, x, y + markSize / 2, x + markSize, y + markSize / 2);  // 横線
-
-                // 上矢印の傘
-                g.DrawLine(pen, x + markSize / 2, y, x + markSize / 3, y + markSize / 5);
-                g.DrawLine(pen, x + markSize / 2, y, x + markSize * 2 / 3, y + markSize / 5);
-
-                // 下矢印の傘
-                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize / 3, y + markSize * 4 / 5);
-                g.DrawLine(pen, x + markSize / 2, y + markSize, x + markSize * 2 / 3, y + markSize * 4 / 5);
-
-                // 左矢印の傘
-                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 5, y + markSize / 3);
-                g.DrawLine(pen, x, y + markSize / 2, x + markSize / 5, y + markSize * 2 / 3);
-
-                // 右矢印の傘
-                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 4 / 5, y + markSize / 3);
-                g.DrawLine(pen, x + markSize, y + markSize / 2, x + markSize * 4 / 5, y + markSize * 2 / 3);
+                // X印を描画
+                g.DrawLine(pen, x, y, x + markSize, y + markSize);
+                g.DrawLine(pen, x + markSize, y, x, y + markSize);
             }
         }
-        public void UpdateCursor(GameWindow window, Point clientMousePos)
-        {
-            window.Cursor = Cursors.SizeAll;
-        }
+        protected override Cursor GetStrategyCursor() => Cursors.Default;
     }
-    public class DeletableWindowStrategy : IWindowStrategy
+    public class MinimizableWindowStrategy : BaseWindowStrategy
     {
-        public bool IsMinimized { get; private set; }
+        private readonly MinimizeEffect minimizeEffect;
 
-        public void Update(GameWindow window, float deltaTime) { }
-
-        public void HandleInput(GameWindow window)
+        public MinimizableWindowStrategy()
         {
-            if (Input.IsKeyDown(Keys.Delete))
-            {
-                // 削除前に子要素をすべて解放
-                foreach (var child in window.Children.ToList())
-                {
-                    window.RemoveChild(child);
-                }
-
-                // 親からも削除
-                window.Parent?.RemoveChild(window);
-
-                window.Close();
-                window.NotifyObservers(WindowChangeType.Deleted);
-            }
+            minimizeEffect = new MinimizeEffect();
         }
 
-        public void HandleResize(GameWindow window) { }
-        public void HandleWindowMessage(GameWindow window, Message m) { }
-
-        public void HandleMinimize(GameWindow window)
+        protected override void OnMouseDown(GameWindow window)
         {
-            IsMinimized = true;
+            minimizeEffect.Activate();
+            WindowEffectManager.Instance.AddEffect(minimizeEffect);
+            WindowEffectManager.Instance.ApplyEffects(window);
         }
-
-        public void HandleRestore(GameWindow window)
-        {
-            IsMinimized = false;
-        }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
-        public void UpdateCursor(GameWindow window, Point clientMousePos)
-        {
-            window.Cursor = Cursors.Default;
-        }
-    }
-    public class MinimizableWindowStrategy : IWindowStrategy
-    {
-        private readonly MinimizeEffect minimizeEffect = new MinimizeEffect();
-        public void HandleMinimize(GameWindow window)
-        {
-            window.OnMinimize();
-        }
-
-        public void HandleRestore(GameWindow window)
-        {
-            window.OnRestore();
-        }
-
-        public void Update(GameWindow window, float deltaTime) { }
-        public void HandleInput(GameWindow window) { }
-        public void HandleResize(GameWindow window) { }
-        public void HandleWindowMessage(GameWindow window, Message m)
+        public override void HandleWindowMessage(GameWindow window, Message m)
         {
             switch (m.Msg)
             {
-                case 0x0201: // WM_LBUTTONDOWN
-                    window.OnMinimize();
+                case WindowMessages.WM_SYSCOMMAND:
+                    int command = m.WParam.ToInt32() & 0xFFF0;
+                    if (command == WindowMessages.SC_MINIMIZE)
+                    {
+                        WindowEffectManager.Instance.ApplyEffects(window);
+                    }
+                    else if (command == WindowMessages.SC_RESTORE)
+                    {
+                        window.OnRestore();
+                        // 復帰後に親子関係をチェック
+                        WindowManager.Instance.CheckPotentialParentWindow(window);
+                        // プレイヤーの場合は移動可能領域も更新
+                        var player = MainGame.GetPlayer();
+                        if (player?.Parent != null)
+                        {
+                            player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
+                        }
+                    }
+                    break;
+                default:
+                    base.HandleWindowMessage(window, m);
                     break;
             }
         }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
+
+        public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
         {
-            // マークの大きさと位置を計算
-            int markSize = 60;
-            int x = bounds.X + (bounds.Width - markSize) / 2;
-            int y = bounds.Y + (bounds.Height - markSize) / 2;
+            var center = StrategyMarkUtility.GetMarkCenter(bounds, StrategyMarkUtility.DEFAULT_MARK_SIZE);
+            var color = StrategyMarkUtility.GetMarkColor(isHovered);
 
-            // マークの色を設定（ホバー時は白、通常時はグレー）
-            Color markColor = isHovered ? Color.White : Color.FromArgb(128, 128, 128);
+            int markSize = StrategyMarkUtility.DEFAULT_MARK_SIZE;
+            int barHeight = markSize / 6;
 
-            // 最小化ボタンを描画
-            using (var brush = new SolidBrush(markColor))
+            using (var brush = new SolidBrush(color))
             {
-                g.FillRectangle(brush, x, y, markSize, markSize / 6);
+                g.FillRectangle(brush,
+                    center.X,
+                    center.Y + (markSize - barHeight) / 2,
+                    markSize,
+                    barHeight);
             }
         }
-        public void UpdateCursor(GameWindow window, Point clientMousePos)
+
+        protected override Cursor GetStrategyCursor() => Cursors.Default;
+
+        public override void Update(GameWindow window, float deltaTime)
         {
-            window.Cursor = Cursors.Default;
+            // ここで必要に応じて最小化アニメーションなどの更新を行う
+            base.Update(window, deltaTime);
+        }
+
+        public override void HandleResize(GameWindow window)
+        {
+            // 最小化/復元時のサイズ変更を適切に処理
+            base.HandleResize(window);
         }
     }
-    public class TextDisplayWindowStrategy : IWindowStrategy
+    public class TextDisplayWindowStrategy : BaseWindowStrategy
     {
-        private string displayText;
-        private float fontSizeRatio = 0.2f;
+        private readonly string displayText;
 
         public TextDisplayWindowStrategy(string text)
         {
             displayText = text;
         }
-
-        public void Update(GameWindow window, float deltaTime) { }
-
-        public void HandleInput(GameWindow window) { }
-
-        public void HandleResize(GameWindow window) { window.Invalidate(); }
-
-        public void HandleWindowMessage(GameWindow window, Message m) { }
-        public void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered) { }
-
-        public void UpdateCursor(GameWindow window, Point clientMousePos)
+        public override void DrawStrategyMark(Graphics g, Rectangle bounds, bool isHovered)
         {
-            window.Cursor = Cursors.Default;
+            // テキスト表示ウィンドウはマークを表示しない
         }
+        protected override Cursor GetStrategyCursor() => Cursors.Default;
 
-        public string GetDisplayText()
+        public string GetDisplayText() => displayText;
+
+        public override void HandleResize(GameWindow window)
         {
-            return displayText;
+            base.HandleResize(window);
+            // リサイズ時のテキスト再描画
+            window.Invalidate();
         }
     }
 }

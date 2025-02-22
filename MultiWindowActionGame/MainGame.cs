@@ -22,7 +22,7 @@ namespace MultiWindowActionGame
         {
             settings = GameSettings.Instance.Gameplay;
         }
-        public void Initialize()
+        public async Task Initialize()
         {
             instance = this;
             WindowManager.Instance.Initialize();
@@ -35,9 +35,8 @@ namespace MultiWindowActionGame
             }
 
             GameTime.Start();
-            StageManager.Instance.StartStage(0);
+            await StageManager.Instance.StartStageAsync(0);
         }
-
         public void InitializePlayer(Point startPosition)
         {
             if (player == null)
@@ -73,7 +72,6 @@ namespace MultiWindowActionGame
             isPaused = true;
             GameTime.SetPaused(true);
         }
-
         public void ResumeGame()
         {
             isPaused = false;
@@ -113,23 +111,38 @@ namespace MultiWindowActionGame
         }
         private async Task UpdateAsync()
         {
-            if (player != null)
+            using (PerformanceMonitor.Instance.BeginScope("Total Update"))
             {
-                await player.UpdateAsync(GameTime.DeltaTime);
+                using (PerformanceMonitor.Instance.BeginScope("Player Update"))
+                {
+                    if (player != null)
+                    {
+                        await player.UpdateAsync(GameTime.DeltaTime);
+                    }
+                }
+                using (PerformanceMonitor.Instance.BeginScope("Window Update"))
+                {
+                    await windowManager.UpdateAsync(GameTime.DeltaTime);
+                }
+                // ゴールの更新を追加
+                if (StageManager.Instance.CurrentGoal != null)
+                {
+                    await StageManager.Instance.CurrentGoal.UpdateAsync(GameTime.DeltaTime);
+                }
+                // ボタンの更新を追加
+                var buttons = windowManager.GetAllButtons();
+                foreach (var button in buttons)
+                {
+                    await button.UpdateAsync(GameTime.DeltaTime);
+                }
+                if (player != null && StageManager.Instance.CheckGoal(player))
+                {
+                    Debug.WriteLine("Goal!");
+                    StageManager.Instance.StartNextStage();
+                }
+                SettingsNotification.Update(GameTime.DeltaTime);
             }
-            await windowManager.UpdateAsync(GameTime.DeltaTime);
-
-            StageManager.Instance.CurrentGoal?.EnsureZOrder();
-            if (Input.IsKeyDown(Keys.F1))
-            {
-                ShowSettingsForm();
-                await Task.Delay(200); // キーの連続入力を防ぐ
-            }
-            if (player != null && StageManager.Instance.CheckGoal(player))
-            {
-                Debug.WriteLine("Goal!");
-                StageManager.Instance.StartNextStage();
-            }
+            PerformanceMonitor.Instance.UpdateFrameTime(GameTime.DeltaTime);
         }
         private void ShowSettingsForm()
         {
@@ -145,41 +158,17 @@ namespace MultiWindowActionGame
         }
         private void Render()
         {
-            if (graphicsBuffer == null) return;
-
-            Graphics g = graphicsBuffer.Graphics;
-            g.Clear(Color.Transparent);
-
-            windowManager.Draw(g);
-            StageManager.Instance.CurrentGoal?.Draw(g);
-            NoEntryZoneManager.Instance.Draw(g);
-
-            if (IsDebugMode)
+            using (PerformanceMonitor.Instance.BeginScope("Total Render"))
             {
-                windowManager.DrawDebugInfo(g, player?.Bounds ?? Rectangle.Empty);
-                DrawDebugInfo(g);
-                DebugDisplay.DrawSettingsInfo(g, new Point(10, 100));
+                if (graphicsBuffer == null) return;
+                Graphics g = graphicsBuffer.Graphics;
+                g.Clear(Color.Transparent);
+                StageManager.Instance.CurrentGoal?.Draw(g);
+                NoEntryZoneManager.Instance.Draw(g);
+                windowManager.Draw(g);  // ウィンドウの基本描画のみ
+                graphicsBuffer.Render();
+                windowManager.UpdateDisplay();  // オーバーレイの更新
             }
-
-            graphicsBuffer.Render();
-            EnsureWindowsTopMost();
-        }
-        private void DrawDebugInfo(Graphics g)
-        {
-            if (player == null) return;
-
-            g.DrawString(
-                $"Player Position: {player.Bounds.Location}",
-                SystemFonts.DefaultFont,
-                Brushes.White,
-                new PointF(10, 10)
-            );
-        }
-
-        private void EnsureWindowsTopMost()
-        {
-            player?.BringToFront();
-            //StageManager.Instance.EnsureButtonsTopMost();
         }
     }
 }

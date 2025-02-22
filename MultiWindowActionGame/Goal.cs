@@ -1,168 +1,224 @@
 ﻿using MultiWindowActionGame;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
-public class Goal : Form, IEffectTarget
+public class Goal : BaseEffectTarget
 {
-    private Rectangle bounds;
-    private bool isInFront;  // 前面表示かどうか
-    public Rectangle Bounds => bounds;
-    public GameWindow? Parent { get; private set; }
-    public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
-    public bool IsMinimized { get; private set; }
-    private const int GWL_EXSTYLE = -20;
-    private const int WS_EX_LAYERED = 0x80000;
-    private const int WS_EX_TRANSPARENT = 0x20;
-    private const int WS_EX_TOPMOST = 0x8;
-    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
-    private const uint SWP_NOMOVE = 0x0002;
-    private const uint SWP_NOSIZE = 0x0001;
-    [DllImport("user32.dll")]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
+    private bool isInFront;
+    private GameWindow? lastValidParent;
     public Goal(Point location, bool isInFront)
     {
         this.isInFront = isInFront;
         InitializeGoal(location);
-        this.Load += Goal_Load;
+        WindowManager.Instance.RegisterFormOrder(this,
+            isInFront ? WindowManager.ZOrderPriority.Goal : WindowManager.ZOrderPriority.Bottom);
     }
     private void Goal_Load(object? sender, EventArgs e)
     {
         SetWindowProperties();
-    }
-    public void EnsureZOrder()
-    {
-        if (isInFront)
-        {
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-        else
-        {
-            SetWindowPos(this.Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
+        WindowManager.Instance.UpdateFormZOrder(this,
+            isInFront ? WindowManager.ZOrderPriority.Goal : WindowManager.ZOrderPriority.Bottom);
     }
     private void SetWindowProperties()
     {
-        if (isInFront)
-        {
-            int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
-            exStyle |= WS_EX_LAYERED;
-            exStyle |= WS_EX_TRANSPARENT;
-            exStyle |= WS_EX_TOPMOST;
-            SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-        else
-        {
-            SetWindowPos(this.Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
+        int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
+        exStyle |= WindowMessages.WS_EX_LAYERED;
+        exStyle |= WindowMessages.WS_EX_TRANSPARENT;
+        WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
     }
     private void InitializeGoal(Point location)
     {
-        // フォームの設定
         this.FormBorderStyle = FormBorderStyle.None;
         this.StartPosition = FormStartPosition.Manual;
         this.Location = location;
-        this.Size = new Size(64, 64);  // ゴールのサイズ
+        this.Size = new Size(64, 64);
         this.TopMost = true;
-
         bounds = new Rectangle(location, this.Size);
-
-        // 背景を透明に
         this.BackColor = Color.Magenta;
         this.TransparencyKey = Color.Magenta;
-
-        // ゴールアイコンの描画
         this.Paint += Goal_Paint;
-    }
+        this.Load += Goal_Load;
 
+        var parentWindow = WindowManager.Instance.GetTopWindowAt(bounds, null);
+        if (parentWindow != null)
+        {
+            SetParent(parentWindow);
+        }
+    }
+    public override void SetParent(GameWindow? newParent)
+    {
+        base.SetParent(newParent);
+
+        // 親が変更されたら再描画を要求
+        this.Invalidate();
+    }
     private void Goal_Paint(object? sender, PaintEventArgs e)
     {
-        // 背景を塗りつぶす
-        using (SolidBrush brush = new SolidBrush(BackColor))
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        // 背景を透明に
+        using (var brush = new SolidBrush(BackColor))
         {
-            e.Graphics.FillRectangle(brush, ClientRectangle);
+            e.Graphics.FillRectangle(brush, Bounds);
         }
 
-        // "G"の描画
-        using (Font font = new Font("Arial", Height * 0.8f, FontStyle.Bold))
+        // フォームの縦横比に基づいてフォントサイズを計算
+        float baseFontSize = Math.Min(Bounds.Width, Bounds.Height) * 1f;
+        using (var font = new Font("Arial", baseFontSize, FontStyle.Bold))
         {
-            string text = "G";
+            var text = "G";
+            var size = e.Graphics.MeasureString(text, font);
 
-            // 文字列のサイズを測定
-            SizeF textSize = e.Graphics.MeasureString(text, font);
+            // フォームの縦横比に合わせてスケーリング
+            float scaleX = Bounds.Width / size.Width;
+            float scaleY = Bounds.Height / size.Height;
 
-            // 中央に配置するための位置を計算
-            float x = (Bounds.Width - textSize.Width) / 2;
-            float y = (Bounds.Height - textSize.Height) / 2;
+            // 変換行列を設定
+            e.Graphics.TranslateTransform(Bounds.Width / 2, Bounds.Height / 2);
+            e.Graphics.ScaleTransform(scaleX, scaleY);
+            e.Graphics.TranslateTransform(-size.Width / 2, -size.Height / 2);
 
-            // 文字を描画
-            e.Graphics.DrawString(text, font, Brushes.Gold, x, y);
+            // 親ウィンドウに基づいてアウトライン色を設定
+            Color outlineColor;
+            if (Parent != null)
+            {
+                // 親の背景色の明るさを計算
+                float brightness = (Parent.BackColor.R * 0.299f +
+                                  Parent.BackColor.G * 0.587f +
+                                  Parent.BackColor.B * 0.114f) / 255f;
+
+                if (brightness < 0.5f)
+                {
+                    // 暗い背景の場合は明るい色のアウトライン
+                    outlineColor = Color.FromArgb(
+                        Math.Min(255, Parent.BackColor.R + 100),
+                        Math.Min(255, Parent.BackColor.G + 100),
+                        Math.Min(255, Parent.BackColor.B + 100)
+                    );
+                }
+                else
+                {
+                    // 明るい背景の場合は暗い色のアウトライン
+                    outlineColor = Color.FromArgb(
+                        Math.Max(0, Parent.BackColor.R - 50),
+                        Math.Max(0, Parent.BackColor.G - 50),
+                        Math.Max(0, Parent.BackColor.B - 50)
+                    );
+                }
+            }
+            else
+            {
+                outlineColor = Color.Black;
+            }
+
+            // アウトラインの太さを調整（スケールを考慮）
+            float offset = baseFontSize * 0.04f / Math.Max(scaleX, scaleY);
+
+            // アウトラインを描画（8方向）
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    if (x != 0 || y != 0)
+                    {
+                        e.Graphics.DrawString(text, font, new SolidBrush(outlineColor),
+                            x * offset,
+                            y * offset);
+                    }
+                }
+            }
+
+            // メインの文字を描画
+            e.Graphics.DrawString(text, font, Brushes.Gold, 0, 0);
+
+            // 変換をリセット
+            e.Graphics.ResetTransform();
         }
     }
-
-    // IEffectTarget実装
-    public void ApplyEffect(IWindowEffect effect)
+    private void UpdateParentIfNeeded()
     {
-        if (!CanReceiveEffect(effect)) return;
-        effect.Apply(this);
+        // 自身の位置とサイズに変更があった場合のみチェック
+        if (lastCheckedBounds != bounds)
+        {
+            var potentialParent = WindowManager.Instance.GetWindowFullyContaining(bounds);
+            if (potentialParent != Parent)
+            {
+                SetParent(potentialParent);
+            }
+            lastCheckedBounds = bounds;
+        }
     }
-
-    public bool CanReceiveEffect(IWindowEffect effect) => true;
-
-    public void AddChild(IEffectTarget child)
-    {
-        Children.Add(child);
-    }
-
-    public void RemoveChild(IEffectTarget child)
-    {
-        Children.Remove(child);
-    }
-
-    public void UpdateTargetSize(Size newSize)
-    {
-        this.Size = newSize;
-        bounds.Size = newSize;
-    }
-
-    public void UpdateTargetPosition(Point newPosition)
+    private Rectangle lastCheckedBounds;
+    public override Size GetOriginalSize() => Bounds.Size;
+    public override void UpdateTargetPosition(Point newPosition)
     {
         this.Location = newPosition;
         bounds.Location = newPosition;
+        UpdateParentIfNeeded();
     }
 
-    public void OnMinimize()
+    public override void UpdateTargetSize(Size newSize)
+    {
+        // 最小サイズを設定
+        var validSize = new Size(
+            Math.Max(newSize.Width, 20),  // 最小幅20px
+            Math.Max(newSize.Height, 20)  // 最小高さ20px
+        );
+
+        this.Size = validSize;
+        bounds.Size = validSize;
+        UpdateParentIfNeeded();
+    }
+
+    public override void OnMinimize()
     {
         IsMinimized = true;
-        Hide();
-    }
+        this.WindowState = FormWindowState.Minimized;
 
-    public void OnRestore()
+        if (Parent != null)
+        {
+            lastValidParent = Parent;
+            Parent.RemoveChild(this);
+            Parent = null;
+        }
+    }
+    public override void OnRestore()
     {
         IsMinimized = false;
-        Show();
-    }
+        this.WindowState = FormWindowState.Normal;
+        this.BringToFront();
 
-    public async Task UpdateAsync(float deltaTime)
+        if (lastValidParent != null &&
+            !lastValidParent.IsMinimized &&
+            lastValidParent.AdjustedBounds.IntersectsWith(bounds))
+        {
+            SetParent(lastValidParent);
+        }
+        else
+        {
+            var newParent = WindowManager.Instance.GetTopWindowAt(bounds, null);
+            SetParent(newParent);
+        }
+    }
+    public override async Task UpdateAsync(float deltaTime)
     {
-        // 必要に応じて更新処理を実装
+        CheckParentWindow();
     }
 
-    public void Draw(Graphics g)
+    private void CheckParentWindow()
+    {
+        // 自身の領域を完全に含むウィンドウを探す
+        var potentialParent = WindowManager.Instance.GetWindowFullyContaining(bounds);
+        if (potentialParent != Parent)
+        {
+            SetParent(potentialParent);
+        }
+    }
+    public override void Draw(Graphics g)
     {
         if (MainGame.IsDebugMode)
         {
-            // 判定領域を表示
             g.DrawRectangle(new Pen(Color.Red, 2), Bounds);
-
-            // 座標情報を表示
             g.DrawString($"Goal Bounds: {Bounds}",
                 SystemFonts.DefaultFont,
                 Brushes.Red,
@@ -170,15 +226,12 @@ public class Goal : Form, IEffectTarget
                 Bounds.Y - 20);
         }
     }
-}
-public static class Win32
-{
-    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
-    public const uint SWP_NOMOVE = 0x0002;
-    public const uint SWP_NOSIZE = 0x0001;
-
-    [DllImport("user32.dll")]
-    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
-        int X, int Y, int cx, int cy, uint uFlags);
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            WindowManager.Instance.UnregisterFormOrder(this);
+        }
+        base.Dispose(disposing);
+    }
 }

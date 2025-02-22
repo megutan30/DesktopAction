@@ -7,15 +7,15 @@ using System.Threading.Tasks;
 namespace MultiWindowActionGame
 {
     // StartButtonの実装
-    public class ToTitaleButton : GameButton
+    public class ToTitleButton : GameButton
     {
-        public ToTitaleButton(Point location) : base(location, new Size(100, 40))  // Retryより少し大きめに
+        public ToTitleButton(Point location) : base(location, new Size(150, 40))
         {
         }
 
         protected override void OnButtonClick()
         {
-            StageManager.Instance.ToTitaleStage();  // タイトル画面へ
+            StageManager.Instance.ToTitleStage();  // タイトル画面へ
 
         }
 

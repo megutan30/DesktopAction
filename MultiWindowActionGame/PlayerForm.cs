@@ -4,61 +4,65 @@ using System.Runtime.InteropServices;
 
 namespace MultiWindowActionGame
 {
-    public class PlayerForm : Form, IEffectTarget, IDrawable
+    public class PlayerForm : BaseEffectTarget
     {
-        private readonly GameSettings.PlayerSettings settings;
-        private const int WM_MOUSEACTIVATE = 0x0021;
-        private const int MA_NOACTIVATE = 3;
-        private const int WM_SYSCOMMAND = 0x0112;
-        private const int SC_MINIMIZE = 0xF020;
-        private const int SC_RESTORE = 0xF120;
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x80000;
-        private const int WS_EX_TRANSPARENT = 0x20;
-        private const int WS_EX_TOPMOST = 0x8;
-        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-        private const uint SWP_NOMOVE = 0x0002;
-        private const uint SWP_NOSIZE = 0x0001;
-
-        [DllImport("user32.dll")]
-        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-        [DllImport("user32.dll")]
-        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
-        private Rectangle bounds;
+        private GameSettings.PlayerSettings settings;
         private IPlayerState currentState;
         private GameWindow? lastValidParent;
         private DateTime? minimizedTime;
         private float verticalVelocity = 0;
         private Region movableRegion;
-        private bool isHovered;
         private Size originalSize;
-
-        public Rectangle Bounds => bounds;
-        public GameWindow? Parent { get; private set; }
         public GameWindow? LastValidParent => lastValidParent;
-        public ICollection<IEffectTarget> Children { get; } = new HashSet<IEffectTarget>();
-        public bool IsMinimized { get; private set; }
         public bool IsGrounded { get; private set; }
         public float VerticalVelocity => verticalVelocity;
         public TimeSpan TimeSinceMinimized =>
             minimizedTime.HasValue ? DateTime.Now - minimizedTime.Value : TimeSpan.MaxValue;
-
         public PlayerForm(Point startPosition)
         {
             settings = GameSettings.Instance.Player;
+            GameSettings.Instance.SettingsChanged += OnSettingsChanged;
             bounds = new Rectangle(startPosition, settings.DefaultSize);
             originalSize = settings.DefaultSize;
             currentState = new NormalState();
             movableRegion = new Region();
             InitializeForm();
             this.Load += PlayerForm_Load;
-        }
 
+            WindowManager.Instance.RegisterFormOrder(this, WindowManager.ZOrderPriority.Player);
+        }
+        public IPlayerState GetCurrentState() => currentState;
+        public Region GetMovableRegion() => movableRegion.Clone();
+        public Rectangle GetGroundCheckArea() => new Rectangle(
+            bounds.X,
+            bounds.Bottom - settings.GroundCheckHeight,
+            bounds.Width,
+            settings.GroundCheckHeight
+        );
+        private void OnSettingsChanged(object? sender, GameSettings.SettingsChangedEventArgs e)
+        {
+            if (e.Type == GameSettings.SettingType.Player || e.Type == GameSettings.SettingType.All)
+            {
+                // 設定を再読み込み
+                settings = GameSettings.Instance.Player;
+
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(UpdatePlayerProperties);
+                }
+                else
+                {
+                    UpdatePlayerProperties();
+                }
+            }
+        }
+        private void UpdatePlayerProperties()
+        {
+            if (bounds.Size != settings.DefaultSize)
+            {
+                ResetSize(settings.DefaultSize);
+            }
+        }
         private void InitializeForm()
         {
             this.FormBorderStyle = FormBorderStyle.None;
@@ -80,23 +84,19 @@ namespace MultiWindowActionGame
 
             this.Paint += OnPaint;
         }
-
         private void PlayerForm_Load(object? sender, EventArgs e)
         {
             SetWindowProperties();
+            WindowManager.Instance.UpdateFormZOrder(this, WindowManager.ZOrderPriority.Player);
         }
-
         private void SetWindowProperties()
         {
-            int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
-            exStyle |= WS_EX_LAYERED;
-            exStyle |= WS_EX_TRANSPARENT;
-            exStyle |= WS_EX_TOPMOST;
-            SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            int exStyle = WindowMessages.GetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE);
+            exStyle |= WindowMessages.WS_EX_LAYERED;
+            exStyle |= WindowMessages.WS_EX_TRANSPARENT;
+            WindowMessages.SetWindowLong(this.Handle, WindowMessages.GWL_EXSTYLE, exStyle);
         }
-
-        public async Task UpdateAsync(float deltaTime)
+        public override async Task UpdateAsync(float deltaTime)
         {
             if (IsMinimized) return;
 
@@ -106,15 +106,13 @@ namespace MultiWindowActionGame
             await HandleMovement(deltaTime);
             CheckGrounded();
         }
-
         private void HandleKeyInput()
         {
-            if ((Input.IsKeyDown(Keys.Space) || Input.IsKeyDown(Keys.Up))|| (Input.IsKeyDown(Keys.W)  && IsGrounded))
+            if (IsGrounded && (Input.IsKeyDown(Keys.Space) || Input.IsKeyDown(Keys.Up) || Input.IsKeyDown(Keys.W)))
             {
                 Jump();
             }
         }
-
         private Vector2 CalculateMovement(float deltaTime)
         {
             Vector2 movement = Vector2.Zero;
@@ -131,14 +129,12 @@ namespace MultiWindowActionGame
             movement.Y += verticalVelocity * deltaTime;
             return movement;
         }
-
         private void Jump()
         {
             verticalVelocity = -settings.JumpForce;
             IsGrounded = false;
             SetState(new JumpingState());
         }
-
         private void ApplyGravity(float deltaTime)
         {
             if (!IsGrounded)
@@ -150,7 +146,6 @@ namespace MultiWindowActionGame
                 verticalVelocity = 0;
             }
         }
-
         private async Task HandleMovement(float deltaTime)
         {
             Vector2 movement = CalculateMovement(deltaTime);
@@ -189,13 +184,11 @@ namespace MultiWindowActionGame
 
             UpdatePosition(proposedBounds.Location);
         }
-
         private void OnEnterWindow(GameWindow window)
         {
             // 新しいウィンドウに入った時のサイズを基準として保存
             originalSize = bounds.Size;
         }
-
         private Rectangle HandleWindowCollisions(Rectangle newBounds)
         {
             var adjustedBounds = newBounds;
@@ -228,7 +221,6 @@ namespace MultiWindowActionGame
 
             return adjustedBounds;
         }
-
         private void CheckGrounded()
         {
             if (currentState is JumpingState) return;
@@ -373,7 +365,6 @@ namespace MultiWindowActionGame
                 HandleGrounding(Program.mainForm.ClientSize.Height, wasGrounded);
             }
         }
-
         private void HandleGrounding(int groundY, bool wasGrounded)
         {
             IsGrounded = true;
@@ -386,49 +377,31 @@ namespace MultiWindowActionGame
                 SetState(new NormalState());
             }
         }
-
         private void OnPaint(object? sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
+            // 本体の描画
+            using (var brush = new SolidBrush(Color.Blue))
+            {
+                e.Graphics.FillRectangle(brush, ClientRectangle);
+            }
+
+            // アウトラインの描画
+            if (Parent != null)
+            {
+                var outlineColor = OutlineRenderer.CalculateOutlineColor(Parent.BackColor);
+                OutlineRenderer.DrawFormOutline(e.Graphics,
+                    new Rectangle(0, 0, Width - 1, Height - 1), outlineColor);
+            }
+
             // 状態に応じた描画
             currentState.Draw(this, e.Graphics);
-
-            if (MainGame.IsDebugMode)
-            {
-                DrawDebugInfo(e.Graphics);
-            }
         }
-
-        // IDrawable実装
-        public void Draw(Graphics g)
+        public override void Draw(Graphics g)
         {
-            if (MainGame.IsDebugMode)
-            {
-                DrawDebugInfo(g);
-            }
         }
-
-        private void DrawDebugInfo(Graphics g)
-        {
-            string stateInfo = $"State: {currentState.GetType().Name}";
-            string groundedInfo = $"Grounded: {IsGrounded}";
-            string velocityInfo = $"Velocity: {verticalVelocity:F2}";
-
-            using (Font debugFont = new Font("Arial", 8))
-            {
-                g.DrawString(stateInfo, debugFont, Brushes.Yellow, new Point(2, 2));
-                g.DrawString(groundedInfo, debugFont, Brushes.Yellow, new Point(2, 14));
-                g.DrawString(velocityInfo, debugFont, Brushes.Yellow, new Point(2, 26));
-            }
-
-            using (Pen debugPen = new Pen(Color.Red, 1))
-            {
-                //g.DrawRectangle(debugPen, new Rectangle(0, 0, Width - 1, Height - 1));
-            }
-        }
-
-        public void SetParent(GameWindow? newParent)
+        public override void SetParent(GameWindow? newParent)
         {
             if (Parent != null)
             {
@@ -450,13 +423,11 @@ namespace MultiWindowActionGame
                 movableRegion = new Region();
             }
         }
-
         public void UpdateMovableRegion(Region newRegion)
         {
             movableRegion.Dispose();
             movableRegion = newRegion;
         }
-
         public void ResetPosition(Point position)
         {
             bounds.Location = position;
@@ -471,31 +442,17 @@ namespace MultiWindowActionGame
             this.Size = size;
             originalSize = size;
         }
-
-        // IEffectTarget実装
-        public void AddChild(IEffectTarget child)
-        {
-            Children.Add(child);
-        }
-
-        public void RemoveChild(IEffectTarget child)
-        {
-            Children.Remove(child);
-        }
-
-        public void UpdateTargetPosition(Point newPosition)
+        public override void UpdateTargetPosition(Point newPosition)
         {
             bounds.Location = newPosition;
             this.Location = newPosition;
         }
-
-        public void UpdateTargetSize(Size newSize)
+        public override void UpdateTargetSize(Size newSize)
         {
             bounds.Size = newSize;
             this.Size = newSize;
             AdjustPositionAfterResize(newSize);
         }
-
         private void AdjustPositionAfterResize(Size newSize)
         {
             using (var validRegion = GetValidRegion())
@@ -526,7 +483,6 @@ namespace MultiWindowActionGame
                 UpdateMovableRegion(validRegion.Clone());
             }
         }
-
         private Region GetValidRegion()
         {
             if (Parent != null)
@@ -541,8 +497,7 @@ namespace MultiWindowActionGame
             }
             return new Region();
         }
-
-        public void OnMinimize()
+        public override void OnMinimize()
         {
             IsMinimized = true;
             minimizedTime = DateTime.Now;
@@ -555,8 +510,7 @@ namespace MultiWindowActionGame
                 Parent = null;
             }
         }
-
-        public void OnRestore()
+        public override void OnRestore()
         {
             IsMinimized = false;
             this.WindowState = FormWindowState.Normal;
@@ -574,13 +528,12 @@ namespace MultiWindowActionGame
                 SetParent(newParent);
             }
         }
-
+        public override Size GetOriginalSize() => Bounds.Size;
         private void UpdatePosition(Point newPosition)
         {
             bounds.Location = newPosition;
             this.Location = newPosition;
         }
-
         public void SetState(IPlayerState newState)
         {
             currentState = newState;
@@ -591,16 +544,16 @@ namespace MultiWindowActionGame
         {
             switch (m.Msg)
             {
-                case WM_MOUSEACTIVATE:
-                    m.Result = (IntPtr)MA_NOACTIVATE;
+                case WindowMessages.WM_MOUSEACTIVATE:
+                    m.Result = (IntPtr)WindowMessages.MA_NOACTIVATE;
                     return;
-                case WM_SYSCOMMAND:
+                case WindowMessages.WM_SYSCOMMAND:
                     int command = m.WParam.ToInt32() & 0xFFF0;
-                    if (command == SC_MINIMIZE)
+                    if (command == WindowMessages.SC_MINIMIZE)
                     {
                         OnMinimize();
                     }
-                    else if (command == SC_RESTORE)
+                    else if (command == WindowMessages.SC_RESTORE)
                     {
                         OnRestore();
                     }
@@ -714,13 +667,7 @@ namespace MultiWindowActionGame
             return adjustedBounds;
         }
 
-        public bool CanReceiveEffect(IWindowEffect effect)
-        {
-            if (Parent == null) return false;
-            return true;
-        }
-
-        public void ApplyEffect(IWindowEffect effect)
+        public override void ApplyEffect(IWindowEffect effect)
         {
             if (!CanReceiveEffect(effect)) return;
 
@@ -745,11 +692,12 @@ namespace MultiWindowActionGame
                     break;
             }
         }
-
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                WindowManager.Instance.UnregisterFormOrder(this);
+                GameSettings.Instance.SettingsChanged -= OnSettingsChanged;
                 movableRegion?.Dispose();
             }
             base.Dispose(disposing);

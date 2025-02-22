@@ -9,7 +9,7 @@ namespace MultiWindowActionGame
     // StartButtonの実装
     public class StartButton : GameButton
     {
-        public StartButton(Point location) : base(location, new Size(100, 40))  // Retryより少し大きめに
+        public StartButton(Point location) : base(location, new Size(150, 40))
         {
         }
 
