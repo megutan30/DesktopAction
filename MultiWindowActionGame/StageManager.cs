@@ -30,28 +30,28 @@ public class StageManager
     }
     private void InitializeStages()
     {
-        //親子関係を利用する
-        stages.Add(new StageData
-        {
-            Windows = new List<(WindowType type, Point location, Size size, string? text)>
-            {
-                (WindowType.Movable, new Point(50, 300), new Size(500, 500),null),
-                (WindowType.Resizable, new Point(1050, 600), new Size(200, 200),null),
-                (WindowType.Minimizable, new Point(600, 400), new Size(400, 400),null),
-                (WindowType.NormalBlack, new Point(1300, 0), new Size(200, 200),null),
-                (WindowType.TextDisplay, new Point(500, 50) , new Size(300, 100), "Stage 8"),
-            },
-            GoalPosition = new Point(1400, 100),
-            GoalInFront = true,
-            PlayerStartPosition = new Point(200, 450),
-            NoEntryZones = new List<(Point, Size)>
-            {
-                (new Point(860, 0), new Size(425, 100)),
-                (new Point(860, 200), new Size(800, 100)),
-            },
-            ToTitaleButtonPosition = new Point(85, 90),
-            RetryButtonPosition = new Point(295, 90),
-        });
+        ////親子関係を利用する
+        //stages.Add(new StageData
+        //{
+        //    Windows = new List<(WindowType type, Point location, Size size, string? text)>
+        //    {
+        //        (WindowType.Movable, new Point(50, 300), new Size(500, 500),null),
+        //        (WindowType.Resizable, new Point(1050, 600), new Size(200, 200),null),
+        //        (WindowType.Minimizable, new Point(600, 400), new Size(400, 400),null),
+        //        (WindowType.NormalBlack, new Point(1300, 0), new Size(200, 200),null),
+        //        (WindowType.TextDisplay, new Point(500, 50) , new Size(300, 100), "Stage 8"),
+        //    },
+        //    GoalPosition = new Point(1400, 100),
+        //    GoalInFront = true,
+        //    PlayerStartPosition = new Point(200, 450),
+        //    NoEntryZones = new List<(Point, Size)>
+        //    {
+        //        (new Point(860, 0), new Size(425, 100)),
+        //        (new Point(860, 200), new Size(800, 100)),
+        //    },
+        //    ToTitaleButtonPosition = new Point(85, 90),
+        //    RetryButtonPosition = new Point(295, 90),
+        //});
         // ステージデータの初期化
         // タイトルステージ（インデックス0）
         stages.Add(new StageData

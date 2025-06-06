@@ -12,6 +12,7 @@ namespace MultiWindowActionGame
         private PlayerDebugInfo? playerDebugInfo;
         private WindowDebugInfo? windowDebugInfo;
         private PerformanceDebugInfo performanceDebugInfo;
+        private DesktopIconDebugInfo desktopIconDebugInfo;
 
         public OverlayForm(WindowManager windowManager)
         {
@@ -39,6 +40,7 @@ namespace MultiWindowActionGame
             // インスタンスを必ず初期化
             this.windowDebugInfo = new WindowDebugInfo(windowManager);
             this.performanceDebugInfo = new PerformanceDebugInfo();
+            this.desktopIconDebugInfo = new DesktopIconDebugInfo();
 
             this.Paint += OverlayForm_Paint;
         }
@@ -59,12 +61,17 @@ namespace MultiWindowActionGame
                 }
                 windowDebugInfo.Draw(e.Graphics);
                 performanceDebugInfo.Draw(e.Graphics);
+
+                // デスクトップアイコン情報を描画 (追加)
+                desktopIconDebugInfo.Draw(e.Graphics);
+                desktopIconDebugInfo.DrawPlayerIconCollisions(e.Graphics);
             }
             finally
             {
                 e.Graphics.TranslateTransform(0, titleBarHeight);
             }
         }
+
 
         public void UpdateOverlay()
         {
