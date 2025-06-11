@@ -30,7 +30,7 @@ public class StageManager
     }
     private void InitializeStages()
     {
-        //親子関係を利用する
+        ////親子関係を利用する
         //stages.Add(new StageData
         //{
         //    Windows = new List<(WindowType type, Point location, Size size, string? text)>

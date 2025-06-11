@@ -48,7 +48,6 @@ namespace MultiWindowActionGame
                     break;
             }
         }
-
         // 新しい共通メソッド
         protected virtual void OnMouseDown(GameWindow window) { }
         protected virtual void OnMouseUp(GameWindow window) { }
@@ -121,9 +120,8 @@ namespace MultiWindowActionGame
         private readonly ResizeEffect resizeEffect;
         private bool isResizing = false;
         private Point lastMousePos;
-        private Size originalSize;
+        private Size originalSize ;
         private readonly Dictionary<IEffectTarget, Size> originalSizes = new();
-        private SizeF currentScale = new(1.0f, 1.0f);  // 現在のスケールを保持
 
         public ResizableWindowStrategy()
         {
@@ -150,19 +148,19 @@ namespace MultiWindowActionGame
                 UpdateResize(window);
             }
         }
-
         private void UpdateResize(GameWindow window)
         {
             Point currentMousePos = window.PointToClient(Cursor.Position);
             Size newSize = CalculateNewSize(window, currentMousePos);
 
-            if (newSize == window.Size) return;
+            if (newSize == window.CollisionBounds.Size) return;
 
             SizeF scale = new(
                 (float)newSize.Width / originalSize.Width,
                 (float)newSize.Height / originalSize.Height
             );
 
+            // CollisionBoundsを一貫して使用
             Rectangle proposedBounds = new(
                 window.CollisionBounds.Location,
                 newSize
@@ -173,9 +171,13 @@ namespace MultiWindowActionGame
                 var player = MainGame.GetPlayer();
                 if (player != null)
                 {
-                    player.UpdateMovableRegion(WindowManager.Instance.CalculateMovableRegion(player.Parent));
+                    // CollisionBoundsに基づいて移動可能領域を計算
+                    var movableRegion = WindowManager.Instance.CalculateMovableRegion(player.Parent);
+                    player.UpdateMovableRegion(movableRegion);
                 }
 
+                // スケールの適用前に新しいサイズと位置を設定
+                window.UpdateTargetSize(newSize);
                 ApplyScaleToHierarchy(window, scale);
                 WindowEffectManager.Instance.ApplyEffects(window);
             }
@@ -204,7 +206,6 @@ namespace MultiWindowActionGame
             }
 
             // 現在のウィンドウにスケールを適用
-            currentScale = scale;
             resizeEffect.UpdateScale(window, scale, originalSize);
         }
 
@@ -239,7 +240,7 @@ namespace MultiWindowActionGame
             );
 
             return NoEntryZoneManager.Instance.GetValidSize(
-                new Rectangle(window.CollisionBounds.Location, originalSize),
+                window.CollisionBounds,
                 proposedSize
             );
         }
@@ -249,8 +250,7 @@ namespace MultiWindowActionGame
             if (isResizing) return;
             isResizing = true;
             lastMousePos = window.PointToClient(Cursor.Position);
-            originalSize = window.Size;
-            currentScale = new SizeF(1.0f, 1.0f);
+            originalSize = window.GetOriginalSize();
 
             // リサイズ開始時に、すべての子要素の元のサイズを記録
             foreach (var child in window.Children)
@@ -264,7 +264,6 @@ namespace MultiWindowActionGame
             if (!isResizing) return;
             isResizing = false;
             originalSizes.Clear();
-            currentScale = new SizeF(1.0f, 1.0f);
             resizeEffect.ResetAll();
         }
 
