@@ -38,4 +38,28 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Appliication\" />
+    <Folder Include="Core\Events\" />
+    <Folder Include="Core\Enums\" />
+    <Folder Include="Core\Entities\" />
+    <Folder Include="Core\Factories\" />
+    <Folder Include="Core\Builders\" />
+    <Folder Include="Core\Strategies\" />
+    <Folder Include="Core\Effects\" />
+    <Folder Include="Core\States\" />
+    <Folder Include="Core\Time\" />
+    <Folder Include="Core\Patterns\" />
+    <Folder Include="Debug\Info\" />
+    <Folder Include="Infrastructure\Input\" />
+    <Folder Include="Rendering\RenderingEngine\" />
+    <Folder Include="Rendering\Renderers\" />
+    <Folder Include="Resources\Settings\" />
+    <Folder Include="Extensions\" />
+    <Folder Include="UI\Forms\" />
+    <Folder Include="UI\Buttons\" />
+    <Folder Include="UI\Overlay\" />
+    <Folder Include="UI\Notifications\" />
+  </ItemGroup>
+
 </Project>
